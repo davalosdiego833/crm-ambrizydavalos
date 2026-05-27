@@ -1,0 +1,14 @@
+{
+  "name": "crm-ambriz-root",
+  "version": "1.0.0",
+  "description": "Root package for Hostinger auto-deployment",
+  "main": "server/index.js",
+  "scripts": {
+    "start": "node server/index.js",
+    "build": "cd client && npm install && npm run build",
+    "postinstall": "cd server && npm install && npm run build"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
