@@ -1,0 +1,35 @@
+◇ injected env (0) from .env // tip: ⌘ custom filepath { path: '/custom/path/.env' }
+🚀 CRM Engine running on port 5001
+🤖 Robot Financiero: Tipos de cambio actualizados {
+  USD: 17.35,
+  UDI: 8.259263119090338,
+  lastUpdated: '2026-05-18T21:16:51.927Z'
+}
+◇ injected env (2) from .env // tip: ⌁ auth for agents [www.vestauth.com]
+🤖 Robot Financiero: Consultando Diario Oficial de la Federación (DOF)...
+(node:68631) Warning: Setting the NODE_TLS_REJECT_UNAUTHORIZED environment variable to '0' makes TLS connections and HTTPS requests insecure by disabling certificate verification.
+(Use `node --trace-warnings ...` to show where the warning was created)
+🚀 CRM Engine running on port 5001
+🤖 Robot Financiero: USD Oficial del DOF obtenido: 17.3477
+🤖 Robot Financiero: UDI Oficial del DOF obtenido: 8.842718
+🤖 Robot Financiero: Tipos de cambio actualizados con éxito: {
+  USD: 17.3477,
+  UDI: 8.842718,
+  lastUpdated: '2026-05-19T01:39:51.417Z'
+}
+🤖 Robot Financiero: Consultando Diario Oficial de la Federación (DOF)...
+🤖 Robot Financiero: USD Oficial del DOF obtenido: 17.3477
+🤖 Robot Financiero: UDI Oficial del DOF obtenido: 8.842718
+🤖 Robot Financiero: Tipos de cambio actualizados con éxito: {
+  USD: 17.3477,
+  UDI: 8.842718,
+  lastUpdated: '2026-05-19T02:39:51.357Z'
+}
+🤖 Robot Financiero: Consultando Diario Oficial de la Federación (DOF)...
+🤖 Robot Financiero: USD Oficial del DOF obtenido: 17.3477
+🤖 Robot Financiero: UDI Oficial del DOF obtenido: 8.842718
+🤖 Robot Financiero: Tipos de cambio actualizados con éxito: {
+  USD: 17.3477,
+  UDI: 8.842718,
+  lastUpdated: '2026-05-19T03:39:51.350Z'
+}
