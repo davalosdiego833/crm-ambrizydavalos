@@ -1573,37 +1573,51 @@ app.post('/api/migrate', authMiddleware, upload.single('file'), (req, res) => {
       // Validar si existe un nombre de cliente
       if (!cleanRow["cliente"] || String(cleanRow["cliente"]).trim().length === 0) return;
 
-      // Sanitizar Moneda (dejar vacío si no existe en el Excel)
-      const rawCur = cleanRow["tipo de moneda"];
+      // Sanitizar Ramo / Producto
+      const rawPlan = cleanRow["tipo de plan"] || cleanRow["plan"] || cleanRow["producto"];
+      let product = "Vida"; // Default a Vida
+      if (rawPlan) {
+        const planTypeStr = String(rawPlan).trim().toLowerCase();
+        if (planTypeStr.includes("gastos") || planTypeStr.includes("gmm") || planTypeStr.includes("médicos")) {
+          product = "GMM";
+        }
+      }
+
+      // Sanitizar Moneda
+      const rawCur = cleanRow["tipo de moneda"] || cleanRow["moneda"];
       let currency = "";
       if (rawCur) {
         const curStr = String(rawCur).trim().toUpperCase();
         if (curStr.includes("UDI")) currency = "UDI";
         else if (curStr.includes("USD") || curStr.includes("DOL")) currency = "USD";
         else if (curStr.includes("MXN") || curStr.includes("PESO")) currency = "MXN";
-        else currency = curStr; // guardar lo que tenga tal cual
+        else currency = curStr;
+      }
+      // Defaults lógicos
+      if (!currency) {
+        currency = product === "GMM" ? "MXN" : "USD";
       }
 
-      // Parsear la fecha de emisión primero para poder usarla en la auto-sanación de primas en UDI/USD
+      // Parsear la fecha de emisión
       const emissionDate = parseDate(cleanRow["emisión"]);
 
-      // Sanitizar Prima Anual (Con soporte inteligente para desglosar fórmulas y auto-sanar montos brutos convertidos en UDI/USD)
-      let annualVal = String(cleanRow["prima anual"] || "0");
-      annualVal = annualVal.replace(/[^0-9.]/g, ''); // Remover $, comas y letras
+      // Sanitizar Prima Anual
+      let annualVal = String(cleanRow["prima anual"] || cleanRow["prima"] || "0");
+      annualVal = annualVal.replace(/[^0-9.]/g, ''); 
       let annualPremium = parseFloat(annualVal) || 0;
 
       annualPremium = parseAnnualPremiumFromFormula(cleanRow["_primaanualformula"], currency, annualPremium, emissionDate);
 
-      // Sanitizar Frecuencia (dejar vacío si no existe en el Excel)
-      const rawFreq = cleanRow["forma de pago"];
-      let paymentFrequency = "";
+      // Sanitizar Frecuencia
+      const rawFreq = cleanRow["forma de pago"] || cleanRow["frecuencia"];
+      let paymentFrequency = "MENSUAL"; // Default
       if (rawFreq) {
         const freqStr = String(rawFreq).trim().toUpperCase();
         if (freqStr.includes("MENS")) paymentFrequency = "MENSUAL";
         else if (freqStr.includes("TRIM")) paymentFrequency = "TRIMESTRAL";
         else if (freqStr.includes("SEME")) paymentFrequency = "SEMESTRAL";
         else if (freqStr.includes("ANUA")) paymentFrequency = "ANUAL";
-        else paymentFrequency = freqStr; // guardar lo que tenga tal cual
+        else paymentFrequency = freqStr;
       }
 
       // Calcular Prima de Cobro
@@ -1612,18 +1626,6 @@ app.post('/api/migrate', authMiddleware, upload.single('file'), (req, res) => {
       else if (paymentFrequency === 'TRIMESTRAL') divisor = 4;
       else if (paymentFrequency === 'SEMESTRAL') divisor = 2;
       const premium = parseFloat((annualPremium / divisor).toFixed(2));
-
-      // Sanitizar Ramo / Producto (dejar vacío si no existe en el Excel)
-      const rawPlan = cleanRow["tipo de plan"];
-      let product = "";
-      if (rawPlan) {
-        const planTypeStr = String(rawPlan).trim().toLowerCase();
-        if (planTypeStr.includes("gastos") || planTypeStr.includes("gmm") || planTypeStr.includes("médicos")) {
-          product = "GMM";
-        } else {
-          product = "Vida";
-        }
-      }
 
       // Sanitizar Modo de Cobro (dejar vacío si no existe en el Excel)
       const rawMethod = cleanRow["modo de cobro"];
