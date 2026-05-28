@@ -3,19 +3,7 @@ import Clients from './views/Clients';
 import Analytics from './views/Analytics';
 import TemplatesPanel from './views/TemplatesPanel';
 
-// Global Fetch Interceptor to handle Node 17+ localhost/127.0.0.1/IP mismatch dynamically
-const originalFetch = window.fetch;
-window.fetch = function (url, options) {
-  const dynamicBase = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
-    ? `http://${window.location.hostname}:5001`
-    : `${window.location.protocol}//${window.location.hostname}:5001`;
-  
-  let finalUrl = url;
-  if (url && typeof url === 'string') {
-    finalUrl = url.replace('http://localhost:5001', dynamicBase);
-  }
-  return originalFetch(finalUrl, options);
-};
+
 
 // ======================================
 // CONTEXTO DE AUTENTICACIÓN
