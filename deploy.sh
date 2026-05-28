@@ -17,6 +17,7 @@ git push -u origin main
 # 3. Conectar a Hostinger vía SSH y descargar código
 echo "🌐 Conectando a Hostinger para actualizar servidor..."
 ssh -i ~/.ssh/id_rsa_panel u211138134@195.35.10.40 -p 65002 << 'ENDSSH'
+  export PATH=/opt/alt/alt-nodejs20/root/usr/bin:$PATH
   cd domains/crm.ambrizydavalos.com/nodejs
   echo "📥 Descargando última versión de GitHub..."
   git fetch --all
@@ -24,10 +25,10 @@ ssh -i ~/.ssh/id_rsa_panel u211138134@195.35.10.40 -p 65002 << 'ENDSSH'
   
   echo "📦 Instalando dependencias del servidor..."
   cd server
-  npm install --production
+  npm install --omit=dev
   
-  echo "🔄 Reiniciando servidor Node.js (via Hostinger panel, el cambio debería aplicar automáticamente)"
-  # En Hostinger, tocar un archivo puede forzar el reinicio si PM2 o el watch mode está activo
+  echo "🔄 Reiniciando servidor Node.js..."
+  mkdir -p tmp 2>/dev/null || true
   touch tmp/restart.txt 2>/dev/null || true
 ENDSSH
 
