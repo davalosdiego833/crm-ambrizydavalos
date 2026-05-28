@@ -1595,7 +1595,7 @@ app.post('/api/migrate', authMiddleware, upload.single('file'), (req, res) => {
       }
       // Defaults lógicos
       if (!currency) {
-        currency = product === "GMM" ? "MXN" : "USD";
+        currency = product === "GMM" ? "MXN" : "UDI";
       }
 
       // Parsear la fecha de emisión
