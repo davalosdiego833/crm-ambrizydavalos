@@ -5,7 +5,7 @@ const Collection = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch('http://localhost:5001/api/alerts')
+    fetch('/api/alerts')
       .then(res => res.json())
       .then(data => {
         setAlerts(data);

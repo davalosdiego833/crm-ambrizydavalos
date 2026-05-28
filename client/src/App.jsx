@@ -31,7 +31,7 @@ const AuthProvider = ({ children }) => {
   useEffect(() => {
     if (token) {
       // Verificar que el token es válido haciendo una petición
-      fetch('http://localhost:5001/api/dashboard', {
+      fetch('/api/dashboard', {
         headers: { Authorization: `Bearer ${token}` }
       })
       .then(res => {
@@ -53,7 +53,7 @@ const AuthProvider = ({ children }) => {
   }, []);
 
   const login = async (email, password) => {
-    const res = await fetch('http://localhost:5001/api/login', {
+    const res = await fetch('/api/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, password })
@@ -306,14 +306,14 @@ const Dashboard = () => {
   const [fullReportModal, setFullReportModal] = useState(null); // 'birthdays', 'anniversaries', or 'collected'
 
   const fetchDashboard = () => {
-    authFetch('http://localhost:5001/api/dashboard')
+    authFetch('/api/dashboard')
       .then(res => res.json())
       .then(d => setData(d))
       .catch(err => console.error(err));
   };
 
   const fetchRates = () => {
-    authFetch('http://localhost:5001/api/rates')
+    authFetch('/api/rates')
       .then(res => res.json())
       .then(r => setRates(r))
       .catch(err => console.error(err));
@@ -328,7 +328,7 @@ const Dashboard = () => {
     e.preventDefault();
     if(!payModalData) return;
     try {
-      const res = await authFetch(`http://localhost:5001/api/clients/${payModalData.id}/pay`, {
+      const res = await authFetch(`/api/clients/${payModalData.id}/pay`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ paymentDate: paymentDateStr })
@@ -1068,14 +1068,14 @@ const AdminPanel = () => {
   useEffect(() => { loadUsers(); }, []);
 
   const loadUsers = () => {
-    authFetch('http://localhost:5001/api/admin/users')
+    authFetch('/api/admin/users')
       .then(res => res.json())
       .then(setUsersList);
   };
 
   const createUser = () => {
     if (!newName || !newEmail || !newPassword) return alert('Llena todos los campos');
-    authFetch('http://localhost:5001/api/admin/users', {
+    authFetch('/api/admin/users', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name: newName, email: newEmail, password: newPassword })
@@ -1103,7 +1103,7 @@ const AdminPanel = () => {
     if (editEmail) body.email = editEmail;
     if (editPassword) body.password = editPassword;
 
-    authFetch(`http://localhost:5001/api/admin/users/${id}`, {
+    authFetch(`/api/admin/users/${id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body)
@@ -1118,14 +1118,14 @@ const AdminPanel = () => {
   };
 
   const toggleBlock = (id) => {
-    authFetch(`http://localhost:5001/api/admin/users/${id}/toggle-block`, { method: 'PUT' })
+    authFetch(`/api/admin/users/${id}/toggle-block`, { method: 'PUT' })
       .then(res => res.json())
       .then(() => loadUsers());
   };
 
   const deleteUser = (id) => {
     if (!confirm('¿Estás seguro de eliminar este usuario y toda su información?')) return;
-    authFetch(`http://localhost:5001/api/admin/users/${id}`, { method: 'DELETE' })
+    authFetch(`/api/admin/users/${id}`, { method: 'DELETE' })
       .then(() => loadUsers());
   };
 
@@ -1499,7 +1499,7 @@ const AppContent = () => {
                     reader.onloadend = async () => {
                       const base64 = reader.result;
                       try {
-                        const res = await authFetch('http://localhost:5001/api/user/profile', {
+                        const res = await authFetch('/api/user/profile', {
                           method: 'PUT',
                           headers: { 'Content-Type': 'application/json' },
                           body: JSON.stringify({ avatarUrl: base64, avatarConfig: null })
@@ -1529,7 +1529,7 @@ const AppContent = () => {
                   onClick={async () => {
                     if (window.confirm('¿Estás seguro de que deseas eliminar tu foto de perfil actual?')) {
                       try {
-                        const res = await authFetch('http://localhost:5001/api/user/profile', {
+                        const res = await authFetch('/api/user/profile', {
                           method: 'PUT',
                           headers: { 'Content-Type': 'application/json' },
                           body: JSON.stringify({ avatarUrl: null, avatarConfig: null })

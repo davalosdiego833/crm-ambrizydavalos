@@ -20,7 +20,7 @@ const Analytics = () => {
 
   const fetchAnalytics = () => {
     setLoading(true);
-    let url = `http://localhost:5001/api/analytics?year=${year}`;
+    let url = `/api/analytics?year=${year}`;
     if (month) url += `&month=${month}`;
 
     authFetch(url)
@@ -49,7 +49,7 @@ const Analytics = () => {
     if (!confirmClose) return;
 
     try {
-      const res = await authFetch('http://localhost:5001/api/analytics/snapshot', {
+      const res = await authFetch('/api/analytics/snapshot', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -734,7 +734,7 @@ const Analytics = () => {
                     const confirmDel = window.confirm(`¿Estás seguro de eliminar el cierre de ${s.month}/${s.year} del historial? Esta acción no se puede deshacer.`);
                     if (!confirmDel) return;
                     try {
-                      const res = await authFetch(`http://localhost:5001/api/analytics/snapshot/${s.id}`, { method: 'DELETE' });
+                      const res = await authFetch(`/api/analytics/snapshot/${s.id}`, { method: 'DELETE' });
                       if (res.ok) {
                         alert('Cierre eliminado correctamente.');
                         fetchAnalytics();

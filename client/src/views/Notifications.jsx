@@ -18,7 +18,7 @@ const Notifications = () => {
   const [tone, setTone] = useState('formal');
 
   useEffect(() => {
-    authFetch('http://localhost:5001/api/dashboard')
+    authFetch('/api/dashboard')
       .then(res => res.json())
       .then(data => { setAlerts(data.alerts); setLoading(false); })
       .catch(err => console.error(err));

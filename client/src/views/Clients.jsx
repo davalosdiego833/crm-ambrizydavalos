@@ -78,7 +78,7 @@ const Clients = () => {
     const formData = new FormData();
     formData.append('policy', file);
 
-    authFetch('http://localhost:5001/api/policies/parse', {
+    authFetch('/api/policies/parse', {
       method: 'POST',
       body: formData
     })
@@ -167,7 +167,7 @@ const Clients = () => {
 
   const fetchClients = () => {
     setLoading(true);
-    authFetch('http://localhost:5001/api/clients')
+    authFetch('/api/clients')
       .then(res => res.json())
       .then(data => {
         setClients(data);
@@ -180,7 +180,7 @@ const Clients = () => {
   const handleMigration = (file) => {
     const formData = new FormData();
     formData.append('file', file);
-    authFetch('http://localhost:5001/api/migrate', {
+    authFetch('/api/migrate', {
       method: 'POST',
       body: formData
     })
@@ -195,7 +195,7 @@ const Clients = () => {
     const formData = new FormData();
     formData.append('document', file);
     formData.append('category', docCategory);
-    authFetch(`http://localhost:5001/api/upload/${clientId}`, {
+    authFetch(`/api/upload/${clientId}`, {
       method: 'POST',
       body: formData
     })
@@ -211,7 +211,7 @@ const Clients = () => {
 
   const handleDeleteDoc = (clientId, docIndex) => {
     if(!confirm('¿Estás seguro de eliminar este documento del expediente?')) return;
-    authFetch(`http://localhost:5001/api/upload/${clientId}/${docIndex}`, {
+    authFetch(`/api/upload/${clientId}/${docIndex}`, {
       method: 'DELETE'
     })
     .then(res => res.json())
@@ -225,7 +225,7 @@ const Clients = () => {
 
   const handleDelete = (clientId) => {
     if(!confirm('¿Estás seguro de eliminar este cliente?')) return;
-    authFetch(`http://localhost:5001/api/clients/${clientId}`, {
+    authFetch(`/api/clients/${clientId}`, {
       method: 'DELETE'
     })
     .then(res => res.json())
@@ -268,7 +268,7 @@ const Clients = () => {
       premium: calculatedPremium // Send calculated installment premium
     };
 
-    const url = editingClientId ? `http://localhost:5001/api/clients/${editingClientId}` : 'http://localhost:5001/api/clients';
+    const url = editingClientId ? `/api/clients/${editingClientId}` : '/api/clients';
     const method = editingClientId ? 'PUT' : 'POST';
 
     authFetch(url, {
