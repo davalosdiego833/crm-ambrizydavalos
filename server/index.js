@@ -1459,7 +1459,9 @@ app.get('/api/analytics', authMiddleware, (req, res) => {
       avatarConfig: req.user.avatarConfig || null
     }
   });
-});\n\n// Guardar instantánea (Snapshot) de un mes
+});
+
+// Guardar instantánea (Snapshot) de un mes
 app.post('/api/analytics/snapshot', authMiddleware, (req, res) => {
   const { year, month, kpis, monthlyFlow, pieProducts, piePlans, exchangeRates, segments, lists } = req.body;
   
