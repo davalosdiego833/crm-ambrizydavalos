@@ -419,30 +419,7 @@ const Dashboard = () => {
       })
       .catch(err => console.error('Error al copiar:', err));
 
-    // Abrir WhatsApp
-    if (c.phone) {
-      const cleanPhone = c.phone.replace(/\D/g, ''); // Limpiar caracteres no numéricos
-      const waUrl = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(template)}`;
-      window.open(waUrl, '_blank');
-    } else {
-      const toast = document.createElement('div');
-      toast.textContent = '⚠️ Sin teléfono registrado. ¡Mensaje copiado para envío manual!';
-      toast.style.position = 'fixed';
-      toast.style.bottom = '80px';
-      toast.style.right = '24px';
-      toast.style.background = '#ffaa00';
-      toast.style.color = '#000';
-      toast.style.padding = '12px 24px';
-      toast.style.borderRadius = '8px';
-      toast.style.fontWeight = 'bold';
-      toast.style.zIndex = '9999';
-      toast.style.transition = 'all 0.3s';
-      document.body.appendChild(toast);
-      setTimeout(() => {
-        toast.style.opacity = '0';
-        setTimeout(() => toast.remove(), 300);
-      }, 3500);
-    }
+
   };
 
   // Filtrado de listas según la pestaña seleccionada
