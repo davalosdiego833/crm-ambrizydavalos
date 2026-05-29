@@ -732,12 +732,93 @@ const Dashboard = () => {
           📊 Ver reporte completo
         </button>
       </div>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '20px', marginBottom: '40px' }}>
-        {renderClientList(currentLists.atrasados, 'Atrasados', 'Sin cobros atrasados.', '#ff4444')}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '20px', marginBottom: '40px' }}>
         {renderClientList(currentLists.hoy, 'Hoy', 'Libre por hoy.', '#ffaa00')}
         {renderClientList(currentLists.en5Dias, 'En 5 días', 'Nada en 5 días.', '#e2b042')}
         {renderClientList(currentLists.en15Dias, 'En 15 días', 'Nada en 15 días.')}
         {renderClientList(currentLists.enMes, 'En 1 mes', 'Nada en el mes.')}
+      </div>
+
+      {/* Sección Pagos Atrasados */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+        <h2 style={{ fontSize: '1.4rem', margin: 0, color: '#ff4444' }}>Pagos Atrasados <span style={{ fontSize: '0.9rem', color: 'var(--text-dim)', fontWeight: 'normal' }}>({dashboardTab})</span></h2>
+      </div>
+      <div className="glass-card" style={{ marginBottom: '40px', padding: '24px', border: '1px solid rgba(255, 68, 68, 0.15)' }}>
+        {currentLists.atrasados.length === 0 ? (
+          <p style={{ color: 'var(--text-dim)', textAlign: 'center', padding: '20px 0' }}>Sin cobros atrasados en este ramo.</p>
+        ) : (
+          <table style={{ width: '100%', textAlign: 'left', borderCollapse: 'collapse' }}>
+            <thead>
+              <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
+                <th style={{ padding: '12px 8px', color: 'var(--text-muted)', fontWeight: 'normal' }}>Contratante</th>
+                <th style={{ padding: '12px 8px', color: 'var(--text-muted)', fontWeight: 'normal' }}>Póliza</th>
+                <th style={{ padding: '12px 8px', color: 'var(--text-muted)', fontWeight: 'normal' }}>Monto Original</th>
+                {dashboardTab === 'Vida' && <th style={{ padding: '12px 8px', color: 'var(--text-muted)', fontWeight: 'normal' }}>Equiv. Pesos</th>}
+                <th style={{ padding: '12px 8px', color: 'var(--text-muted)', fontWeight: 'normal' }}>Días de Atraso / Alerta</th>
+                <th style={{ padding: '12px 8px', color: 'var(--text-muted)', fontWeight: 'normal' }}>Acción</th>
+              </tr>
+            </thead>
+            <tbody>
+              {currentLists.atrasados.map((c, i) => {
+                const diffDays = Math.abs(c.days);
+                const daysLeft = Math.max(0, 30 - diffDays);
+                return (
+                  <tr key={i} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                    <td style={{ padding: '12px 8px', fontWeight: 'bold' }}>{c.name}</td>
+                    <td style={{ padding: '12px 8px', color: 'var(--accent-gold)' }}>{c.policyNumber}</td>
+                    <td style={{ padding: '12px 8px', fontWeight: 'bold' }}>{fmtCurrency(c.amount, c.currency)}</td>
+                    {dashboardTab === 'Vida' && (
+                      <td style={{ padding: '12px 8px', color: 'var(--text-dim)', fontSize: '0.9rem' }}>
+                        {fmt(c.amount * (c.currency === 'USD' ? rates.USD : rates.UDI))}
+                      </td>
+                    )}
+                    <td style={{ padding: '12px 8px' }}>
+                      <span style={{ color: '#ff4444', fontSize: '0.85rem', fontWeight: 'bold' }}>
+                        ⚠️ {diffDays} {diffDays === 1 ? 'día' : 'días'} de atraso. Quedan {daysLeft} {daysLeft === 1 ? 'día' : 'días'} para cancelarse.
+                      </span>
+                    </td>
+                    <td style={{ padding: '12px 8px' }}>
+                      <div style={{ display: 'flex', gap: '8px' }}>
+                        <button 
+                          onClick={() => { setPayModalData(c); setPaymentDateStr(new Date().toISOString().slice(0, 10)); }}
+                          style={{ 
+                            fontSize: '0.7rem', 
+                            color: 'var(--accent-mint)', 
+                            background: 'rgba(0, 200, 83, 0.1)', 
+                            border: '1px solid rgba(0, 200, 83, 0.2)', 
+                            padding: '6px 10px', 
+                            borderRadius: '6px', 
+                            cursor: 'pointer',
+                            fontWeight: 'bold',
+                            transition: 'all 0.2s'
+                          }}
+                        >
+                          Pagado
+                        </button>
+                        <button 
+                          onClick={() => handleWhatsAppReminder(c, 'Atrasados')}
+                          style={{ 
+                            fontSize: '0.7rem', 
+                            color: 'var(--accent-gold)', 
+                            background: 'rgba(226, 176, 66, 0.1)', 
+                            border: '1px solid rgba(226, 176, 66, 0.2)', 
+                            padding: '6px 10px', 
+                            borderRadius: '6px', 
+                            cursor: 'pointer',
+                            fontWeight: 'bold',
+                            transition: 'all 0.2s'
+                          }}
+                        >
+                          Recordar
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        )}
       </div>
 
       {/* Sección Cobranzas Realizadas */}

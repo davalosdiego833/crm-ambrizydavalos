@@ -424,10 +424,10 @@ const Clients = () => {
                
                if (!matchesSearch) return false;
                
-               if (ageFilter === 'all') return c.status !== 'Anulada';
+               if (ageFilter === 'all') return true; // Mostrar todo (incluyendo anuladas) por defecto
                if (ageFilter === 'annulled') return c.status === 'Anulada';
                
-               // For age filters, we only look at non-annulled active policies
+               // Para filtros de antigüedad, solo consideramos pólizas activas (no anuladas)
                if (c.status === 'Anulada') return false;
                
                const age = calculatePolicyAgeInMonths(c.emissionDate);
@@ -532,7 +532,6 @@ const Clients = () => {
                   </td>
                   <td style={{ padding: '12px 16px' }}>
                     <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                      <button onClick={() => setSelectedClient(client)} className="btn-primary" style={{ width: 'auto', padding: '6px 12px', fontSize: '0.75rem' }}>Expediente</button>
                       <button onClick={() => openEditModal(client)} style={{ color: 'var(--accent-gold)', fontSize: '0.75rem', cursor: 'pointer', background: 'none', border: 'none' }}>Editar</button>
                       {isAnnulled ? (
                         <button 
