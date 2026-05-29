@@ -182,6 +182,45 @@ const checkAndUpdateLateAndAnnulledClients = (user) => {
   }
 };
 
+const checkAndRolloverPaidClients = (user) => {
+  if (!user || !user.clients) return;
+  
+  let modified = false;
+  const now = new Date();
+  
+  user.clients.forEach(c => {
+    if (c.status === 'Pagada' && c.collectionDate) {
+      const colDate = new Date(c.collectionDate + 'T23:59:59');
+      if (!isNaN(colDate.getTime()) && colDate < now) {
+        // Calcular el siguiente periodo según frecuencia
+        const freq = (c.paymentFrequency || 'MENSUAL').toUpperCase().trim();
+        let monthsToAdd = 1;
+        if (freq.includes('TRIM')) monthsToAdd = 3;
+        else if (freq.includes('SEME')) monthsToAdd = 6;
+        else if (freq.includes('ANUA')) monthsToAdd = 12;
+
+        const nextDate = new Date(c.collectionDate + 'T00:00:00');
+        nextDate.setMonth(nextDate.getMonth() + monthsToAdd);
+        
+        c.collectionDate = nextDate.toISOString().slice(0, 10);
+        c.status = 'Pendiente';
+        c.paymentDate = null;
+        modified = true;
+      }
+    }
+  });
+  
+  if (modified) {
+    saveDB();
+  }
+};
+
+const runDatabaseMaintenance = (user) => {
+  if (!user) return;
+  checkAndRolloverPaidClients(user);
+  checkAndUpdateLateAndAnnulledClients(user);
+};
+
 let users = loadDB();
 
 // ======================================
@@ -562,7 +601,7 @@ app.put('/api/user/profile', authMiddleware, (req, res) => {
 
 // Clientes del usuario autenticado
 app.get('/api/clients', authMiddleware, (req, res) => {
-  checkAndUpdateLateAndAnnulledClients(req.user);
+  runDatabaseMaintenance(req.user);
   res.json(req.user.clients);
 });
 
@@ -574,9 +613,12 @@ app.post('/api/clients', authMiddleware, (req, res) => {
   const emDate = parseDate(data.emissionDate || '');
   const initialStatus = 'Pagada';
   
-  // Calcular el siguiente vencimiento futuro para que inicie como Pagada y no venza este mes
-  const colDate = getInitialCollectionDate(emDate, data.paymentFrequency || 'MENSUAL', 'Pagada');
+  // Usar la fecha de cobro especificada por el usuario o calcularla de manera automática
+  const colDate = data.collectionDate ? parseDate(data.collectionDate) : getInitialCollectionDate(emDate, data.paymentFrequency || 'MENSUAL', 'Pagada');
   const collectionDay = colDate ? new Date(colDate + 'T00:00:00').getDate() : "";
+
+  // Si la póliza inicia como Pagada, su fecha de pago inicial es la fecha de cobro asignada por el usuario (o la calculada si no se asignó)
+  const payDate = initialStatus === 'Pagada' ? (data.collectionDate ? parseDate(data.collectionDate) : new Date().toISOString().slice(0, 10)) : null;
 
   const newClient = {
     id: maxId + 1,
@@ -597,13 +639,19 @@ app.post('/api/clients', authMiddleware, (req, res) => {
     currency: data.currency || 'UDI',
     phone: data.phone || '',
     status: initialStatus,
-    paymentDate: initialStatus === 'Pagada' ? new Date().toISOString().slice(0, 10) : null,
+    paymentDate: payDate,
     documents: []
   };
 
   req.user.clients.push(newClient);
+  
+  // Correr mantenimiento de forma inmediata para procesar posibles rollover de fechas pasadas
+  runDatabaseMaintenance(req.user);
   saveDB();
-  res.json({ success: true, client: newClient });
+  
+  // Buscar y retornar el cliente modificado o insertado final
+  const savedClient = req.user.clients.find(c => c.policyNumber === newClient.policyNumber) || newClient;
+  res.json({ success: true, client: savedClient });
 });
 
 // Editar cliente
@@ -632,9 +680,11 @@ app.put('/api/clients/:clientId', authMiddleware, (req, res) => {
   };
   
   if (data.collectionDate) {
-    req.user.clients[index].collectionDay = new Date(data.collectionDate).getDate();
+    req.user.clients[index].collectionDay = new Date(data.collectionDate + 'T00:00:00').getDate();
   }
 
+  // Correr mantenimiento tras editar
+  runDatabaseMaintenance(req.user);
   saveDB();
   res.json({ success: true, client: req.user.clients[index] });
 });
@@ -994,38 +1044,10 @@ app.post('/api/policies/parse', authMiddleware, upload.single('policy'), async (
 
 // Dashboard personalizado del usuario
 app.get('/api/dashboard', authMiddleware, (req, res) => {
-  checkAndUpdateLateAndAnnulledClients(req.user);
+  runDatabaseMaintenance(req.user);
   const now = new Date();
   const today = now.getDate();
   const clientsData = req.user.clients;
-
-  // Auto-rollover de pólizas pagadas cuya fecha de cobro ya pasó
-  let dbChanged = false;
-  clientsData.forEach(c => {
-    if (c.status === 'Pagada' && c.collectionDate) {
-      const colDate = new Date(c.collectionDate);
-      colDate.setHours(23, 59, 59, 999);
-      if (colDate < now) {
-        // Calcular el siguiente periodo según frecuencia
-        const freq = (c.paymentFrequency || 'MENSUAL').toUpperCase();
-        let monthsToAdd = 1;
-        if (freq === 'TRIMESTRAL') monthsToAdd = 3;
-        else if (freq === 'SEMESTRAL') monthsToAdd = 6;
-        else if (freq === 'ANUAL') monthsToAdd = 12;
-
-        const nextDate = new Date(c.collectionDate);
-        nextDate.setMonth(nextDate.getMonth() + monthsToAdd);
-        
-        c.collectionDate = nextDate.toISOString().slice(0, 10);
-        c.status = 'Pendiente';
-        c.paymentDate = null;
-        dbChanged = true;
-      }
-    }
-  });
-  if (dbChanged) {
-    saveDB();
-  }
 
   const kpis = { collected: 0, total: 0, pending: 0 };
   const upcomingLists = {
@@ -1164,7 +1186,7 @@ app.get('/api/dashboard', authMiddleware, (req, res) => {
 
 // Analíticas del CRM con Proyección de Cobros
 app.get('/api/analytics', authMiddleware, (req, res) => {
-  checkAndUpdateLateAndAnnulledClients(req.user);
+  runDatabaseMaintenance(req.user);
   const { year, month } = req.query;
   let clientsData = req.user.clients || [];
 
