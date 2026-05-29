@@ -127,6 +127,23 @@ const Analytics = () => {
     return Math.max(0, totalMeses);
   };
 
+  const formatAgeInYearsAndMonths = (totalMonths) => {
+    if (totalMonths === 0) return '0 meses';
+    
+    const years = Math.floor(totalMonths / 12);
+    const months = totalMonths % 12;
+    
+    let parts = [];
+    if (years > 0) {
+      parts.push(`${years} ${years === 1 ? 'año' : 'años'}`);
+    }
+    if (months > 0 || years === 0) {
+      parts.push(`${months} ${months === 1 ? 'mes' : 'meses'}`);
+    }
+    
+    return parts.join(' ');
+  };
+
   // Desgloses por moneda generales
   const calculateCurrencyBreakdown = (list) => {
     const breakObj = { MXN: 0, USD: 0, UDI: 0 };
@@ -216,6 +233,7 @@ const Analytics = () => {
     const activeList = (data.lists.active || []).filter(filterFn);
     const newSalesList = (data.lists.newSales || []).filter(filterFn);
     const renewalsList = (data.lists.renewals || []).filter(filterFn);
+    const lateList = (data.lists.late || []).filter(filterFn);
     
     let collected = 0;
     let pending = 0;
@@ -223,6 +241,7 @@ const Analytics = () => {
     
     let newSalesValue = 0;
     let renewalsValue = 0;
+    let lateValue = 0;
     
     activeList.forEach(c => {
       if (c.status === 'Pagada') {
@@ -235,6 +254,7 @@ const Analytics = () => {
 
     newSalesList.forEach(c => { newSalesValue += c.premium || 0; });
     renewalsList.forEach(c => { renewalsValue += c.premium || 0; });
+    lateList.forEach(c => { lateValue += c.premium || 0; });
 
     return { 
       collected, 
@@ -242,6 +262,8 @@ const Analytics = () => {
       closedSales, 
       newSalesValue, 
       renewalsValue, 
+      lateValue,
+      lateList,
       count: activeList.length,
       newSalesList,
       renewalsList
@@ -618,6 +640,31 @@ const Analytics = () => {
               </div>
             )}
             <p style={{ fontSize: '0.7rem', color: 'var(--text-dim)', marginTop: '8px', margin: '14px 0 0 0', textAlign: 'right' }}>🔎 Ver desglose</p>
+          </div>
+
+          {/* KPI 3: Atrasados */}
+          <div 
+            className="glass-card stat-widget" 
+            onClick={() => setDrillDown({ title: `Pólizas Atrasadas - ${activeSubTab.toUpperCase()}`, list: subTabKPIs.lateList || [] })}
+            style={{ padding: '24px', position: 'relative', cursor: 'pointer', overflow: 'hidden', border: '1px solid rgba(255, 68, 68, 0.2)', background: 'rgba(255, 68, 68, 0.02)' }}
+          >
+            <div style={{ position: 'absolute', top: 0, left: 0, width: '4px', height: '100%', background: '#ff4444' }}></div>
+            <p style={{ color: '#ff4444', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.5px', margin: '0 0 8px 0', fontWeight: '700' }}>
+              🚨 Atrasados ({activeSubTab === 'consolidado' || activeSubTab === 'gmm' ? 'Pesos' : activeSubTab.toUpperCase()})
+            </p>
+            <p style={{ fontSize: '2rem', fontWeight: 'bold', color: '#ff4444', margin: 0 }}>
+              {activeSubTab === 'consolidado' ? fmtPesos(data.kpis.lateMXN || 0) : formatRawValue(subTabKPIs.lateValue, activeSubTab === 'gmm' ? 'MXN' : activeSubTab)}
+            </p>
+            
+            {activeSubTab !== 'consolidado' && activeSubTab !== 'gmm' && (
+              <p style={{ fontSize: '0.85rem', color: 'var(--text-dim)', margin: '4px 0 0 0', fontWeight: '600' }}>
+                ~ {fmtPesos(convertAmount(subTabKPIs.lateValue, activeSubTab))}
+              </p>
+            )}
+            <p style={{ fontSize: '0.75rem', color: 'var(--text-dim)', marginTop: '8px', margin: '8px 0 0 0', lineHeight: '1.4' }}>
+              Pólizas con atraso de pago programado.
+            </p>
+            <p style={{ fontSize: '0.7rem', color: '#ff4444', marginTop: '8px', margin: '14px 0 0 0', textAlign: 'right' }}>🔎 Ver desglose</p>
           </div>
 
           {/* KPI 3: Ventas Nuevas */}
@@ -1004,6 +1051,7 @@ const Analytics = () => {
                     <th style={{ padding: '12px 8px', color: 'var(--text-muted)', fontSize: '0.85rem', textTransform: 'uppercase' }}>Póliza</th>
                     <th style={{ padding: '12px 8px', color: 'var(--text-muted)', fontSize: '0.85rem', textTransform: 'uppercase' }}>Ramo / Plan</th>
                     <th style={{ padding: '12px 8px', color: 'var(--text-muted)', fontSize: '0.85rem', textTransform: 'uppercase' }}>Emisión</th>
+                    <th style={{ padding: '12px 8px', color: 'var(--text-muted)', fontSize: '0.85rem', textTransform: 'uppercase' }}>Antigüedad</th>
                     <th style={{ padding: '12px 8px', color: 'var(--text-muted)', fontSize: '0.85rem', textTransform: 'uppercase' }}>Pago / Frecuencia</th>
                     <th style={{ padding: '12px 8px', color: 'var(--text-muted)', fontSize: '0.85rem', textTransform: 'uppercase' }}>Monto Original</th>
                     <th style={{ padding: '12px 8px', color: 'var(--text-muted)', fontSize: '0.85rem', textTransform: 'uppercase', textAlign: 'right' }}>Equiv. Pesos MXN</th>
@@ -1012,44 +1060,85 @@ const Analytics = () => {
                 <tbody>
                   {drillDown.list.length === 0 ? (
                     <tr>
-                      <td colSpan="7" style={{ textAlign: 'center', padding: '40px', color: 'var(--text-dim)' }}>No hay datos para mostrar en este periodo o segmento.</td>
+                      <td colSpan="8" style={{ textAlign: 'center', padding: '40px', color: 'var(--text-dim)' }}>No hay datos para mostrar en este periodo o segmento.</td>
                     </tr>
-                  ) : drillDown.list.map((c, i) => (
-                    <tr key={i} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', transition: 'background 0.2s' }}>
-                      <td style={{ padding: '14px 8px', fontWeight: '600' }}>{c.contractor}</td>
-                      <td style={{ padding: '14px 8px', color: 'var(--accent-gold)', fontWeight: 'bold' }}>{c.policyNumber}</td>
-                      <td style={{ padding: '14px 8px', fontSize: '0.85rem' }}>
-                        <span style={{ 
-                          fontSize: '0.75rem', 
-                          background: String(c.product || 'Vida').trim().toLowerCase().includes('gastos') || String(c.product || 'Vida').trim().toLowerCase().includes('gmm') ? 'rgba(255,170,0,0.1)' : 'rgba(226,176,66,0.1)', 
-                          color: String(c.product || 'Vida').trim().toLowerCase().includes('gastos') || String(c.product || 'Vida').trim().toLowerCase().includes('gmm') ? '#ffaa00' : 'var(--accent-gold)', 
-                          padding: '2px 8px', 
-                          borderRadius: '10px', 
-                          fontWeight: 'bold',
-                          marginRight: '6px'
-                        }}>
-                          {c.product}
-                        </span>
-                        <span style={{ color: 'var(--text-dim)', fontSize: '0.8rem' }}>{c.planType || 'N/A'}</span>
-                      </td>
-                      <td style={{ padding: '14px 8px', fontSize: '0.85rem', color: 'var(--text-dim)' }}>{c.emissionDate || 'N/A'}</td>
-                      <td style={{ padding: '14px 8px', fontSize: '0.85rem' }}>
-                        {c.status === 'Pagada' ? (
-                          <span style={{ color: 'var(--accent-mint)', fontWeight: '600' }}>Pagado el {c.paymentDate}</span>
-                        ) : (
-                          <span style={{ color: '#ff4444' }}>Pendiente</span>
-                        )}
-                        <br />
-                        <span style={{ color: 'var(--text-dim)', fontSize: '0.75rem' }}>Frecuencia: {c.paymentFrequency || 'MENSUAL'}</span>
-                      </td>
-                      <td style={{ padding: '14px 8px', fontWeight: '600', color: 'var(--text-main)' }}>
-                        {formatRawValue(c.premium || 0, c.currency)}
-                      </td>
-                      <td style={{ padding: '14px 8px', fontWeight: 'bold', color: 'var(--accent-gold)', textAlign: 'right' }}>
-                        {fmtPesos(convertAmount(c.premium || 0, c.currency))}
-                      </td>
-                    </tr>
-                  ))}
+                  ) : drillDown.list.map((c, i) => {
+                    const isAnnulled = c.status === 'Anulada';
+                    return (
+                      <tr key={i} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', transition: 'background 0.2s', opacity: isAnnulled ? 0.4 : 1 }}>
+                        <td style={{ padding: '14px 8px', fontWeight: '600', textDecoration: isAnnulled ? 'line-through' : 'none' }}>{c.contractor}</td>
+                        <td style={{ padding: '14px 8px', color: 'var(--accent-gold)', fontWeight: 'bold', textDecoration: isAnnulled ? 'line-through' : 'none' }}>{c.policyNumber}</td>
+                        <td style={{ padding: '14px 8px', fontSize: '0.85rem', textDecoration: isAnnulled ? 'line-through' : 'none' }}>
+                          <span style={{ 
+                            fontSize: '0.75rem', 
+                            background: String(c.product || 'Vida').trim().toLowerCase().includes('gastos') || String(c.product || 'Vida').trim().toLowerCase().includes('gmm') ? 'rgba(255,170,0,0.1)' : 'rgba(226,176,66,0.1)', 
+                            color: String(c.product || 'Vida').trim().toLowerCase().includes('gastos') || String(c.product || 'Vida').trim().toLowerCase().includes('gmm') ? '#ffaa00' : 'var(--accent-gold)', 
+                            padding: '2px 8px', 
+                            borderRadius: '10px', 
+                            fontWeight: 'bold',
+                            marginRight: '6px'
+                          }}>
+                            {c.product}
+                          </span>
+                          <span style={{ color: 'var(--text-dim)', fontSize: '0.8rem' }}>{c.planType || 'N/A'}</span>
+                        </td>
+                        <td style={{ padding: '14px 8px', fontSize: '0.85rem', color: 'var(--text-dim)', textDecoration: isAnnulled ? 'line-through' : 'none' }}>{c.emissionDate || 'N/A'}</td>
+                        <td style={{ padding: '14px 8px', fontSize: '0.85rem' }}>
+                          {(() => {
+                            const age = calculatePolicyAgeInMonths(c.emissionDate);
+                            const isNewPolicy = age <= 13;
+                            if (isAnnulled) return <span style={{ color: 'var(--text-dim)' }}>ANULADA ❌</span>;
+                            return (
+                              <span style={{ 
+                                fontSize: '0.75rem', 
+                                background: isNewPolicy ? 'rgba(0, 200, 83, 0.1)' : 'rgba(0, 145, 234, 0.1)', 
+                                color: isNewPolicy ? '#00c853' : '#0091ea', 
+                                padding: '2px 8px', 
+                                borderRadius: '6px', 
+                                fontWeight: 'bold'
+                              }}>
+                                {formatAgeInYearsAndMonths(age)} {isNewPolicy ? '🟢' : '🔵'}
+                              </span>
+                            );
+                          })()}
+                        </td>
+                        <td style={{ padding: '14px 8px', fontSize: '0.85rem' }}>
+                          {c.status === 'Pagada' ? (
+                            <span style={{ color: 'var(--accent-mint)', fontWeight: '600' }}>Pagado el {c.paymentDate}</span>
+                          ) : (
+                            <span style={{ color: isAnnulled ? 'var(--text-dim)' : '#ff4444', fontWeight: isAnnulled ? 'normal' : 'bold' }}>{isAnnulled ? 'Anulada' : 'Pendiente'}</span>
+                          )}
+                          <br />
+                          <span style={{ color: 'var(--text-dim)', fontSize: '0.75rem' }}>Frecuencia: {c.paymentFrequency || 'MENSUAL'}</span>
+                          {!isAnnulled && c.status !== 'Pagada' && c.collectionDate && (
+                            (() => {
+                              const dueDate = new Date(c.collectionDate + 'T00:00:00');
+                              const today = new Date();
+                              today.setHours(0,0,0,0);
+                              dueDate.setHours(0,0,0,0);
+                              if (today > dueDate) {
+                                const diffTime = today - dueDate;
+                                const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+                                const daysLeft = Math.max(0, 30 - diffDays);
+                                return (
+                                  <div style={{ color: '#ff4444', fontSize: '0.72rem', fontWeight: 'bold', marginTop: '6px', padding: '4px 8px', background: 'rgba(255,68,68,0.08)', borderRadius: '4px', border: '1px solid rgba(255,68,68,0.15)', display: 'inline-block' }}>
+                                    ⚠️ {diffDays}d atraso. {daysLeft}d p/ cancelar.
+                                  </div>
+                                );
+                              }
+                              return null;
+                            })()
+                          )}
+                        </td>
+                        <td style={{ padding: '14px 8px', fontWeight: '600', color: 'var(--text-main)', textDecoration: isAnnulled ? 'line-through' : 'none' }}>
+                          {formatRawValue(c.premium || 0, c.currency)}
+                        </td>
+                        <td style={{ padding: '14px 8px', fontWeight: 'bold', color: 'var(--accent-gold)', textAlign: 'right', textDecoration: isAnnulled ? 'line-through' : 'none' }}>
+                          {fmtPesos(convertAmount(c.premium || 0, c.currency))}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

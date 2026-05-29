@@ -66,6 +66,23 @@ const calculatePolicyAgeInMonths = (emissionDateStr) => {
   return Math.max(0, totalMeses);
 };
 
+const formatAgeInYearsAndMonths = (totalMonths) => {
+  if (totalMonths === 0) return '0 meses';
+  
+  const years = Math.floor(totalMonths / 12);
+  const months = totalMonths % 12;
+  
+  let parts = [];
+  if (years > 0) {
+    parts.push(`${years} ${years === 1 ? 'año' : 'años'}`);
+  }
+  if (months > 0 || years === 0) {
+    parts.push(`${months} ${months === 1 ? 'mes' : 'meses'}`);
+  }
+  
+  return parts.join(' ');
+};
+
 const Clients = () => {
   const { authFetch } = useAuth();
   const [clients, setClients] = useState([]);
@@ -253,6 +270,28 @@ const Clients = () => {
     });
   };
 
+  const handleAnnul = (clientId) => {
+    if(!confirm('¿Estás seguro de anular esta póliza manualmente? Se pondrá en pausa y no sumará en las estadísticas.')) return;
+    authFetch(`/api/clients/${clientId}/annul`, {
+      method: 'PUT'
+    })
+    .then(res => res.json())
+    .then(data => {
+      if(data.success) fetchClients();
+    });
+  };
+
+  const handleReactivate = (clientId) => {
+    if(!confirm('¿Deseas reactivar esta póliza? Se marcará como Pagada para el mes en curso y sumará directamente a tus ingresos del mes.')) return;
+    authFetch(`/api/clients/${clientId}/reactivate`, {
+      method: 'PUT'
+    })
+    .then(res => res.json())
+    .then(data => {
+      if(data.success) fetchClients();
+    });
+  };
+
   const openNewModal = () => {
     setEditingClientId(null);
     setClientData(initialClientData);
@@ -326,6 +365,7 @@ const Clients = () => {
             <option value="all">📅 Todas las Antigüedades</option>
             <option value="13m">🟢 Primeros 13 Meses</option>
             <option value="14m">🔵 14 Meses o más</option>
+            <option value="annulled">❌ Pólizas Anuladas</option>
           </select>
           <select
             value={sortBy}
@@ -384,7 +424,11 @@ const Clients = () => {
                
                if (!matchesSearch) return false;
                
-               if (ageFilter === 'all') return true;
+               if (ageFilter === 'all') return c.status !== 'Anulada';
+               if (ageFilter === 'annulled') return c.status === 'Anulada';
+               
+               // For age filters, we only look at non-annulled active policies
+               if (c.status === 'Anulada') return false;
                
                const age = calculatePolicyAgeInMonths(c.emissionDate);
                if (ageFilter === '13m') return age <= 13;
@@ -418,49 +462,93 @@ const Clients = () => {
             }).map((client) => {
               const ageInMonths = calculatePolicyAgeInMonths(client.emissionDate);
               const isNewPolicy = ageInMonths <= 13;
+              const isAnnulled = client.status === 'Anulada';
               
               return (
-                <tr key={client.id} style={{ borderBottom: '1px solid var(--glass-border)' }}>
-                  <td style={{ padding: '12px 16px', fontWeight: '600' }}>
+                <tr 
+                  key={client.id} 
+                  style={{ 
+                    borderBottom: '1px solid var(--glass-border)',
+                    opacity: isAnnulled ? 0.4 : 1,
+                    transition: 'all 0.3s'
+                  }}
+                >
+                  <td style={{ padding: '12px 16px', fontWeight: '600', textDecoration: isAnnulled ? 'line-through' : 'none' }}>
                     {client.contractor}<br/>
-                    <span style={{ fontSize: '0.75rem', color: 'var(--text-dim)' }}>🎂 {formatBirthday(client.contractorBirthDate)}</span>
+                    <span style={{ fontSize: '0.75rem', color: 'var(--text-dim)', textDecoration: 'none', display: 'inline-block' }}>🎂 {formatBirthday(client.contractorBirthDate)}</span>
                   </td>
-                  <td style={{ padding: '12px 16px', fontSize: '0.85rem' }}>
+                  <td style={{ padding: '12px 16px', fontSize: '0.85rem', textDecoration: isAnnulled ? 'line-through' : 'none' }}>
                     {client.insureds && client.insureds.map((ins, idx) => (
                       <div key={idx} style={{ color: 'var(--text-muted)' }}>
                         • {ins.name} <span style={{ color: 'var(--text-dim)', fontSize: '0.75rem' }}>(🎂 {formatBirthday(ins.birthDate)})</span>
                       </div>
                     ))}
                   </td>
-                  <td style={{ padding: '12px 16px', color: 'var(--text-dim)', fontSize: '0.85rem' }}>{client.email}</td>
-                  <td style={{ padding: '12px 16px', color: 'var(--text-dim)', fontSize: '0.85rem' }}>{client.phone}</td>
-                  <td style={{ padding: '12px 16px', fontSize: '0.9rem' }}>{client.policyNumber}</td>
-                  <td style={{ padding: '12px 16px', fontSize: '0.9rem' }}>{client.product}</td>
-                  <td style={{ padding: '12px 16px', color: 'var(--text-muted)', fontSize: '0.85rem' }}>{client.planType}</td>
-                  <td style={{ padding: '12px 16px' }}>${client.annualPremium?.toLocaleString() || '0.00'}</td>
-                  <td style={{ padding: '12px 16px', fontWeight: 'bold', color: 'var(--accent-gold)' }}>${client.premium?.toLocaleString()}</td>
-                  <td style={{ padding: '12px 16px', fontSize: '0.85rem' }}>{client.currency || 'UDI'}</td>
-                  <td style={{ padding: '12px 16px', fontSize: '0.85rem' }}>{client.paymentFrequency}</td>
-                  <td style={{ padding: '12px 16px', fontSize: '0.85rem' }}>{client.paymentMethod}</td>
-                  <td style={{ padding: '12px 16px', color: 'var(--text-dim)', fontSize: '0.85rem' }}>{client.emissionDate}</td>
+                  <td style={{ padding: '12px 16px', color: 'var(--text-dim)', fontSize: '0.85rem', textDecoration: isAnnulled ? 'line-through' : 'none' }}>{client.email}</td>
+                  <td style={{ padding: '12px 16px', color: 'var(--text-dim)', fontSize: '0.85rem', textDecoration: isAnnulled ? 'line-through' : 'none' }}>{client.phone}</td>
+                  <td style={{ padding: '12px 16px', fontSize: '0.9rem', textDecoration: isAnnulled ? 'line-through' : 'none' }}>{client.policyNumber}</td>
+                  <td style={{ padding: '12px 16px', fontSize: '0.9rem', textDecoration: isAnnulled ? 'line-through' : 'none' }}>{client.product}</td>
+                  <td style={{ padding: '12px 16px', color: 'var(--text-muted)', fontSize: '0.85rem', textDecoration: isAnnulled ? 'line-through' : 'none' }}>{client.planType}</td>
+                  <td style={{ padding: '12px 16px', textDecoration: isAnnulled ? 'line-through' : 'none' }}>${client.annualPremium?.toLocaleString() || '0.00'}</td>
+                  <td style={{ padding: '12px 16px', fontWeight: 'bold', color: 'var(--accent-gold)', textDecoration: isAnnulled ? 'line-through' : 'none' }}>${client.premium?.toLocaleString()}</td>
+                  <td style={{ padding: '12px 16px', fontSize: '0.85rem', textDecoration: isAnnulled ? 'line-through' : 'none' }}>{client.currency || 'UDI'}</td>
+                  <td style={{ padding: '12px 16px', fontSize: '0.85rem', textDecoration: isAnnulled ? 'line-through' : 'none' }}>{client.paymentFrequency}</td>
+                  <td style={{ padding: '12px 16px', fontSize: '0.85rem', textDecoration: isAnnulled ? 'line-through' : 'none' }}>{client.paymentMethod}</td>
+                  <td style={{ padding: '12px 16px', color: 'var(--text-dim)', fontSize: '0.85rem', textDecoration: isAnnulled ? 'line-through' : 'none' }}>{client.emissionDate}</td>
                   <td style={{ padding: '12px 16px' }}>
                     <span style={{ 
                       fontSize: '0.75rem', 
-                      background: isNewPolicy ? 'rgba(0, 200, 83, 0.1)' : 'rgba(0, 145, 234, 0.1)', 
-                      color: isNewPolicy ? '#00c853' : '#0091ea', 
+                      background: isAnnulled ? 'rgba(255,255,255,0.05)' : isNewPolicy ? 'rgba(0, 200, 83, 0.1)' : 'rgba(0, 145, 234, 0.1)', 
+                      color: isAnnulled ? 'var(--text-dim)' : isNewPolicy ? '#00c853' : '#0091ea', 
                       padding: '4px 8px', 
                       borderRadius: '6px', 
                       fontWeight: 'bold',
                       display: 'inline-block'
                     }}>
-                      {ageInMonths} {ageInMonths === 1 ? 'mes' : 'meses'} {isNewPolicy ? '🟢' : '🔵'}
+                      {isAnnulled ? 'ANULADA ❌' : `${formatAgeInYearsAndMonths(ageInMonths)} ${isNewPolicy ? '🟢' : '🔵'}`}
                     </span>
                   </td>
-                  <td style={{ padding: '12px 16px', color: 'var(--text-dim)', fontSize: '0.85rem' }}>{client.collectionDate}</td>
+                  <td style={{ padding: '12px 16px', color: 'var(--text-dim)', fontSize: '0.85rem' }}>
+                    <span style={{ textDecoration: isAnnulled ? 'line-through' : 'none' }}>{client.collectionDate}</span>
+                    {!isAnnulled && client.status === 'Pendiente' && client.collectionDate && (
+                      (() => {
+                        const dueDate = new Date(client.collectionDate + 'T00:00:00');
+                        const today = new Date();
+                        today.setHours(0,0,0,0);
+                        dueDate.setHours(0,0,0,0);
+                        if (today > dueDate) {
+                          const diffTime = today - dueDate;
+                          const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+                          const daysLeft = Math.max(0, 30 - diffDays);
+                          return (
+                            <div style={{ color: '#ff4444', fontSize: '0.75rem', fontWeight: 'bold', marginTop: '4px' }}>
+                              ⚠️ {diffDays} {diffDays === 1 ? 'día' : 'días'} de atraso. Quedan {daysLeft} {daysLeft === 1 ? 'día' : 'días'} para cancelarse.
+                            </div>
+                          );
+                        }
+                        return null;
+                      })()
+                    )}
+                  </td>
                   <td style={{ padding: '12px 16px' }}>
                     <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                       <button onClick={() => setSelectedClient(client)} className="btn-primary" style={{ width: 'auto', padding: '6px 12px', fontSize: '0.75rem' }}>Expediente</button>
                       <button onClick={() => openEditModal(client)} style={{ color: 'var(--accent-gold)', fontSize: '0.75rem', cursor: 'pointer', background: 'none', border: 'none' }}>Editar</button>
+                      {isAnnulled ? (
+                        <button 
+                          onClick={() => handleReactivate(client.id)} 
+                          style={{ color: '#00c853', fontSize: '0.75rem', cursor: 'pointer', background: 'none', border: 'none', fontWeight: 'bold' }}
+                        >
+                          Reactivar
+                        </button>
+                      ) : (
+                        <button 
+                          onClick={() => handleAnnul(client.id)} 
+                          style={{ color: '#ffaa00', fontSize: '0.75rem', cursor: 'pointer', background: 'none', border: 'none', fontWeight: 'bold' }}
+                        >
+                          Anular
+                        </button>
+                      )}
                       <button onClick={() => handleDelete(client.id)} style={{ color: '#ff4444', fontSize: '0.75rem', cursor: 'pointer', background: 'none', border: 'none' }}>Eliminar</button>
                     </div>
                   </td>

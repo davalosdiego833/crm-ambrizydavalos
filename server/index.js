@@ -157,6 +157,31 @@ const saveDB = () => {
   fs.writeFileSync(DB_FILE, JSON.stringify(users, null, 2));
 };
 
+const checkAndUpdateLateAndAnnulledClients = (user) => {
+  if (!user || !user.clients) return;
+  
+  let modified = false;
+  const today = new Date();
+  
+  user.clients.forEach(c => {
+    if (c.status === 'Pendiente' && c.collectionDate) {
+      const dueDate = new Date(c.collectionDate + 'T00:00:00');
+      if (!isNaN(dueDate.getTime())) {
+        const diffTime = today - dueDate;
+        const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+        if (diffDays >= 30) {
+          c.status = 'Anulada';
+          modified = true;
+        }
+      }
+    }
+  });
+  
+  if (modified) {
+    saveDB();
+  }
+};
+
 let users = loadDB();
 
 // ======================================
@@ -537,6 +562,7 @@ app.put('/api/user/profile', authMiddleware, (req, res) => {
 
 // Clientes del usuario autenticado
 app.get('/api/clients', authMiddleware, (req, res) => {
+  checkAndUpdateLateAndAnnulledClients(req.user);
   res.json(req.user.clients);
 });
 
@@ -968,6 +994,7 @@ app.post('/api/policies/parse', authMiddleware, upload.single('policy'), async (
 
 // Dashboard personalizado del usuario
 app.get('/api/dashboard', authMiddleware, (req, res) => {
+  checkAndUpdateLateAndAnnulledClients(req.user);
   const now = new Date();
   const today = now.getDate();
   const clientsData = req.user.clients;
@@ -1002,6 +1029,7 @@ app.get('/api/dashboard', authMiddleware, (req, res) => {
 
   const kpis = { collected: 0, total: 0, pending: 0 };
   const upcomingLists = {
+    atrasados: [],
     hoy: [],
     en5Dias: [],
     en15Dias: [],
@@ -1011,6 +1039,7 @@ app.get('/api/dashboard', authMiddleware, (req, res) => {
   const currentMonthStr = ('0' + (now.getMonth() + 1)).slice(-2);
 
   clientsData.forEach(c => {
+    if (c.status === 'Anulada') return; // Omitir pólizas anuladas
     kpis.total += (c.premium || 0);
     if (c.status === 'Pagada') {
       kpis.collected += (c.premium || 0);
@@ -1055,12 +1084,11 @@ app.get('/api/dashboard', authMiddleware, (req, res) => {
         paymentFrequency: c.paymentFrequency || 'MENSUAL'
       };
 
-      if (diff === 0) upcomingLists.hoy.push(alertItem);
+      if (diff < 0) upcomingLists.atrasados.push({...alertItem, days: diff});
+      else if (diff === 0) upcomingLists.hoy.push(alertItem);
       else if (diff > 0 && diff <= 5) upcomingLists.en5Dias.push(alertItem);
       else if (diff > 5 && diff <= 15) upcomingLists.en15Dias.push(alertItem);
       else if (diff > 15 && diff <= 30) upcomingLists.enMes.push(alertItem);
-      // Incluimos atrasados en "hoy" para atención urgente
-      else if (diff < 0) upcomingLists.hoy.push({...alertItem, days: diff});
     }
   });
 
@@ -1070,6 +1098,7 @@ app.get('/api/dashboard', authMiddleware, (req, res) => {
   const anniversaries = [];
 
   clientsData.forEach(c => {
+    if (c.status === 'Anulada') return; // Omitir pólizas anuladas
     // Revisar Cumpleaños del Contratante
     if (c.contractorBirthDate && c.contractorBirthDate.slice(5, 7) === currentMonth) {
       const day = c.contractorBirthDate.slice(8, 10);
@@ -1135,6 +1164,7 @@ app.get('/api/dashboard', authMiddleware, (req, res) => {
 
 // Analíticas del CRM con Proyección de Cobros
 app.get('/api/analytics', authMiddleware, (req, res) => {
+  checkAndUpdateLateAndAnnulledClients(req.user);
   const { year, month } = req.query;
   let clientsData = req.user.clients || [];
 
@@ -1148,6 +1178,9 @@ app.get('/api/analytics', authMiddleware, (req, res) => {
   let kpiNewSalesCount = 0;
   let kpiNewSalesMXN = 0;
   let kpiRenewalsMXN = 0;
+
+  let kpiLateMXN = 0;
+  let kpiLateCount = 0;
 
   const portfolio = {
     USD: 0,
@@ -1169,7 +1202,8 @@ app.get('/api/analytics', authMiddleware, (req, res) => {
     newSales: [],
     renewals: [],
     active: [],
-    allActive: []
+    allActive: [],
+    late: []
   };
 
   const segments = {
@@ -1217,6 +1251,7 @@ app.get('/api/analytics', authMiddleware, (req, res) => {
 
   // 1. Calcular Valor Total de Cartera
   clientsData.forEach(c => {
+    if (c.status === 'Anulada') return;
     const prod = String(c.product || 'Vida').trim().toLowerCase();
     const isGMM = prod.includes('gastos') || prod.includes('gmm') || prod.includes('médicos');
     const cur = String(c.currency || 'MXN').toUpperCase().trim();
@@ -1244,6 +1279,7 @@ app.get('/api/analytics', authMiddleware, (req, res) => {
 
   // 2. Procesar KPIs y Lógicas de Mes / Año
   clientsData.forEach(c => {
+    if (c.status === 'Anulada') return;
     const prod = String(c.product || 'Vida').trim().toLowerCase();
     const isGMM = prod.includes('gastos') || prod.includes('gmm') || prod.includes('médicos');
     const cur = String(c.currency || 'MXN').toUpperCase().trim();
@@ -1307,6 +1343,16 @@ app.get('/api/analytics', authMiddleware, (req, res) => {
           
           const cCopy = { ...c, status: 'Pendiente' };
           lists.pending.push(cCopy);
+
+          if (c.collectionDate) {
+            const dueDate = new Date(c.collectionDate + 'T00:00:00');
+            const today = new Date();
+            if (today > dueDate) {
+              kpiLateCount++;
+              kpiLateMXN += mxnVal;
+              lists.late.push(cCopy);
+            }
+          }
 
           if (isGMM) {
             segments.gmm.count++;
@@ -1379,6 +1425,18 @@ app.get('/api/analytics', authMiddleware, (req, res) => {
               kpiPending += premiumVal;
               kpiPendingMXN += mxnVal;
 
+              if (c.collectionDate) {
+                const dueDate = new Date(c.collectionDate + 'T00:00:00');
+                const today = new Date();
+                if (today > dueDate) {
+                  kpiLateCount++;
+                  kpiLateMXN += mxnVal;
+                  if (!lists.late.some(l => l.id === c.id)) {
+                    lists.late.push(c);
+                  }
+                }
+              }
+
               if (isGMM) {
                 segments.gmm.count++;
                 segments.gmm.pending += premiumVal;
@@ -1441,6 +1499,8 @@ app.get('/api/analytics', authMiddleware, (req, res) => {
       newSalesCount: kpiNewSalesCount,
       newSalesMXN: kpiNewSalesMXN,
       renewalsMXN: kpiRenewalsMXN,
+      lateMXN: kpiLateMXN,
+      lateCount: kpiLateCount,
       portfolio
     },
     exchangeRates,
@@ -1519,6 +1579,52 @@ app.put('/api/clients/:clientId/pay', authMiddleware, (req, res) => {
   
   saveDB();
   res.json({ success: true, client: req.user.clients[index] });
+});
+
+// Anular póliza manualmente
+app.put('/api/clients/:clientId/annul', authMiddleware, (req, res) => {
+  const index = req.user.clients.findIndex(c => c.id == req.params.clientId);
+  if (index === -1) return res.status(404).json({ error: 'Cliente no encontrado' });
+
+  req.user.clients[index].status = 'Anulada';
+  
+  saveDB();
+  res.json({ success: true, client: req.user.clients[index] });
+});
+
+// Reactivar póliza (marcar como pagada para el mes en curso)
+app.put('/api/clients/:clientId/reactivate', authMiddleware, (req, res) => {
+  const index = req.user.clients.findIndex(c => c.id == req.params.clientId);
+  if (index === -1) return res.status(404).json({ error: 'Cliente no encontrado' });
+
+  const client = req.user.clients[index];
+  client.status = 'Pagada';
+  
+  const today = new Date();
+  const todayStr = today.toISOString().slice(0, 10);
+  
+  // Establecer fecha de pago hoy para que se sume de inmediato en el mes actual en el Analytics
+  client.paymentDate = todayStr;
+  
+  // Actualizar la fecha de cobro al mes siguiente basándose en su frecuencia
+  const emDate = new Date(client.emissionDate || todayStr);
+  const freq = String(client.paymentFrequency || 'MENSUAL').toUpperCase().trim();
+  
+  let nextDueDate = new Date(today);
+  if (freq.includes('MENS')) nextDueDate.setMonth(today.getMonth() + 1);
+  else if (freq.includes('TRIM')) nextDueDate.setMonth(today.getMonth() + 3);
+  else if (freq.includes('SEME')) nextDueDate.setMonth(today.getMonth() + 6);
+  else nextDueDate.setFullYear(today.getFullYear() + 1);
+  
+  // Mantener el día original de cobro si es posible
+  if (client.collectionDay) {
+    nextDueDate.setDate(client.collectionDay);
+  }
+  
+  client.collectionDate = nextDueDate.toISOString().slice(0, 10);
+  
+  saveDB();
+  res.json({ success: true, client: client });
 });
 
 // Migración Masiva (por usuario)

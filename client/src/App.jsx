@@ -456,6 +456,7 @@ const Dashboard = () => {
   };
 
   const currentLists = {
+    atrasados: filterList(data.upcomingLists.atrasados),
     hoy: filterList(data.upcomingLists.hoy),
     en5Dias: filterList(data.upcomingLists.en5Dias),
     en15Dias: filterList(data.upcomingLists.en15Dias),
@@ -463,17 +464,13 @@ const Dashboard = () => {
     collected: filterList(data.collectedList)
   };
 
-  const totalAlerts = currentLists.hoy.length + currentLists.en5Dias.length + currentLists.en15Dias.length;
+  const totalAlerts = currentLists.atrasados.length + currentLists.hoy.length + currentLists.en5Dias.length + currentLists.en15Dias.length;
 
   // KPIs por pestaña
   const getTabKPIs = () => {
-    const list = [...currentLists.hoy, ...currentLists.en5Dias, ...currentLists.en15Dias, ...currentLists.enMes, ...currentLists.collected];
-    let collected = 0;
-    let pending = 0;
-    
     // Para Vida, devolvemos desglosado. Para GMM, solo pesos.
-    const vidaStats = { USD: { paid: 0, pend: 0 }, UDI: { paid: 0, pend: 0 } };
-    const gmmStats = { MXN: { paid: 0, pend: 0 } };
+    const vidaStats = { USD: { paid: 0, pend: 0, late: 0 }, UDI: { paid: 0, pend: 0, late: 0 } };
+    const gmmStats = { MXN: { paid: 0, pend: 0, late: 0 } };
 
     if (dashboardTab === 'Vida') {
        data.collectedList?.filter(c => c.product === 'Vida' || c.product?.includes('Vida')).forEach(c => {
@@ -485,6 +482,10 @@ const Dashboard = () => {
          if (c.currency === 'USD') vidaStats.USD.pend += (c.amount || 0);
          if (c.currency === 'UDI') vidaStats.UDI.pend += (c.amount || 0);
        });
+       data.upcomingLists.atrasados?.filter(c => c.product === 'Vida' || c.product?.includes('Vida')).forEach(c => {
+         if (c.currency === 'USD') vidaStats.USD.late += (c.amount || 0);
+         if (c.currency === 'UDI') vidaStats.UDI.late += (c.amount || 0);
+       });
        return vidaStats;
     } else {
        data.collectedList?.filter(c => c.product === 'GMM' || c.product?.includes('Gastos')).forEach(c => {
@@ -493,6 +494,9 @@ const Dashboard = () => {
        [...data.upcomingLists.hoy, ...data.upcomingLists.en5Dias, ...data.upcomingLists.en15Dias, ...data.upcomingLists.enMes]
        .filter(c => c.product === 'GMM' || c.product?.includes('Gastos')).forEach(c => {
          gmmStats.MXN.pend += (c.amount || 0);
+       });
+       data.upcomingLists.atrasados?.filter(c => c.product === 'GMM' || c.product?.includes('Gastos')).forEach(c => {
+         gmmStats.MXN.late += (c.amount || 0);
        });
        return gmmStats;
     }
@@ -517,6 +521,17 @@ const Dashboard = () => {
                 Frecuencia: <span style={{ color: 'var(--accent-mint)', fontWeight: 'bold' }}>{c.paymentFrequency || 'MENSUAL'}</span><br/>
                 Cobro: <span style={{ color: 'var(--text-main)' }}>{c.collectionDate || 'Mensual'}</span>
               </p>
+              {c.days < 0 && (
+                (() => {
+                  const diffDays = Math.abs(c.days);
+                  const daysLeft = Math.max(0, 30 - diffDays);
+                  return (
+                    <div style={{ color: '#ff4444', fontSize: '0.72rem', fontWeight: 'bold', margin: '4px 0 8px 0', padding: '6px 10px', background: 'rgba(255,68,68,0.08)', borderRadius: '6px', border: '1px solid rgba(255,68,68,0.15)', lineHeight: '1.3' }}>
+                      ⚠️ {diffDays} {diffDays === 1 ? 'día' : 'días'} de atraso. Quedan {daysLeft} {daysLeft === 1 ? 'día' : 'días'} para cancelarse.
+                    </div>
+                  );
+                })()
+              )}
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div>
                   <p style={{ fontWeight: 'bold', fontSize: '1.1rem', color: titleColor }}>
@@ -638,16 +653,21 @@ const Dashboard = () => {
                 <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: 'var(--accent-gold)', display: 'flex', justifyContent: 'center', alignItems: 'center', color: 'black', fontSize: '1.2rem', fontWeight: 'bold' }}>$</div>
                 <h3 style={{ fontSize: '1.2rem', color: 'var(--text-main)' }}>Cobranza VIDA (Dólares)</h3>
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px' }}>
-                <div style={{ padding: '20px', background: 'rgba(0, 255, 170, 0.05)', borderRadius: '16px', border: '1px solid rgba(0, 255, 170, 0.1)' }}>
-                  <p style={{ color: 'var(--accent-mint)', fontSize: '0.8rem', fontWeight: 'bold', textTransform: 'uppercase', marginBottom: '8px' }}>✅ Pagado</p>
-                  <p style={{ fontSize: '1.6rem', fontWeight: '800' }}>{fmtCurrency(tabKPIs.USD.paid, 'USD')}</p>
-                  <p style={{ fontSize: '0.75rem', color: 'var(--text-dim)', marginTop: '4px' }}>≈ {fmt(tabKPIs.USD.paid * rates.USD)} MXN</p>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px' }}>
+                <div style={{ padding: '16px', background: 'rgba(0, 255, 170, 0.05)', borderRadius: '16px', border: '1px solid rgba(0, 255, 170, 0.1)' }}>
+                  <p style={{ color: 'var(--accent-mint)', fontSize: '0.75rem', fontWeight: 'bold', textTransform: 'uppercase', marginBottom: '6px' }}>✅ Pagado</p>
+                  <p style={{ fontSize: '1.3rem', fontWeight: '800' }}>{fmtCurrency(tabKPIs.USD.paid, 'USD')}</p>
+                  <p style={{ fontSize: '0.7rem', color: 'var(--text-dim)', marginTop: '2px' }}>≈ {fmt(tabKPIs.USD.paid * rates.USD)} MXN</p>
                 </div>
-                <div style={{ padding: '20px', background: 'rgba(255, 68, 68, 0.05)', borderRadius: '16px', border: '1px solid rgba(255, 68, 68, 0.1)' }}>
-                  <p style={{ color: '#ff4444', fontSize: '0.8rem', fontWeight: 'bold', textTransform: 'uppercase', marginBottom: '8px' }}>⏳ Pendiente</p>
-                  <p style={{ fontSize: '1.6rem', fontWeight: '800' }}>{fmtCurrency(tabKPIs.USD.pend, 'USD')}</p>
-                  <p style={{ fontSize: '0.75rem', color: 'var(--text-dim)', marginTop: '4px' }}>≈ {fmt(tabKPIs.USD.pend * rates.USD)} MXN</p>
+                <div style={{ padding: '16px', background: 'rgba(255, 255, 255, 0.03)', borderRadius: '16px', border: '1px solid var(--glass-border)' }}>
+                  <p style={{ color: 'var(--text-muted)', fontSize: '0.75rem', fontWeight: 'bold', textTransform: 'uppercase', marginBottom: '6px' }}>⏳ Pendiente</p>
+                  <p style={{ fontSize: '1.3rem', fontWeight: '800' }}>{fmtCurrency(tabKPIs.USD.pend, 'USD')}</p>
+                  <p style={{ fontSize: '0.7rem', color: 'var(--text-dim)', marginTop: '2px' }}>≈ {fmt(tabKPIs.USD.pend * rates.USD)} MXN</p>
+                </div>
+                <div style={{ padding: '16px', background: 'rgba(255, 68, 68, 0.05)', borderRadius: '16px', border: '1px solid rgba(255, 68, 68, 0.15)' }}>
+                  <p style={{ color: '#ff4444', fontSize: '0.75rem', fontWeight: 'bold', textTransform: 'uppercase', marginBottom: '6px' }}>🚨 Atrasado</p>
+                  <p style={{ fontSize: '1.3rem', fontWeight: '800', color: '#ff4444' }}>{fmtCurrency(tabKPIs.USD.late, 'USD')}</p>
+                  <p style={{ fontSize: '0.7rem', color: 'var(--text-dim)', marginTop: '2px' }}>≈ {fmt(tabKPIs.USD.late * rates.USD)} MXN</p>
                 </div>
               </div>
             </div>
@@ -657,35 +677,44 @@ const Dashboard = () => {
                 <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: 'var(--accent-gold)', display: 'flex', justifyContent: 'center', alignItems: 'center', color: 'black', fontSize: '0.8rem', fontWeight: 'bold' }}>UDI</div>
                 <h3 style={{ fontSize: '1.2rem', color: 'var(--text-main)' }}>Cobranza VIDA (UDI)</h3>
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px' }}>
-                <div style={{ padding: '20px', background: 'rgba(0, 255, 170, 0.05)', borderRadius: '16px', border: '1px solid rgba(0, 255, 170, 0.1)' }}>
-                  <p style={{ color: 'var(--accent-mint)', fontSize: '0.8rem', fontWeight: 'bold', textTransform: 'uppercase', marginBottom: '8px' }}>✅ Pagado</p>
-                  <p style={{ fontSize: '1.6rem', fontWeight: '800' }}>{fmtCurrency(tabKPIs.UDI.paid, 'UDI')}</p>
-                  <p style={{ fontSize: '0.75rem', color: 'var(--text-dim)', marginTop: '4px' }}>≈ {fmt(tabKPIs.UDI.paid * rates.UDI)} MXN</p>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px' }}>
+                <div style={{ padding: '16px', background: 'rgba(0, 255, 170, 0.05)', borderRadius: '16px', border: '1px solid rgba(0, 255, 170, 0.1)' }}>
+                  <p style={{ color: 'var(--accent-mint)', fontSize: '0.75rem', fontWeight: 'bold', textTransform: 'uppercase', marginBottom: '6px' }}>✅ Pagado</p>
+                  <p style={{ fontSize: '1.3rem', fontWeight: '800' }}>{fmtCurrency(tabKPIs.UDI.paid, 'UDI')}</p>
+                  <p style={{ fontSize: '0.7rem', color: 'var(--text-dim)', marginTop: '2px' }}>≈ {fmt(tabKPIs.UDI.paid * rates.UDI)} MXN</p>
                 </div>
-                <div style={{ padding: '20px', background: 'rgba(255, 68, 68, 0.05)', borderRadius: '16px', border: '1px solid rgba(255, 68, 68, 0.1)' }}>
-                  <p style={{ color: '#ff4444', fontSize: '0.8rem', fontWeight: 'bold', textTransform: 'uppercase', marginBottom: '8px' }}>⏳ Pendiente</p>
-                  <p style={{ fontSize: '1.6rem', fontWeight: '800' }}>{fmtCurrency(tabKPIs.UDI.pend, 'UDI')}</p>
-                  <p style={{ fontSize: '0.75rem', color: 'var(--text-dim)', marginTop: '4px' }}>≈ {fmt(tabKPIs.UDI.pend * rates.UDI)} MXN</p>
+                <div style={{ padding: '16px', background: 'rgba(255, 255, 255, 0.03)', borderRadius: '16px', border: '1px solid var(--glass-border)' }}>
+                  <p style={{ color: 'var(--text-muted)', fontSize: '0.75rem', fontWeight: 'bold', textTransform: 'uppercase', marginBottom: '6px' }}>⏳ Pendiente</p>
+                  <p style={{ fontSize: '1.3rem', fontWeight: '800' }}>{fmtCurrency(tabKPIs.UDI.pend, 'UDI')}</p>
+                  <p style={{ fontSize: '0.7rem', color: 'var(--text-dim)', marginTop: '2px' }}>≈ {fmt(tabKPIs.UDI.pend * rates.UDI)} MXN</p>
+                </div>
+                <div style={{ padding: '16px', background: 'rgba(255, 68, 68, 0.05)', borderRadius: '16px', border: '1px solid rgba(255, 68, 68, 0.15)' }}>
+                  <p style={{ color: '#ff4444', fontSize: '0.75rem', fontWeight: 'bold', textTransform: 'uppercase', marginBottom: '6px' }}>🚨 Atrasado</p>
+                  <p style={{ fontSize: '1.3rem', fontWeight: '800', color: '#ff4444' }}>{fmtCurrency(tabKPIs.UDI.late, 'UDI')}</p>
+                  <p style={{ fontSize: '0.7rem', color: 'var(--text-dim)', marginTop: '2px' }}>≈ {fmt(tabKPIs.UDI.late * rates.UDI)} MXN</p>
                 </div>
               </div>
             </div>
           </>
         ) : (
           <>
-            <div className="glass-card stat-widget animate-up" style={{ flex: 1, maxWidth: '800px', padding: '32px', minHeight: '240px', display: 'flex', flexDirection: 'column', justifyContent: 'center', border: '1px solid rgba(255,255,255,0.05)' }}>
+            <div className="glass-card stat-widget animate-up" style={{ flex: 1, maxWidth: '900px', padding: '32px', minHeight: '240px', display: 'flex', flexDirection: 'column', justifyContent: 'center', border: '1px solid rgba(255,255,255,0.05)' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '24px' }}>
                 <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: 'var(--accent-mint)', display: 'flex', justifyContent: 'center', alignItems: 'center', color: 'black', fontSize: '1.2rem', fontWeight: 'bold' }}>🏥</div>
                 <h3 style={{ fontSize: '1.2rem', color: 'var(--text-main)' }}>Resumen de Cobranza GMM (Pesos)</h3>
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '32px' }}>
-                <div style={{ padding: '32px', background: 'rgba(0, 255, 170, 0.05)', borderRadius: '24px', border: '1px solid rgba(0, 255, 170, 0.1)', textAlign: 'center' }}>
-                  <p style={{ color: 'var(--accent-mint)', fontSize: '0.9rem', fontWeight: 'bold', textTransform: 'uppercase', marginBottom: '12px' }}>✅ Pagado del Mes</p>
-                  <h2 style={{ fontSize: '2.5rem', fontWeight: '900', color: 'var(--text-main)' }}>{fmt(tabKPIs.MXN.paid)}</h2>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '20px' }}>
+                <div style={{ padding: '24px', background: 'rgba(0, 255, 170, 0.05)', borderRadius: '20px', border: '1px solid rgba(0, 255, 170, 0.1)', textAlign: 'center' }}>
+                  <p style={{ color: 'var(--accent-mint)', fontSize: '0.85rem', fontWeight: 'bold', textTransform: 'uppercase', marginBottom: '8px' }}>✅ Pagado del Mes</p>
+                  <h2 style={{ fontSize: '2rem', fontWeight: '800', color: 'var(--text-main)' }}>{fmt(tabKPIs.MXN.paid)}</h2>
                 </div>
-                <div style={{ padding: '32px', background: 'rgba(255, 68, 68, 0.05)', borderRadius: '24px', border: '1px solid rgba(255, 68, 68, 0.1)', textAlign: 'center' }}>
-                  <p style={{ color: '#ff4444', fontSize: '0.9rem', fontWeight: 'bold', textTransform: 'uppercase', marginBottom: '12px' }}>⏳ Cobranza Pendiente</p>
-                  <h2 style={{ fontSize: '2.5rem', fontWeight: '900', color: 'var(--text-main)' }}>{fmt(tabKPIs.MXN.pend)}</h2>
+                <div style={{ padding: '24px', background: 'rgba(255, 255, 255, 0.03)', borderRadius: '20px', border: '1px solid var(--glass-border)', textAlign: 'center' }}>
+                  <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', fontWeight: 'bold', textTransform: 'uppercase', marginBottom: '8px' }}>⏳ Cobranza Pendiente</p>
+                  <h2 style={{ fontSize: '2rem', fontWeight: '800', color: 'var(--text-main)' }}>{fmt(tabKPIs.MXN.pend)}</h2>
+                </div>
+                <div style={{ padding: '24px', background: 'rgba(255, 68, 68, 0.05)', borderRadius: '20px', border: '1px solid rgba(255, 68, 68, 0.15)', textAlign: 'center' }}>
+                  <p style={{ color: '#ff4444', fontSize: '0.85rem', fontWeight: 'bold', textTransform: 'uppercase', marginBottom: '8px' }}>🚨 Cobranza Atrasada</p>
+                  <h2 style={{ fontSize: '2rem', fontWeight: '800', color: '#ff4444' }}>{fmt(tabKPIs.MXN.late)}</h2>
                 </div>
               </div>
             </div>
@@ -703,8 +732,9 @@ const Dashboard = () => {
           📊 Ver reporte completo
         </button>
       </div>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '20px', marginBottom: '40px' }}>
-        {renderClientList(currentLists.hoy, 'Hoy', 'Libre por hoy.', '#ff4444')}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '20px', marginBottom: '40px' }}>
+        {renderClientList(currentLists.atrasados, 'Atrasados', 'Sin cobros atrasados.', '#ff4444')}
+        {renderClientList(currentLists.hoy, 'Hoy', 'Libre por hoy.', '#ffaa00')}
         {renderClientList(currentLists.en5Dias, 'En 5 días', 'Nada en 5 días.', '#e2b042')}
         {renderClientList(currentLists.en15Dias, 'En 15 días', 'Nada en 15 días.')}
         {renderClientList(currentLists.enMes, 'En 1 mes', 'Nada en el mes.')}
@@ -960,7 +990,8 @@ const Dashboard = () => {
 
               {fullReportModal === 'upcoming' && (() => {
                 const upcomingCollectedList = [
-                  ...currentLists.hoy.map(item => ({ ...item, timeframe: 'Hoy', color: '#ff4444' })),
+                  ...currentLists.atrasados.map(item => ({ ...item, timeframe: 'Atrasado', color: '#ff4444' })),
+                  ...currentLists.hoy.map(item => ({ ...item, timeframe: 'Hoy', color: '#ffaa00' })),
                   ...currentLists.en5Dias.map(item => ({ ...item, timeframe: 'En 5 días', color: '#e2b042' })),
                   ...currentLists.en15Dias.map(item => ({ ...item, timeframe: 'En 15 días', color: 'var(--accent-mint)' })),
                   ...currentLists.enMes.map(item => ({ ...item, timeframe: 'En 1 mes', color: 'var(--text-main)' }))
