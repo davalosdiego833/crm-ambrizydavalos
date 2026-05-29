@@ -48,6 +48,24 @@ const formatBirthday = (dateStr) => {
   return dateStr;
 };
 
+const calculatePolicyAgeInMonths = (emissionDateStr) => {
+  if (!emissionDateStr) return 0;
+  const emission = new Date(emissionDateStr);
+  if (isNaN(emission.getTime())) return 0;
+  const hoy = new Date();
+  
+  let anosDif = hoy.getFullYear() - emission.getFullYear();
+  let mesesDif = hoy.getMonth() - emission.getMonth();
+  
+  let totalMeses = (anosDif * 12) + mesesDif;
+  
+  if (hoy.getDate() < emission.getDate()) {
+    totalMeses--;
+  }
+  
+  return Math.max(0, totalMeses);
+};
+
 const Clients = () => {
   const { authFetch } = useAuth();
   const [clients, setClients] = useState([]);
@@ -56,6 +74,7 @@ const Clients = () => {
   const [selectedClient, setSelectedClient] = useState(null);
   const [docCategory, setDocCategory] = useState('Poliza');
   const [sortBy, setSortBy] = useState('alphabetical-asc');
+  const [ageFilter, setAgeFilter] = useState('all'); // 'all', '13m', '14m'
 
   // Estados para Modal Cliente (Crear/Editar)
   const [showClientModal, setShowClientModal] = useState(false);
@@ -300,6 +319,15 @@ const Clients = () => {
             style={{ padding: '10px 16px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--glass-border)', borderRadius: '8px', color: 'white', fontSize: '0.85rem', width: '250px' }}
           />
           <select
+            value={ageFilter}
+            onChange={(e) => setAgeFilter(e.target.value)}
+            style={{ padding: '10px 16px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--glass-border)', borderRadius: '8px', color: 'white', fontSize: '0.85rem', outline: 'none', cursor: 'pointer' }}
+          >
+            <option value="all">📅 Todas las Antigüedades</option>
+            <option value="13m">🟢 Primeros 13 Meses</option>
+            <option value="14m">🔵 14 Meses o más</option>
+          </select>
+          <select
             value={sortBy}
             onChange={(e) => setSortBy(e.target.value)}
             style={{ padding: '10px 16px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--glass-border)', borderRadius: '8px', color: 'white', fontSize: '0.85rem', outline: 'none', cursor: 'pointer' }}
@@ -336,22 +364,33 @@ const Clients = () => {
               <th style={{ padding: '16px' }}>Frecuencia</th>
               <th style={{ padding: '16px' }}>Modo</th>
               <th style={{ padding: '16px' }}>Emisión</th>
+              <th style={{ padding: '16px' }}>Antigüedad</th>
               <th style={{ padding: '16px' }}>F. Pago</th>
               <th style={{ padding: '16px' }}>Acciones</th>
             </tr>
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan="15" style={{ padding: '40px', textAlign: 'center' }}>Procesando Cartera...</td></tr>
+              <tr><td colSpan="16" style={{ padding: '40px', textAlign: 'center' }}>Procesando Cartera...</td></tr>
             ) : clients.length === 0 ? (
-               <tr><td colSpan="15" style={{ padding: '40px', textAlign: 'center', color: 'var(--text-dim)' }}>Aún no tienes clientes. Migra tu Excel o añade uno nuevo.</td></tr>
+               <tr><td colSpan="16" style={{ padding: '40px', textAlign: 'center', color: 'var(--text-dim)' }}>Aún no tienes clientes. Migra tu Excel o añade uno nuevo.</td></tr>
             ) : clients.filter(c => {
                const term = searchTerm.toLowerCase();
-               return c.contractor?.toLowerCase().includes(term) ||
+               const matchesSearch = c.contractor?.toLowerCase().includes(term) ||
                       c.policyNumber?.toLowerCase().includes(term) ||
                       c.email?.toLowerCase().includes(term) ||
                       c.phone?.toLowerCase().includes(term) ||
                       c.insureds?.some(ins => ins.name?.toLowerCase().includes(term));
+               
+               if (!matchesSearch) return false;
+               
+               if (ageFilter === 'all') return true;
+               
+               const age = calculatePolicyAgeInMonths(c.emissionDate);
+               if (ageFilter === '13m') return age <= 13;
+               if (ageFilter === '14m') return age >= 14;
+               
+               return true;
             }).sort((a, b) => {
               if (sortBy === 'alphabetical-asc') {
                 return (a.contractor || '').localeCompare(b.contractor || '');
@@ -376,40 +415,58 @@ const Clients = () => {
                 return dateB - dateA;
               }
               return 0;
-            }).map((client) => (
-              <tr key={client.id} style={{ borderBottom: '1px solid var(--glass-border)' }}>
-                <td style={{ padding: '12px 16px', fontWeight: '600' }}>
-                  {client.contractor}<br/>
-                  <span style={{ fontSize: '0.75rem', color: 'var(--text-dim)' }}>🎂 {formatBirthday(client.contractorBirthDate)}</span>
-                </td>
-                <td style={{ padding: '12px 16px', fontSize: '0.85rem' }}>
-                  {client.insureds && client.insureds.map((ins, idx) => (
-                    <div key={idx} style={{ color: 'var(--text-muted)' }}>
-                      • {ins.name} <span style={{ color: 'var(--text-dim)', fontSize: '0.75rem' }}>(🎂 {formatBirthday(ins.birthDate)})</span>
+            }).map((client) => {
+              const ageInMonths = calculatePolicyAgeInMonths(client.emissionDate);
+              const isNewPolicy = ageInMonths <= 13;
+              
+              return (
+                <tr key={client.id} style={{ borderBottom: '1px solid var(--glass-border)' }}>
+                  <td style={{ padding: '12px 16px', fontWeight: '600' }}>
+                    {client.contractor}<br/>
+                    <span style={{ fontSize: '0.75rem', color: 'var(--text-dim)' }}>🎂 {formatBirthday(client.contractorBirthDate)}</span>
+                  </td>
+                  <td style={{ padding: '12px 16px', fontSize: '0.85rem' }}>
+                    {client.insureds && client.insureds.map((ins, idx) => (
+                      <div key={idx} style={{ color: 'var(--text-muted)' }}>
+                        • {ins.name} <span style={{ color: 'var(--text-dim)', fontSize: '0.75rem' }}>(🎂 {formatBirthday(ins.birthDate)})</span>
+                      </div>
+                    ))}
+                  </td>
+                  <td style={{ padding: '12px 16px', color: 'var(--text-dim)', fontSize: '0.85rem' }}>{client.email}</td>
+                  <td style={{ padding: '12px 16px', color: 'var(--text-dim)', fontSize: '0.85rem' }}>{client.phone}</td>
+                  <td style={{ padding: '12px 16px', fontSize: '0.9rem' }}>{client.policyNumber}</td>
+                  <td style={{ padding: '12px 16px', fontSize: '0.9rem' }}>{client.product}</td>
+                  <td style={{ padding: '12px 16px', color: 'var(--text-muted)', fontSize: '0.85rem' }}>{client.planType}</td>
+                  <td style={{ padding: '12px 16px' }}>${client.annualPremium?.toLocaleString() || '0.00'}</td>
+                  <td style={{ padding: '12px 16px', fontWeight: 'bold', color: 'var(--accent-gold)' }}>${client.premium?.toLocaleString()}</td>
+                  <td style={{ padding: '12px 16px', fontSize: '0.85rem' }}>{client.currency || 'UDI'}</td>
+                  <td style={{ padding: '12px 16px', fontSize: '0.85rem' }}>{client.paymentFrequency}</td>
+                  <td style={{ padding: '12px 16px', fontSize: '0.85rem' }}>{client.paymentMethod}</td>
+                  <td style={{ padding: '12px 16px', color: 'var(--text-dim)', fontSize: '0.85rem' }}>{client.emissionDate}</td>
+                  <td style={{ padding: '12px 16px' }}>
+                    <span style={{ 
+                      fontSize: '0.75rem', 
+                      background: isNewPolicy ? 'rgba(0, 200, 83, 0.1)' : 'rgba(0, 145, 234, 0.1)', 
+                      color: isNewPolicy ? '#00c853' : '#0091ea', 
+                      padding: '4px 8px', 
+                      borderRadius: '6px', 
+                      fontWeight: 'bold',
+                      display: 'inline-block'
+                    }}>
+                      {ageInMonths} {ageInMonths === 1 ? 'mes' : 'meses'} {isNewPolicy ? '🟢' : '🔵'}
+                    </span>
+                  </td>
+                  <td style={{ padding: '12px 16px', color: 'var(--text-dim)', fontSize: '0.85rem' }}>{client.collectionDate}</td>
+                  <td style={{ padding: '12px 16px' }}>
+                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                      <button onClick={() => setSelectedClient(client)} className="btn-primary" style={{ width: 'auto', padding: '6px 12px', fontSize: '0.75rem' }}>Expediente</button>
+                      <button onClick={() => openEditModal(client)} style={{ color: 'var(--accent-gold)', fontSize: '0.75rem', cursor: 'pointer', background: 'none', border: 'none' }}>Editar</button>
+                      <button onClick={() => handleDelete(client.id)} style={{ color: '#ff4444', fontSize: '0.75rem', cursor: 'pointer', background: 'none', border: 'none' }}>Eliminar</button>
                     </div>
-                  ))}
-                </td>
-                <td style={{ padding: '12px 16px', color: 'var(--text-dim)', fontSize: '0.85rem' }}>{client.email}</td>
-                <td style={{ padding: '12px 16px', color: 'var(--text-dim)', fontSize: '0.85rem' }}>{client.phone}</td>
-                <td style={{ padding: '12px 16px', fontSize: '0.9rem' }}>{client.policyNumber}</td>
-                <td style={{ padding: '12px 16px', fontSize: '0.9rem' }}>{client.product}</td>
-                <td style={{ padding: '12px 16px', color: 'var(--text-muted)', fontSize: '0.85rem' }}>{client.planType}</td>
-                <td style={{ padding: '12px 16px' }}>${client.annualPremium?.toLocaleString() || '0.00'}</td>
-                <td style={{ padding: '12px 16px', fontWeight: 'bold', color: 'var(--accent-gold)' }}>${client.premium?.toLocaleString()}</td>
-                <td style={{ padding: '12px 16px', fontSize: '0.85rem' }}>{client.currency || 'UDI'}</td>
-                <td style={{ padding: '12px 16px', fontSize: '0.85rem' }}>{client.paymentFrequency}</td>
-                <td style={{ padding: '12px 16px', fontSize: '0.85rem' }}>{client.paymentMethod}</td>
-                <td style={{ padding: '12px 16px', color: 'var(--text-dim)', fontSize: '0.85rem' }}>{client.emissionDate}</td>
-                <td style={{ padding: '12px 16px', color: 'var(--text-dim)', fontSize: '0.85rem' }}>{client.collectionDate}</td>
-                <td style={{ padding: '12px 16px' }}>
-                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                    <button onClick={() => setSelectedClient(client)} className="btn-primary" style={{ width: 'auto', padding: '6px 12px', fontSize: '0.75rem' }}>Expediente</button>
-                    <button onClick={() => openEditModal(client)} style={{ color: 'var(--accent-gold)', fontSize: '0.75rem', cursor: 'pointer', background: 'none', border: 'none' }}>Editar</button>
-                    <button onClick={() => handleDelete(client.id)} style={{ color: '#ff4444', fontSize: '0.75rem', cursor: 'pointer', background: 'none', border: 'none' }}>Eliminar</button>
-                  </div>
-                </td>
-              </tr>
-            ))}
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>

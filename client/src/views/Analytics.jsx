@@ -109,6 +109,24 @@ const Analytics = () => {
     return amount * rate;
   };
 
+  const calculatePolicyAgeInMonths = (emissionDateStr) => {
+    if (!emissionDateStr) return 0;
+    const emission = new Date(emissionDateStr);
+    if (isNaN(emission.getTime())) return 0;
+    const hoy = new Date();
+    
+    let anosDif = hoy.getFullYear() - emission.getFullYear();
+    let mesesDif = hoy.getMonth() - emission.getMonth();
+    
+    let totalMeses = (anosDif * 12) + mesesDif;
+    
+    if (hoy.getDate() < emission.getDate()) {
+      totalMeses--;
+    }
+    
+    return Math.max(0, totalMeses);
+  };
+
   // Desgloses por moneda generales
   const calculateCurrencyBreakdown = (list) => {
     const breakObj = { MXN: 0, USD: 0, UDI: 0 };
@@ -242,6 +260,50 @@ const Analytics = () => {
       if (subTab === 'gmm') return isGMM;
       return true;
     });
+  };
+
+  const getSubTabAgeBreakdown = (subTab) => {
+    const clients = getSubTabAllActiveClients(subTab);
+    
+    let countNew = 0;
+    let countOld = 0;
+    let valueNew = 0;
+    let valueOld = 0;
+    
+    let listNew = [];
+    let listOld = [];
+    
+    clients.forEach(c => {
+      const age = calculatePolicyAgeInMonths(c.emissionDate);
+      
+      let divisor = 1;
+      const freq = String(c.paymentFrequency || 'ANUAL').toUpperCase().trim();
+      if (freq.includes('MENS')) divisor = 12;
+      else if (freq.includes('TRIM')) divisor = 4;
+      else if (freq.includes('SEME')) divisor = 2;
+      
+      const annualized = (c.premium || 0) * divisor;
+      const mxnVal = convertAmount(annualized, c.currency);
+      
+      if (age <= 13) {
+        countNew++;
+        valueNew += subTab === 'consolidado' || subTab === 'gmm' ? mxnVal : annualized;
+        listNew.push(c);
+      } else {
+        countOld++;
+        valueOld += subTab === 'consolidado' || subTab === 'gmm' ? mxnVal : annualized;
+        listOld.push(c);
+      }
+    });
+    
+    return {
+      countNew,
+      countOld,
+      valueNew,
+      valueOld,
+      listNew,
+      listOld
+    };
   };
 
   // Genera el flujo de caja mensual para la subpestaña seleccionada (proyección anual)
@@ -775,6 +837,79 @@ const Analytics = () => {
               </ResponsiveContainer>
             </div>
           </div>
+        </div>
+
+        {/* CONTROL DE ANTIGÜEDAD Y PERSISTENCIA DE CARTERA */}
+        <div className="glass-card" style={{ padding: '28px', marginTop: '32px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '16px' }}>
+            <h3 style={{ margin: 0, color: 'var(--text-main)', fontSize: '1.2rem', fontWeight: '700' }}>
+              📊 Control de Persistencia y Antigüedad de Cartera ({activeSubTab.toUpperCase()})
+            </h3>
+            <span style={{ fontSize: '0.8rem', color: 'var(--text-dim)' }}>Medido a partir de la Fecha de Emisión</span>
+          </div>
+
+          {(() => {
+            const { countNew, countOld, valueNew, valueOld, listNew, listOld } = getSubTabAgeBreakdown(activeSubTab);
+            const total = countNew + countOld;
+            const pctNew = total > 0 ? (countNew / total) * 100 : 0;
+            const pctOld = total > 0 ? (countOld / total) * 100 : 0;
+            
+            return (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '24px' }}>
+                {/* 13 Meses o Menos */}
+                <div 
+                  className="glass-card stat-widget" 
+                  onClick={() => setDrillDown({ title: `Cartera Nueva (≤ 13 Meses) - ${activeSubTab.toUpperCase()}`, list: listNew })}
+                  style={{ padding: '24px', border: '1px solid rgba(0, 200, 83, 0.2)', cursor: 'pointer', position: 'relative', overflow: 'hidden' }}
+                >
+                  <div style={{ position: 'absolute', top: 0, left: 0, width: '4px', height: '100%', background: '#00c853' }}></div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                    <div>
+                      <p style={{ color: 'var(--text-dim)', fontSize: '0.85rem', textTransform: 'uppercase', fontWeight: '600', margin: '0 0 8px 0' }}>
+                        Pólizas Nuevas (Primeros 13 Meses) 🟢
+                      </p>
+                      <p style={{ fontSize: '1.8rem', fontWeight: 'bold', color: '#00c853', margin: 0 }}>
+                        {activeSubTab === 'consolidado' || activeSubTab === 'gmm' ? fmtPesos(valueNew) : formatRawValue(valueNew, activeSubTab)}
+                      </p>
+                    </div>
+                    <span style={{ fontSize: '1.2rem', fontWeight: 'bold', color: '#00c853', background: 'rgba(0, 200, 83, 0.1)', padding: '6px 12px', borderRadius: '20px' }}>
+                      {countNew} ({Math.round(pctNew)}%)
+                    </span>
+                  </div>
+                  <p style={{ fontSize: '0.75rem', color: 'var(--text-dim)', marginTop: '12px', lineHeight: '1.4', whiteSpace: 'normal' }}>
+                    Negocios en periodo crítico de primer año. Requieren alta atención para garantizar su persistencia.
+                  </p>
+                  <p style={{ fontSize: '0.7rem', color: '#00c853', marginTop: '14px', margin: '14px 0 0 0', textAlign: 'right' }}>🔎 Ver desglose</p>
+                </div>
+
+                {/* 14 Meses o Más */}
+                <div 
+                  className="glass-card stat-widget" 
+                  onClick={() => setDrillDown({ title: `Cartera Consolidada (≥ 14 Meses) - ${activeSubTab.toUpperCase()}`, list: listOld })}
+                  style={{ padding: '24px', border: '1px solid rgba(0, 145, 234, 0.2)', cursor: 'pointer', position: 'relative', overflow: 'hidden' }}
+                >
+                  <div style={{ position: 'absolute', top: 0, left: 0, width: '4px', height: '100%', background: '#0091ea' }}></div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                    <div>
+                      <p style={{ color: 'var(--text-dim)', fontSize: '0.85rem', textTransform: 'uppercase', fontWeight: '600', margin: '0 0 8px 0' }}>
+                        Cartera Conservada (14+ Meses) 🔵
+                      </p>
+                      <p style={{ fontSize: '1.8rem', fontWeight: 'bold', color: '#0091ea', margin: 0 }}>
+                        {activeSubTab === 'consolidado' || activeSubTab === 'gmm' ? fmtPesos(valueOld) : formatRawValue(valueOld, activeSubTab)}
+                      </p>
+                    </div>
+                    <span style={{ fontSize: '1.2rem', fontWeight: 'bold', color: '#0091ea', background: 'rgba(0, 145, 234, 0.1)', padding: '6px 12px', borderRadius: '20px' }}>
+                      {countOld} ({Math.round(pctOld)}%)
+                    </span>
+                  </div>
+                  <p style={{ fontSize: '0.75rem', color: 'var(--text-dim)', marginTop: '12px', lineHeight: '1.4', whiteSpace: 'normal' }}>
+                    Pólizas consolidadas y recurrentes. Representan la base sólida e ingresos recurrentes del negocio.
+                  </p>
+                  <p style={{ fontSize: '0.7rem', color: '#0091ea', marginTop: '14px', margin: '14px 0 0 0', textAlign: 'right' }}>🔎 Ver desglose</p>
+                </div>
+              </div>
+            );
+          })()}
         </div>
 
       </div>
