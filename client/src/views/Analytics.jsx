@@ -503,7 +503,7 @@ const Analytics = () => {
           style={{
             padding: '12px 24px',
             background: activeSubTab === 'consolidado' ? 'var(--accent-gold)' : 'transparent',
-            color: activeSubTab === 'consolidado' ? 'var(--bg-deep)' : 'white',
+            color: activeSubTab === 'consolidado' ? 'var(--bg-deep)' : 'var(--text-main)',
             border: 'none',
             borderRadius: '10px',
             cursor: 'pointer',
@@ -520,7 +520,7 @@ const Analytics = () => {
           style={{
             padding: '12px 24px',
             background: activeSubTab === 'udi' ? 'var(--accent-gold)' : 'transparent',
-            color: activeSubTab === 'udi' ? 'var(--bg-deep)' : 'white',
+            color: activeSubTab === 'udi' ? 'var(--bg-deep)' : 'var(--text-main)',
             border: 'none',
             borderRadius: '10px',
             cursor: 'pointer',
@@ -537,7 +537,7 @@ const Analytics = () => {
           style={{
             padding: '12px 24px',
             background: activeSubTab === 'usd' ? 'var(--accent-gold)' : 'transparent',
-            color: activeSubTab === 'usd' ? 'var(--bg-deep)' : 'white',
+            color: activeSubTab === 'usd' ? 'var(--bg-deep)' : 'var(--text-main)',
             border: 'none',
             borderRadius: '10px',
             cursor: 'pointer',
@@ -554,7 +554,7 @@ const Analytics = () => {
           style={{
             padding: '12px 24px',
             background: activeSubTab === 'gmm' ? '#ffaa00' : 'transparent',
-            color: activeSubTab === 'gmm' ? 'var(--bg-deep)' : 'white',
+            color: activeSubTab === 'gmm' ? 'var(--bg-deep)' : 'var(--text-main)',
             border: 'none',
             borderRadius: '10px',
             cursor: 'pointer',
@@ -617,7 +617,7 @@ const Analytics = () => {
             onClick={() => setDrillDown({ title: `Pendientes de Cobro - ${activeSubTab.toUpperCase()}`, list: getSubTabClients(activeSubTab).filter(c => c.status !== 'Pagada') })}
             style={{ padding: '24px', position: 'relative', cursor: 'pointer', overflow: 'hidden', border: '1px solid var(--glass-border)' }}
           >
-            <div style={{ position: 'absolute', top: 0, left: 0, width: '4px', height: '100%', background: 'rgba(255,255,255,0.4)' }}></div>
+            <div style={{ position: 'absolute', top: 0, left: 0, width: '4px', height: '100%', background: 'var(--text-muted)' }}></div>
             <p style={{ color: 'var(--text-dim)', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.5px', margin: '0 0 8px 0', fontWeight: '600' }}>
               Pendiente de Cobro ({activeSubTab === 'consolidado' || activeSubTab === 'gmm' ? 'Pesos' : activeSubTab.toUpperCase()})
             </p>
@@ -760,11 +760,11 @@ const Analytics = () => {
                       <stop offset="95%" stopColor={activeSubTab === 'gmm' ? '#ffaa00' : 'var(--accent-gold)'} stopOpacity={0.0}/>
                     </linearGradient>
                     <linearGradient id="colorPendienteSub" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="rgba(255,255,255,0.3)" stopOpacity={0.2}/>
-                      <stop offset="95%" stopColor="rgba(255,255,255,0.3)" stopOpacity={0.0}/>
+                      <stop offset="5%" stopColor="var(--text-muted)" stopOpacity={0.2}/>
+                      <stop offset="95%" stopColor="var(--text-muted)" stopOpacity={0.0}/>
                     </linearGradient>
                   </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--glass-border)" vertical={false} />
                   <XAxis dataKey="name" stroke="var(--text-dim)" fontSize={11} tickLine={false} axisLine={false} />
                   <YAxis 
                     stroke="var(--text-dim)" 
@@ -774,14 +774,14 @@ const Analytics = () => {
                     tickFormatter={(value) => activeSubTab === 'consolidado' || activeSubTab === 'gmm' ? `$${(value/1000).toFixed(0)}k` : `${value.toLocaleString()}`} 
                   />
                   <Tooltip 
-                    cursor={{stroke: 'rgba(255,255,255,0.1)', strokeWidth: 1}}
+                    cursor={{stroke: 'var(--glass-border)', strokeWidth: 1}}
                     contentStyle={{ backgroundColor: 'rgba(10,10,10,0.95)', border: '1px solid var(--accent-gold)', borderRadius: '12px', backdropFilter: 'blur(10px)', boxShadow: '0 10px 25px rgba(0,0,0,0.5)' }}
                     itemStyle={{ color: '#fff' }}
                     formatter={(value) => activeSubTab === 'consolidado' || activeSubTab === 'gmm' ? fmtPesos(value) : formatRawValue(value, activeSubTab)}
                   />
                   <Legend iconType="circle" wrapperStyle={{ paddingTop: '15px', fontSize: '0.8rem' }} />
                   <Area type="monotone" dataKey="cobrado" name="Pagado" stroke={activeSubTab === 'gmm' ? '#ffaa00' : 'var(--accent-gold)'} strokeWidth={2.5} fillOpacity={1} fill="url(#colorCobradoSub)" />
-                  <Area type="monotone" dataKey="pendiente" name="Pendiente" stroke="rgba(255,255,255,0.4)" strokeWidth={2} fillOpacity={1} fill="url(#colorPendienteSub)" />
+                  <Area type="monotone" dataKey="pendiente" name="Pendiente" stroke="var(--text-muted)" strokeWidth={2} fillOpacity={1} fill="url(#colorPendienteSub)" />
                 </AreaChart>
               </ResponsiveContainer>
             </div>
@@ -873,11 +873,11 @@ const Analytics = () => {
             <div style={{ height: '220px' }}>
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={subTabFlow}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--glass-border)" vertical={false} />
                   <XAxis dataKey="name" stroke="var(--text-dim)" fontSize={11} tickLine={false} axisLine={false} />
                   <YAxis stroke="var(--text-dim)" fontSize={11} tickLine={false} axisLine={false} allowDecimals={false} />
                   <Tooltip 
-                    contentStyle={{ backgroundColor: 'rgba(10,10,10,0.95)', border: '1px solid var(--accent-mint)', borderRadius: '8px' }}
+                    contentStyle={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--accent-mint)', borderRadius: '8px' }}
                   />
                   <Line type="monotone" dataKey="ventas" name="Ventas Cobradas" stroke="var(--accent-mint)" strokeWidth={3} dot={{ fill: 'var(--bg-deep)', strokeWidth: 2, r: 4 }} activeDot={{ r: 6 }} />
                 </LineChart>
