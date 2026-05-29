@@ -401,7 +401,8 @@ const Analytics = () => {
   const subTabPlans = getSubTabPiePlansData(activeSubTab);
 
   return (
-    <div className="animate-up" style={{ paddingBottom: '60px' }}>
+    <div style={{ paddingBottom: '60px' }}>
+      <div className="animate-up">
       
       {/* CABECERA Y ROBOT FINANCIERO */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '32px', flexWrap: 'wrap', gap: '20px' }}>
@@ -1026,6 +1027,7 @@ const Analytics = () => {
           </div>
         </div>
       )}
+      </div>
 
       {/* MODAL DE DESGLOSE DRILL-DOWN */}
       {drillDown && (
