@@ -184,15 +184,29 @@ const Analytics = () => {
 
   // Calcula KPIs específicos de la subpestaña (basado en el pre-filtrado del servidor)
   const getSubTabKPIs = (subTab) => {
-    const clients = getSubTabClients(subTab);
+    const filterFn = (c) => {
+      const prod = String(c.product || 'Vida').trim().toLowerCase();
+      const isGMM = prod.includes('gastos') || prod.includes('gmm') || prod.includes('médicos');
+      const cur = String(c.currency || 'MXN').toUpperCase().trim();
+      if (subTab === 'consolidado') return true;
+      if (subTab === 'udi') return !isGMM && cur === 'UDI';
+      if (subTab === 'usd') return !isGMM && cur === 'USD';
+      if (subTab === 'gmm') return isGMM;
+      return true;
+    };
+
+    const activeList = (data.lists.active || []).filter(filterFn);
+    const newSalesList = (data.lists.newSales || []).filter(filterFn);
+    const renewalsList = (data.lists.renewals || []).filter(filterFn);
+    
     let collected = 0;
     let pending = 0;
-    let totalActive = 0;
     let closedSales = 0;
-
-    clients.forEach(c => {
-      // Sumar según el estatus del cliente en la lista pre-filtrada
-      totalActive += c.premium || 0;
+    
+    let newSalesValue = 0;
+    let renewalsValue = 0;
+    
+    activeList.forEach(c => {
       if (c.status === 'Pagada') {
         collected += c.premium || 0;
         closedSales++;
@@ -201,7 +215,33 @@ const Analytics = () => {
       }
     });
 
-    return { collected, pending, totalActive, closedSales, count: clients.length };
+    newSalesList.forEach(c => { newSalesValue += c.premium || 0; });
+    renewalsList.forEach(c => { renewalsValue += c.premium || 0; });
+
+    return { 
+      collected, 
+      pending, 
+      closedSales, 
+      newSalesValue, 
+      renewalsValue, 
+      count: activeList.length,
+      newSalesList,
+      renewalsList
+    };
+  };
+
+  const getSubTabAllActiveClients = (subTab) => {
+    return (data.lists.allActive || []).filter(c => {
+      const prod = String(c.product || 'Vida').trim().toLowerCase();
+      const isGMM = prod.includes('gastos') || prod.includes('gmm') || prod.includes('médicos');
+      const cur = String(c.currency || 'MXN').toUpperCase().trim();
+
+      if (subTab === 'consolidado') return true;
+      if (subTab === 'udi') return !isGMM && cur === 'UDI';
+      if (subTab === 'usd') return !isGMM && cur === 'USD';
+      if (subTab === 'gmm') return isGMM;
+      return true;
+    });
   };
 
   // Genera el flujo de caja mensual para la subpestaña seleccionada (proyección anual)
@@ -453,12 +493,12 @@ const Analytics = () => {
           {/* KPI 1: Ingresos Pagados */}
           <div 
             className="glass-card stat-widget" 
-            onClick={() => setDrillDown({ title: `Ingresos Pagados - ${activeSubTab.toUpperCase()}`, list: getSubTabClients(activeSubTab).filter(c => c.status === 'Pagada') })}
+            onClick={() => setDrillDown({ title: `Ingresos Pagados del Mes - ${activeSubTab.toUpperCase()}`, list: getSubTabClients(activeSubTab).filter(c => c.status === 'Pagada') })}
             style={{ padding: '24px', position: 'relative', cursor: 'pointer', overflow: 'hidden', border: '1px solid var(--glass-border)' }}
           >
             <div style={{ position: 'absolute', top: 0, left: 0, width: '4px', height: '100%', background: activeSubTab === 'gmm' ? '#ffaa00' : 'var(--accent-gold)' }}></div>
             <p style={{ color: 'var(--text-dim)', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.5px', margin: '0 0 8px 0', fontWeight: '600' }}>
-              Ingresos Pagados ({activeSubTab === 'consolidado' || activeSubTab === 'gmm' ? 'Pesos' : activeSubTab.toUpperCase()})
+              Ingresos Pagados del Mes ({activeSubTab === 'consolidado' || activeSubTab === 'gmm' ? 'Pesos' : activeSubTab.toUpperCase()})
             </p>
             <p style={{ 
               fontSize: '2rem', 
@@ -518,42 +558,66 @@ const Analytics = () => {
             <p style={{ fontSize: '0.7rem', color: 'var(--text-dim)', marginTop: '8px', margin: '14px 0 0 0', textAlign: 'right' }}>🔎 Ver desglose</p>
           </div>
 
-          {/* KPI 3: Ventas Cerradas */}
+          {/* KPI 3: Ventas Nuevas */}
           <div 
             className="glass-card stat-widget" 
-            onClick={() => setDrillDown({ title: `Ventas Cerradas - ${activeSubTab.toUpperCase()}`, list: getSubTabClients(activeSubTab).filter(c => c.status === 'Pagada') })}
+            onClick={() => setDrillDown({ title: `Ventas Nuevas del Mes - ${activeSubTab.toUpperCase()}`, list: subTabKPIs.newSalesList || [] })}
             style={{ padding: '24px', position: 'relative', cursor: 'pointer', overflow: 'hidden', border: '1px solid var(--glass-border)' }}
           >
             <div style={{ position: 'absolute', top: 0, left: 0, width: '4px', height: '100%', background: 'var(--accent-mint)' }}></div>
-            <p style={{ color: 'var(--text-dim)', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.5px', margin: '0 0 8px 0', fontWeight: '600' }}>Ventas Cobradas</p>
-            <p style={{ fontSize: '2rem', fontWeight: 'bold', color: 'var(--accent-mint)', margin: 0 }}>{subTabKPIs.closedSales} Pólizas</p>
+            <p style={{ color: 'var(--text-dim)', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.5px', margin: '0 0 8px 0', fontWeight: '600' }}>Ventas Nuevas</p>
+            <p style={{ fontSize: '2rem', fontWeight: 'bold', color: 'var(--accent-mint)', margin: 0 }}>
+              {activeSubTab === 'consolidado' ? fmtPesos(data.kpis.newSalesMXN) : formatRawValue(subTabKPIs.newSalesValue, activeSubTab === 'gmm' ? 'MXN' : activeSubTab)}
+            </p>
             <p style={{ fontSize: '0.75rem', color: 'var(--text-dim)', marginTop: '8px', margin: '8px 0 0 0', lineHeight: '1.4' }}>
-              Pólizas de esta cartera que realizaron exitosamente su cobro programado.
+              Pólizas emitidas en el mes ({month || 'N/A'}/{year}).
             </p>
             <p style={{ fontSize: '0.7rem', color: 'var(--accent-mint)', marginTop: '8px', margin: '14px 0 0 0', textAlign: 'right' }}>🔎 Ver desglose</p>
           </div>
 
-          {/* KPI 4: Cartera Total */}
+          {/* KPI 4: Pagos Subsecuentes */}
           <div 
             className="glass-card stat-widget" 
-            onClick={() => setDrillDown({ title: `Cartera Activa - ${activeSubTab.toUpperCase()}`, list: getSubTabClients(activeSubTab) })}
+            onClick={() => setDrillDown({ title: `Pagos Subsecuentes - ${activeSubTab.toUpperCase()}`, list: subTabKPIs.renewalsList || [] })}
+            style={{ padding: '24px', position: 'relative', cursor: 'pointer', overflow: 'hidden', border: '1px solid var(--glass-border)' }}
+          >
+            <div style={{ position: 'absolute', top: 0, left: 0, width: '4px', height: '100%', background: '#4488ff' }}></div>
+            <p style={{ color: 'var(--text-dim)', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.5px', margin: '0 0 8px 0', fontWeight: '600' }}>Pagos Subsecuentes</p>
+            <p style={{ fontSize: '2rem', fontWeight: 'bold', color: '#4488ff', margin: 0 }}>
+              {activeSubTab === 'consolidado' ? fmtPesos(data.kpis.renewalsMXN) : formatRawValue(subTabKPIs.renewalsValue, activeSubTab === 'gmm' ? 'MXN' : activeSubTab)}
+            </p>
+            <p style={{ fontSize: '0.75rem', color: 'var(--text-dim)', marginTop: '8px', margin: '8px 0 0 0', lineHeight: '1.4' }}>
+              Cobranzas de renovación y subsecuentes programadas.
+            </p>
+            <p style={{ fontSize: '0.7rem', color: '#4488ff', marginTop: '8px', margin: '14px 0 0 0', textAlign: 'right' }}>🔎 Ver desglose</p>
+          </div>
+
+          {/* KPI 5: Valor Anual Cartera */}
+          <div 
+            className="glass-card stat-widget" 
+            onClick={() => setDrillDown({ title: `Valor Total de la Cartera - ${activeSubTab.toUpperCase()}`, list: getSubTabAllActiveClients(activeSubTab) })}
             style={{ padding: '24px', position: 'relative', cursor: 'pointer', overflow: 'hidden', border: '1px solid var(--glass-border)' }}
           >
             <div style={{ position: 'absolute', top: 0, left: 0, width: '4px', height: '100%', background: '#e2b042' }}></div>
             <p style={{ color: 'var(--text-dim)', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.5px', margin: '0 0 8px 0', fontWeight: '600' }}>
-              Valor Total Cartera ({activeSubTab === 'consolidado' || activeSubTab === 'gmm' ? 'Pesos' : activeSubTab.toUpperCase()})
+              Valor Total Cartera Anual ({activeSubTab === 'consolidado' || activeSubTab === 'gmm' ? 'Pesos' : activeSubTab.toUpperCase()})
             </p>
             <p style={{ fontSize: '2rem', fontWeight: 'bold', color: 'var(--text-main)', margin: 0 }}>
-              {activeSubTab === 'consolidado' ? fmtPesos(data.kpis.totalActiveMXN) : formatRawValue(subTabKPIs.totalActive, activeSubTab === 'gmm' ? 'MXN' : activeSubTab)}
+              {activeSubTab === 'consolidado' ? fmtPesos(data.kpis.portfolio.totalMXN) :
+               activeSubTab === 'gmm' ? fmtPesos(data.kpis.portfolio.GMM) :
+               activeSubTab === 'usd' ? formatRawValue(data.kpis.portfolio.USD, 'USD') :
+               formatRawValue(data.kpis.portfolio.UDI, 'UDI')}
             </p>
             
             {activeSubTab !== 'consolidado' && activeSubTab !== 'gmm' && (
               <p style={{ fontSize: '0.85rem', color: 'var(--text-dim)', margin: '4px 0 0 0', fontWeight: '600' }}>
-                ~ {fmtPesos(convertAmount(subTabKPIs.totalActive, activeSubTab))}
+                ~ {fmtPesos(activeSubTab === 'usd' ? data.kpis.portfolio.USD * data.exchangeRates?.USD : data.kpis.portfolio.UDI * data.exchangeRates?.UDI)}
               </p>
             )}
 
-
+            <p style={{ fontSize: '0.75rem', color: 'var(--text-dim)', marginTop: '8px', margin: '8px 0 0 0', lineHeight: '1.4' }}>
+              Suma global anualizada de pólizas activas.
+            </p>
             <p style={{ fontSize: '0.7rem', color: 'var(--accent-gold)', marginTop: '8px', margin: '14px 0 0 0', textAlign: 'right' }}>🔎 Ver desglose</p>
           </div>
         </div>

@@ -1136,18 +1136,26 @@ app.get('/api/dashboard', authMiddleware, (req, res) => {
 // Analíticas del CRM con Proyección de Cobros
 app.get('/api/analytics', authMiddleware, (req, res) => {
   const { year, month } = req.query;
-  let clientsData = req.user.clients;
+  let clientsData = req.user.clients || [];
 
   const currentYear = year || new Date().getFullYear().toString();
   
   let kpiCollected = 0;
   let kpiPending = 0;
-  let kpiClosedSales = 0;
-  let totalActive = 0;
-
   let kpiCollectedMXN = 0;
   let kpiPendingMXN = 0;
-  let kpiTotalActiveMXN = 0;
+
+  let kpiNewSalesCount = 0;
+  let kpiNewSalesMXN = 0;
+  let kpiRenewalsMXN = 0;
+
+  const portfolio = {
+    USD: 0,
+    UDI: 0,
+    MXN: 0,
+    GMM: 0,
+    totalMXN: 0
+  };
 
   const convertToMXN = (amount, currency) => {
     const cur = String(currency || 'MXN').toUpperCase().trim();
@@ -1158,8 +1166,10 @@ app.get('/api/analytics', authMiddleware, (req, res) => {
   const lists = {
     collected: [],
     pending: [],
-    closed: [],
-    active: []
+    newSales: [],
+    renewals: [],
+    active: [],
+    allActive: []
   };
 
   const segments = {
@@ -1182,7 +1192,6 @@ app.get('/api/analytics', authMiddleware, (req, res) => {
   const productDist = {};
   const planDist = {};
 
-  // Función de proyección de cobros programados
   const isPaymentScheduledIn = (client, targetYearStr, targetMonthStr) => {
     const emissionStr = client.paymentDate || client.collectionDate || client.emissionDate || '';
     if (!emissionStr) return false;
@@ -1194,66 +1203,85 @@ app.get('/api/analytics', authMiddleware, (req, res) => {
     const tMonth = parseInt(targetMonthStr);
 
     if (eYear > tYear) return false;
-    // Ignorar cobros programados de meses anteriores al mes de emisión (aniversario) para cualquier año
     if (tMonth < eMonth) return false;
 
     const freq = String(client.paymentFrequency || 'MENSUAL').toUpperCase().trim();
 
-    if (freq === 'MENSUAL' || freq === 'MENSUALES') {
-      return true;
-    }
-    if (freq === 'TRIMESTRAL' || freq === 'TRIMESTRALES') {
-      return Math.abs(tMonth - eMonth) % 3 === 0;
-    }
-    if (freq === 'SEMESTRAL' || freq === 'SEMESTRALES') {
-      return Math.abs(tMonth - eMonth) % 6 === 0;
-    }
-    if (freq === 'ANUAL' || freq === 'ANUALES') {
-      return tMonth === eMonth;
-    }
+    if (freq === 'MENSUAL' || freq === 'MENSUALES') return true;
+    if (freq === 'TRIMESTRAL' || freq === 'TRIMESTRALES') return Math.abs(tMonth - eMonth) % 3 === 0;
+    if (freq === 'SEMESTRAL' || freq === 'SEMESTRALES') return Math.abs(tMonth - eMonth) % 6 === 0;
+    if (freq === 'ANUAL' || freq === 'ANUALES') return tMonth === eMonth;
 
     return false;
   };
 
+  // 1. Calcular Valor Total de Cartera
   clientsData.forEach(c => {
-    // Es ramo de GMM o Vida
     const prod = String(c.product || 'Vida').trim().toLowerCase();
     const isGMM = prod.includes('gastos') || prod.includes('gmm') || prod.includes('médicos');
     const cur = String(c.currency || 'MXN').toUpperCase().trim();
     const premiumVal = c.premium || 0;
-    const mxnVal = convertToMXN(premiumVal, c.currency);
-
-    // Calcular cuántos pagos programados tiene al año para el valor de cartera total
+    
     let divisor = 1;
     const freq = String(c.paymentFrequency || 'ANUAL').toUpperCase().trim();
     if (freq.includes('MENS')) divisor = 12;
     else if (freq.includes('TRIM')) divisor = 4;
     else if (freq.includes('SEME')) divisor = 2;
 
-    const annualPremiumMXN = mxnVal * divisor;
+    const annualized = premiumVal * divisor;
+    
+    if (isGMM) {
+      portfolio.GMM += convertToMXN(annualized, cur);
+    } else {
+      if (cur.includes('USD')) portfolio.USD += annualized;
+      else if (cur.includes('UDI')) portfolio.UDI += annualized;
+      else portfolio.MXN += annualized;
+    }
 
-    // Procesar según si hay filtro de mes específico o es vista anual (YTD)
+    portfolio.totalMXN += convertToMXN(annualized, cur);
+    lists.allActive.push(c);
+  });
+
+  // 2. Procesar KPIs y Lógicas de Mes / Año
+  clientsData.forEach(c => {
+    const prod = String(c.product || 'Vida').trim().toLowerCase();
+    const isGMM = prod.includes('gastos') || prod.includes('gmm') || prod.includes('médicos');
+    const cur = String(c.currency || 'MXN').toUpperCase().trim();
+    const premiumVal = c.premium || 0;
+    const mxnVal = convertToMXN(premiumVal, c.currency);
+
+    const emissionStr = c.emissionDate || c.paymentDate || c.collectionDate || '';
+    let eYear = '', eMonth = '';
+    if (emissionStr) {
+      [eYear, eMonth] = emissionStr.split('-');
+    }
+
     if (month) {
-      // 1. Filtrado para un mes específico (ej: Junio)
+      // Filtrado por mes específico
       const scheduled = isPaymentScheduledIn(c, currentYear, month);
+      const isNewSale = (eYear === currentYear && parseInt(eMonth) === parseInt(month));
+
       if (scheduled) {
-        totalActive += 1;
-        kpiTotalActiveMXN += mxnVal; // En base mensual, el valor activo es su prima de cobro
+        lists.active.push(c);
+        
+        if (isNewSale) {
+          kpiNewSalesCount++;
+          kpiNewSalesMXN += mxnVal;
+          lists.newSales.push(c);
+        } else {
+          kpiRenewalsMXN += mxnVal;
+          lists.renewals.push(c);
+        }
 
         const isPaidThisMonth = c.status === 'Pagada' && c.paymentDate && c.paymentDate.startsWith(`${currentYear}-${month}`);
 
         if (isPaidThisMonth) {
           kpiCollected += premiumVal;
           kpiCollectedMXN += mxnVal;
-          kpiClosedSales++;
           
-          // Crear copia para cambiar estado en el listado a Pagada para ese mes
           const cCopy = { ...c, status: 'Pagada' };
-          lists.active.push(cCopy);
           lists.collected.push(cCopy);
-          lists.closed.push(cCopy);
 
-          // Sumar al segmento
           if (isGMM) {
             segments.gmm.count++;
             segments.gmm.collected += premiumVal;
@@ -1277,9 +1305,7 @@ app.get('/api/analytics', authMiddleware, (req, res) => {
           kpiPending += premiumVal;
           kpiPendingMXN += mxnVal;
           
-          // Clonar y asegurar estado Pendiente para el mes proyectado
           const cCopy = { ...c, status: 'Pendiente' };
-          lists.active.push(cCopy);
           lists.pending.push(cCopy);
 
           if (isGMM) {
@@ -1310,15 +1336,16 @@ app.get('/api/analytics', authMiddleware, (req, res) => {
         planDist[plan] = (planDist[plan] || 0) + 1;
       }
     } else {
-      // 2. Vista anual (Todo el Año)
-      // Agregamos el cliente a la lista activa general si califica en el año
+      // Vista Anual
       const qualifiesThisYear = c.emissionDate && parseInt(c.emissionDate.split('-')[0]) <= parseInt(currentYear);
       if (qualifiesThisYear) {
-        totalActive += 1;
         lists.active.push(c);
-        kpiTotalActiveMXN += annualPremiumMXN; // Suma anualizada de la cartera
 
-        // Proyectar todos los 12 meses
+        if (eYear === currentYear) {
+          kpiNewSalesCount++;
+          kpiNewSalesMXN += mxnVal; // Simplificación anual
+        }
+
         for (let m = 1; m <= 12; m++) {
           const scheduled = isPaymentScheduledIn(c, currentYear, m);
           if (scheduled) {
@@ -1328,7 +1355,6 @@ app.get('/api/analytics', authMiddleware, (req, res) => {
             if (isPaidThisMonth) {
               kpiCollected += premiumVal;
               kpiCollectedMXN += mxnVal;
-              kpiClosedSales++;
 
               if (isGMM) {
                 segments.gmm.count++;
@@ -1384,7 +1410,7 @@ app.get('/api/analytics', authMiddleware, (req, res) => {
       }
     }
 
-    // 3. Flujo mensual para la gráfica de área (siempre proyectada para los 12 meses)
+    // Flujo mensual para la gráfica de área
     for (let mIndex = 0; mIndex < 12; mIndex++) {
       const scheduled = isPaymentScheduledIn(c, currentYear, mIndex + 1);
       if (scheduled) {
@@ -1412,9 +1438,10 @@ app.get('/api/analytics', authMiddleware, (req, res) => {
       pending: kpiPending,
       collectedMXN: kpiCollectedMXN,
       pendingMXN: kpiPendingMXN,
-      totalActiveMXN: kpiTotalActiveMXN,
-      closedSales: kpiClosedSales,
-      totalActive
+      newSalesCount: kpiNewSalesCount,
+      newSalesMXN: kpiNewSalesMXN,
+      renewalsMXN: kpiRenewalsMXN,
+      portfolio
     },
     exchangeRates,
     segments,
@@ -1432,9 +1459,7 @@ app.get('/api/analytics', authMiddleware, (req, res) => {
       avatarConfig: req.user.avatarConfig || null
     }
   });
-});
-
-// Guardar instantánea (Snapshot) de un mes
+});\n\n// Guardar instantánea (Snapshot) de un mes
 app.post('/api/analytics/snapshot', authMiddleware, (req, res) => {
   const { year, month, kpis, monthlyFlow, pieProducts, piePlans, exchangeRates, segments, lists } = req.body;
   
