@@ -202,6 +202,11 @@ const checkAndRolloverPaidClients = (user) => {
         const nextDate = new Date(c.collectionDate + 'T00:00:00');
         nextDate.setMonth(nextDate.getMonth() + monthsToAdd);
         
+        if (c.collectionDay) {
+          const maxDays = new Date(nextDate.getFullYear(), nextDate.getMonth() + 1, 0).getDate();
+          nextDate.setDate(Math.min(c.collectionDay, maxDays));
+        }
+
         c.collectionDate = nextDate.toISOString().slice(0, 10);
         c.status = 'Pendiente';
         c.paymentDate = null;
@@ -275,6 +280,11 @@ const parseDate = (val) => {
   return '';
 };
 
+const createSafeDate = (y, m, d) => {
+  const maxDays = new Date(y, m + 1, 0).getDate();
+  return new Date(y, m, Math.min(d, maxDays));
+};
+
 // Calcular el cobro inicial de forma inteligente (para fecha de emisión y frecuencia)
 const getInitialCollectionDate = (emissionDateStr, paymentFrequency, status) => {
   const parsed = parseDate(emissionDateStr);
@@ -312,16 +322,16 @@ const getInitialCollectionDate = (emissionDateStr, paymentFrequency, status) => 
 
   if (status === 'Pendiente') {
     // Debe ser en el mes corriente (mayo 2026)
-    const colDate = new Date(currentYear, currentMonth, day);
+    const colDate = createSafeDate(currentYear, currentMonth, day);
     return colDate.toISOString().slice(0, 10);
   } else {
     // Pagada: buscamos el siguiente mes de cobro programado estrictamente posterior al mes corriente
     const nextMonthInYear = scheduledMonths.find(m => m > currentMonth);
     if (nextMonthInYear !== undefined) {
-      const colDate = new Date(currentYear, nextMonthInYear, day);
+      const colDate = createSafeDate(currentYear, nextMonthInYear, day);
       return colDate.toISOString().slice(0, 10);
     } else {
-      const colDate = new Date(currentYear + 1, scheduledMonths[0], day);
+      const colDate = createSafeDate(currentYear + 1, scheduledMonths[0], day);
       return colDate.toISOString().slice(0, 10);
     }
   }
@@ -1122,29 +1132,39 @@ app.get('/api/dashboard', authMiddleware, (req, res) => {
   clientsData.forEach(c => {
     if (c.status === 'Anulada') return; // Omitir pólizas anuladas
     // Revisar Cumpleaños del Contratante
-    if (c.contractorBirthDate && c.contractorBirthDate.slice(5, 7) === currentMonth) {
-      const day = c.contractorBirthDate.slice(8, 10);
-      birthdays.push({ 
-        name: c.contractor, 
-        type: `Contratante (Día ${day})`,
-        policy: c.policyNumber,
-        day: parseInt(day)
-      });
+    if (c.contractorBirthDate) {
+      const parts = c.contractorBirthDate.split('-');
+      const bMonth = parts.length === 3 ? parts[1] : (parts.length === 2 ? parts[0] : '');
+      const bDay = parts.length === 3 ? parts[2] : (parts.length === 2 ? parts[1] : '');
+
+      if (bMonth === currentMonth) {
+        birthdays.push({ 
+          name: c.contractor, 
+          type: `Contratante (Día ${bDay})`,
+          policy: c.policyNumber,
+          day: parseInt(bDay)
+        });
+      }
     }
 
     // Revisar Cumpleaños de los Asegurados
     c.insureds.forEach(ins => {
-      // Evitar duplicados si el asegurado es el mismo contratante y tienen la misma fecha
-      if (ins.birthDate && ins.birthDate.slice(5, 7) === currentMonth) {
+      if (ins.birthDate) {
+        // Evitar duplicados si el asegurado es el mismo contratante y tienen la misma fecha
         if (ins.name === c.contractor && ins.birthDate === c.contractorBirthDate) return; 
 
-        const day = ins.birthDate.slice(8, 10);
-        birthdays.push({ 
-          name: ins.name, 
-          type: `Asegurado (Día ${day})`,
-          policy: c.policyNumber,
-          day: parseInt(day)
-        });
+        const parts = ins.birthDate.split('-');
+        const bMonth = parts.length === 3 ? parts[1] : (parts.length === 2 ? parts[0] : '');
+        const bDay = parts.length === 3 ? parts[2] : (parts.length === 2 ? parts[1] : '');
+
+        if (bMonth === currentMonth) {
+          birthdays.push({ 
+            name: ins.name, 
+            type: `Asegurado (Día ${bDay})`,
+            policy: c.policyNumber,
+            day: parseInt(bDay)
+          });
+        }
       }
     });
 
@@ -1259,7 +1279,7 @@ app.get('/api/analytics', authMiddleware, (req, res) => {
     const tMonth = parseInt(targetMonthStr);
 
     if (eYear > tYear) return false;
-    if (tMonth < eMonth) return false;
+    if (eYear === tYear && tMonth < eMonth) return false;
 
     const freq = String(client.paymentFrequency || 'MENSUAL').toUpperCase().trim();
 
@@ -1320,24 +1340,24 @@ app.get('/api/analytics', authMiddleware, (req, res) => {
       const isNewSale = (eYear === currentYear && parseInt(eMonth) === parseInt(month));
 
       if (scheduled) {
-        lists.active.push(c);
+        const isPaidThisMonth = c.status === 'Pagada' && c.paymentDate && c.paymentDate.startsWith(`${currentYear}-${month}`);
+        const cCopy = { ...c, status: isPaidThisMonth ? 'Pagada' : 'Pendiente' };
+
+        lists.active.push(cCopy);
         
         if (isNewSale) {
           kpiNewSalesCount++;
           kpiNewSalesMXN += mxnVal;
-          lists.newSales.push(c);
+          lists.newSales.push(cCopy);
         } else {
           kpiRenewalsMXN += mxnVal;
-          lists.renewals.push(c);
+          lists.renewals.push(cCopy);
         }
-
-        const isPaidThisMonth = c.status === 'Pagada' && c.paymentDate && c.paymentDate.startsWith(`${currentYear}-${month}`);
 
         if (isPaidThisMonth) {
           kpiCollected += premiumVal;
           kpiCollectedMXN += mxnVal;
           
-          const cCopy = { ...c, status: 'Pagada' };
           lists.collected.push(cCopy);
 
           if (isGMM) {
@@ -1363,7 +1383,6 @@ app.get('/api/analytics', authMiddleware, (req, res) => {
           kpiPending += premiumVal;
           kpiPendingMXN += mxnVal;
           
-          const cCopy = { ...c, status: 'Pendiente' };
           lists.pending.push(cCopy);
 
           if (c.collectionDate) {

@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../App';
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
-  PieChart, Pie, Cell, LineChart, Line
+  PieChart, Pie, Cell, LineChart, Line, BarChart, Bar, FunnelChart, Funnel, LabelList
 } from 'recharts';
 
 const COLORS = ['#e2b042', '#333333', '#1e1e1e', '#a37a24', '#ffffff'];
@@ -174,8 +174,8 @@ const Analytics = () => {
       const monthsToCheck = month ? [parseInt(month)] : Array.from({ length: 12 }, (_, i) => i + 1);
 
       monthsToCheck.forEach(m => {
-        // Ignorar cobros programados de meses anteriores al mes de emisión (aniversario) de la póliza
-        if (m < eMonth) return;
+        // Ignorar cobros programados de meses anteriores al mes de emisión de la póliza sólo en el año de emisión
+        if (eYear === parseInt(year) && m < eMonth) return;
 
         let isScheduled = false;
         if (freq === 'MENSUAL' || freq === 'MENSUALES') isScheduled = true;
@@ -244,17 +244,27 @@ const Analytics = () => {
     let lateValue = 0;
     
     activeList.forEach(c => {
+      const val = subTab === 'consolidado' ? convertAmount(c.premium || 0, c.currency) : (c.premium || 0);
       if (c.status === 'Pagada') {
-        collected += c.premium || 0;
+        collected += val;
         closedSales++;
       } else {
-        pending += c.premium || 0;
+        pending += val;
       }
     });
 
-    newSalesList.forEach(c => { newSalesValue += c.premium || 0; });
-    renewalsList.forEach(c => { renewalsValue += c.premium || 0; });
-    lateList.forEach(c => { lateValue += c.premium || 0; });
+    newSalesList.forEach(c => {
+      const val = subTab === 'consolidado' ? convertAmount(c.premium || 0, c.currency) : (c.premium || 0);
+      newSalesValue += val;
+    });
+    renewalsList.forEach(c => {
+      const val = subTab === 'consolidado' ? convertAmount(c.premium || 0, c.currency) : (c.premium || 0);
+      renewalsValue += val;
+    });
+    lateList.forEach(c => {
+      const val = subTab === 'consolidado' ? convertAmount(c.premium || 0, c.currency) : (c.premium || 0);
+      lateValue += val;
+    });
 
     return { 
       collected, 
@@ -338,7 +348,7 @@ const Analytics = () => {
       ventas: 0
     }));
 
-    const clients = getSubTabClients(subTab);
+    const clients = getSubTabAllActiveClients(subTab);
 
     clients.forEach(c => {
       const emissionStr = c.paymentDate || c.collectionDate || c.emissionDate || '';
@@ -352,8 +362,8 @@ const Analytics = () => {
       let activeMonths = [];
 
       for (let m = 1; m <= 12; m++) {
-        // Ignorar cobros programados de meses anteriores al mes de emisión (aniversario) de la póliza
-        if (m < eMonth) continue;
+        // Ignorar cobros programados de meses anteriores al mes de emisión de la póliza sólo en el año de emisión
+        if (eYear === parseInt(year) && m < eMonth) continue;
 
         let isScheduled = false;
         if (freq === 'MENSUAL' || freq === 'MENSUALES') isScheduled = true;
@@ -373,7 +383,10 @@ const Analytics = () => {
 
         if (isPaidThisMonth) {
           flow[mIndex].cobrado += val;
-          flow[mIndex].ventas += 1;
+          const isNewSale = c.emissionDate && c.emissionDate.startsWith(`${year}-${mStr}`);
+          if (isNewSale) {
+            flow[mIndex].ventas += 1;
+          }
         } else {
           flow[mIndex].pendiente += val;
         }
@@ -402,6 +415,85 @@ const Analytics = () => {
 
   return (
     <div style={{ paddingBottom: '60px' }}>
+      <style>{`
+        .analytics-grid-row-1 {
+          display: grid;
+          grid-template-columns: 1fr;
+          gap: 24px;
+          margin-bottom: 32px;
+        }
+        .analytics-grid-row-2 {
+          display: grid;
+          grid-template-columns: 1fr;
+          gap: 24px;
+          margin-bottom: 32px;
+        }
+        .analytics-grid-row-3 {
+          display: grid;
+          grid-template-columns: 1fr;
+          gap: 24px;
+          margin-bottom: 32px;
+        }
+        @media (min-width: 1025px) {
+          .analytics-grid-row-1 {
+            grid-template-columns: 1fr 1fr;
+          }
+          .analytics-grid-row-2 {
+            grid-template-columns: 1fr 1fr 1.2fr;
+          }
+          .analytics-grid-row-3 {
+            grid-template-columns: 2fr 1fr;
+          }
+        }
+        .sparkline-glow-ventas {
+          filter: drop-shadow(0 2px 4px rgba(0, 255, 170, 0.2));
+        }
+        .sparkline-glow-subsecuentes {
+          filter: drop-shadow(0 2px 4px rgba(68, 136, 255, 0.2));
+        }
+        
+        /* Progress bars styling matching mobile mockup */
+        .progress-bar-container {
+          background: rgba(255, 255, 255, 0.02);
+          border: 1px solid var(--glass-border);
+          border-radius: 10px;
+          padding: 12px 16px;
+          cursor: pointer;
+          transition: all 0.3s var(--transition-premium);
+          display: flex;
+          flex-direction: column;
+          gap: 6px;
+        }
+        .progress-bar-container:hover {
+          transform: translateY(-2px);
+          background: rgba(255, 255, 255, 0.04);
+          border-color: rgba(226, 176, 66, 0.2);
+          box-shadow: 0 8px 20px rgba(0,0,0,0.3);
+        }
+        .progress-bar-track {
+          width: 100%;
+          height: 6px;
+          background: rgba(255, 255, 255, 0.05);
+          border-radius: 3px;
+          overflow: hidden;
+        }
+        body.light-theme .progress-bar-container {
+          background: rgba(0, 0, 0, 0.02);
+        }
+        body.light-theme .progress-bar-container:hover {
+          background: rgba(0, 0, 0, 0.04);
+          border-color: rgba(197, 147, 36, 0.3);
+          box-shadow: 0 8px 20px rgba(15, 23, 42, 0.05);
+        }
+        body.light-theme .progress-bar-track {
+          background: rgba(0, 0, 0, 0.08);
+        }
+        .progress-bar-fill {
+          height: 100%;
+          border-radius: 3px;
+          transition: width 1s cubic-bezier(0.22, 1, 0.36, 1);
+        }
+      `}</style>
       <div className="animate-up">
       
       {/* CABECERA Y ROBOT FINANCIERO */}
@@ -572,170 +664,343 @@ const Analytics = () => {
       {/* CONTENIDO DINÁMICO DE LA SUBPESTAÑA SELECCIONADA */}
       <div className="animate-up" key={activeSubTab}>
         
-        {/* TARJETAS DE KPIS ADAPTATIVAS */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '24px', marginBottom: '40px' }}>
+        {/* FILA 1: EL TABLERO DE CONTROL MENSUAL (Dona y Metas de Cobro) */}
+        <div className="analytics-grid-row-1">
           
-          {/* KPI 1: Ingresos Pagados */}
+          {/* COLUMNA 1: DISTRIBUCIÓN DE CARTERA POR RAMOS / PLANES (DONA) */}
           <div 
-            className="glass-card stat-widget" 
-            onClick={() => setDrillDown({ title: `Ingresos Pagados del Mes - ${activeSubTab.toUpperCase()}`, list: getSubTabClients(activeSubTab).filter(c => c.status === 'Pagada') })}
-            style={{ padding: '24px', position: 'relative', cursor: 'pointer', overflow: 'hidden', border: '1px solid var(--glass-border)' }}
+            className="glass-card" 
+            style={{ padding: '24px', display: 'flex', flexDirection: 'column', height: '380px', cursor: 'pointer', border: '1px solid var(--glass-border)' }}
+            onClick={() => setDrillDown({ 
+              title: `Distribución de Cartera - ${activeSubTab.toUpperCase()}`, 
+              list: getSubTabClients(activeSubTab) 
+            })}
+          >
+            <h3 style={{ margin: '0 0 16px 0', color: 'var(--text-main)', fontSize: '0.95rem', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+              {activeSubTab === 'consolidado' ? 'Distribución de Cartera por Ramos' : `Planes Vendidos (${activeSubTab.toUpperCase()})`}
+            </h3>
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: '16px', minHeight: '180px' }}>
+              {activeSubTab === 'consolidado' ? (
+                <>
+                  <div style={{ width: '55%', height: '100%', minHeight: '180px' }}>
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie 
+                          data={data.pieProducts} 
+                          cx="50%" 
+                          cy="50%" 
+                          innerRadius={50} 
+                          outerRadius={75} 
+                          paddingAngle={5} 
+                          dataKey="value"
+                        >
+                          {data.pieProducts.map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={PIE_COLORS[index % PIE_COLORS.length]} stroke="rgba(0,0,0,0.5)" strokeWidth={2} />
+                          ))}
+                        </Pie>
+                        <Tooltip contentStyle={{ backgroundColor: 'rgba(0,0,0,0.9)', border: 'none', borderRadius: '8px' }} />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </div>
+                  <div style={{ width: '45%', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                    {data.pieProducts.map((entry, index) => (
+                      <div key={index} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <div style={{ width: '10px', height: '10px', borderRadius: '50%', backgroundColor: PIE_COLORS[index % PIE_COLORS.length], flexShrink: 0 }}></div>
+                        <div style={{ display: 'flex', flexDirection: 'column' }}>
+                          <span style={{ fontSize: '0.78rem', fontWeight: 'bold', color: 'var(--text-main)' }}>{entry.name}</span>
+                          <span style={{ fontSize: '0.72rem', color: 'var(--text-dim)' }}>{entry.value} pólizas</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              ) : (
+                subTabPlans.length === 0 ? (
+                  <p style={{ color: 'var(--text-dim)', fontSize: '0.85rem' }}>No hay registros de planes para este periodo.</p>
+                ) : (
+                  <>
+                    <div style={{ width: '55%', height: '100%', minHeight: '180px' }}>
+                      <ResponsiveContainer width="100%" height="100%">
+                        <PieChart>
+                          <Pie 
+                            data={subTabPlans} 
+                            cx="50%" 
+                            cy="50%" 
+                            innerRadius={50} 
+                            outerRadius={75} 
+                            paddingAngle={5} 
+                            dataKey="value"
+                          >
+                            {subTabPlans.map((entry, index) => (
+                              <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} stroke="rgba(0,0,0,0.5)" strokeWidth={2} />
+                            ))}
+                          </Pie>
+                          <Tooltip contentStyle={{ backgroundColor: 'rgba(0,0,0,0.9)', border: 'none', borderRadius: '8px' }} />
+                        </PieChart>
+                      </ResponsiveContainer>
+                    </div>
+                    <div style={{ width: '45%', display: 'flex', flexDirection: 'column', gap: '10px', maxHeight: '200px', overflowY: 'auto' }}>
+                      {subTabPlans.map((entry, index) => (
+                        <div key={index} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: COLORS[index % COLORS.length], flexShrink: 0 }}></div>
+                          <div style={{ display: 'flex', flexDirection: 'column' }}>
+                            <span style={{ fontSize: '0.74rem', fontWeight: 'bold', color: 'var(--text-main)' }}>{entry.name}</span>
+                            <span style={{ fontSize: '0.68rem', color: 'var(--text-dim)' }}>{entry.value} pólizas</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                )
+              )}
+            </div>
+            <p style={{ fontSize: '0.7rem', color: 'var(--accent-gold)', marginTop: '8px', margin: '14px 0 0 0', textAlign: 'right' }}>🔎 Ver cartera completa</p>
+          </div>
+
+          {/* COLUMNA 2: EL CUADRO DE BARRAS DE PROGRESO DE COBRANZA */}
+          <div 
+            className="glass-card" 
+            style={{ padding: '24px', display: 'flex', flexDirection: 'column', height: '380px', border: '1px solid var(--glass-border)' }}
+          >
+            <h3 style={{ margin: '0 0 16px 0', color: 'var(--text-main)', fontSize: '0.95rem', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+              Efectividad de Cobro Mensual ({activeSubTab === 'consolidado' || activeSubTab === 'gmm' ? 'Pesos' : activeSubTab.toUpperCase()})
+            </h3>
+            
+            {(() => {
+              const totalExpected = subTabKPIs.collected + subTabKPIs.pending;
+              const collectedReal = subTabKPIs.collected;
+              const pendingInTimeValue = subTabKPIs.pending - subTabKPIs.lateValue;
+              const lateValue = subTabKPIs.lateValue;
+
+              const formatVal = (val) => {
+                if (activeSubTab === 'consolidado' || activeSubTab === 'gmm') {
+                  return fmtPesos(val);
+                }
+                return formatRawValue(val, activeSubTab);
+              };
+
+              const pctPagado = totalExpected > 0 ? Math.round((collectedReal / totalExpected) * 100) : 0;
+              const pctATiempo = totalExpected > 0 ? Math.round((pendingInTimeValue / totalExpected) * 100) : 0;
+              const pctAtrasado = totalExpected > 0 ? Math.round((lateValue / totalExpected) * 100) : 0;
+
+              return (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', flex: 1, justifyContent: 'center' }}>
+                  
+                  {/* Total Esperado */}
+                  <div 
+                    className="progress-bar-container"
+                    onClick={() => setDrillDown({ 
+                      title: `Total Esperado del Mes - ${activeSubTab.toUpperCase()}`, 
+                      list: getSubTabClients(activeSubTab) 
+                    })}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontSize: '0.75rem', fontWeight: 'bold', color: 'var(--accent-gold)' }}>TOTAL ESPERADO</span>
+                      <span style={{ fontSize: '0.85rem', fontWeight: 'bold', color: 'var(--text-main)' }}>{formatVal(totalExpected)} (100%)</span>
+                    </div>
+                    <div className="progress-bar-track">
+                      <div className="progress-bar-fill" style={{ width: '100%', background: 'var(--accent-gold)', boxShadow: '0 0 10px var(--accent-gold-glow)' }}></div>
+                    </div>
+                  </div>
+
+                  {/* Pagado */}
+                  <div 
+                    className="progress-bar-container"
+                    onClick={() => setDrillDown({ 
+                      title: `Ingresos Pagados del Mes - ${activeSubTab.toUpperCase()}`, 
+                      list: getSubTabClients(activeSubTab).filter(c => c.status === 'Pagada') 
+                    })}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontSize: '0.75rem', fontWeight: 'bold', color: 'var(--accent-mint)' }}>PAGADO (REAL)</span>
+                      <span style={{ fontSize: '0.85rem', fontWeight: 'bold', color: 'var(--accent-mint)' }}>{formatVal(collectedReal)} ({pctPagado}%)</span>
+                    </div>
+                    <div className="progress-bar-track">
+                      <div className="progress-bar-fill" style={{ width: `${pctPagado}%`, background: 'var(--accent-mint)', boxShadow: '0 0 10px var(--accent-mint-glow)' }}></div>
+                    </div>
+                  </div>
+
+                  {/* A Tiempo */}
+                  <div 
+                    className="progress-bar-container"
+                    onClick={() => setDrillDown({ 
+                      title: `Cobranza Pendiente en Tiempo - ${activeSubTab.toUpperCase()}`, 
+                      list: getSubTabClients(activeSubTab).filter(c => c.status !== 'Pagada' && !subTabKPIs.lateList.some(l => l.policyNumber === c.policyNumber)) 
+                    })}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontSize: '0.75rem', fontWeight: 'bold', color: '#4488ff' }}>PENDIENTE A TIEMPO</span>
+                      <span style={{ fontSize: '0.85rem', fontWeight: 'bold', color: '#4488ff' }}>{formatVal(pendingInTimeValue)} ({pctATiempo}%)</span>
+                    </div>
+                    <div className="progress-bar-track">
+                      <div className="progress-bar-fill" style={{ width: `${pctATiempo}%`, background: '#4488ff', boxShadow: '0 0 10px rgba(68,136,255,0.3)' }}></div>
+                    </div>
+                  </div>
+
+                  {/* Atrasado */}
+                  <div 
+                    className="progress-bar-container"
+                    onClick={() => setDrillDown({ 
+                      title: `Pólizas Atrasadas - ${activeSubTab.toUpperCase()}`, 
+                      list: subTabKPIs.lateList || [] 
+                    })}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontSize: '0.75rem', fontWeight: 'bold', color: '#ff4444' }}>ATRASADO</span>
+                      <span style={{ fontSize: '0.85rem', fontWeight: 'bold', color: '#ff4444' }}>{formatVal(lateValue)} ({pctAtrasado}%)</span>
+                    </div>
+                    <div className="progress-bar-track">
+                      <div className="progress-bar-fill" style={{ width: `${pctAtrasado}%`, background: '#ff4444', boxShadow: '0 0 10px rgba(255,68,68,0.3)' }}></div>
+                    </div>
+                  </div>
+
+                </div>
+              );
+            })()}
+          </div>
+        </div>
+
+        {/* FILA 2: INDICADORES RÁPIDOS Y TENDENCIAS (Ventas Nuevas, Subsecuentes y Cartera) */}
+        <div className="analytics-grid-row-2">
+          
+          {/* Card Ventas Nuevas */}
+          <div 
+            className="glass-card" 
+            onClick={() => setDrillDown({ title: `Ventas Nuevas del Mes - ${activeSubTab.toUpperCase()}`, list: subTabKPIs.newSalesList || [] })}
+            style={{ padding: '20px 24px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', cursor: 'pointer', position: 'relative', overflow: 'hidden', border: '1px solid var(--glass-border)', height: '210px' }}
+          >
+            <div style={{ position: 'absolute', top: 0, left: 0, width: '3px', height: '100%', background: 'var(--accent-mint)' }}></div>
+            <div>
+              <p style={{ color: 'var(--text-dim)', fontSize: '0.75rem', textTransform: 'uppercase', fontWeight: '600', margin: 0 }}>Ventas Nuevas</p>
+              <p style={{ color: 'var(--text-dim)', fontSize: '0.62rem', margin: '1px 0 0 0', textTransform: 'none' }}>Primer pago emitido en el mes</p>
+              <p style={{ fontSize: '1.4rem', fontWeight: 'bold', color: 'var(--accent-mint)', margin: '4px 0 0 0' }}>
+                {`${subTabKPIs.newSalesList?.length || 0} ${subTabKPIs.newSalesList?.length === 1 ? 'póliza' : 'pólizas'}`}
+              </p>
+            </div>
+            
+            {/* Live Sparkline */}
+            <div style={{ height: '80px', marginTop: '10px', width: '100%' }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={subTabFlow} margin={{ top: 2, right: 2, left: 2, bottom: 2 }}>
+                  <defs>
+                    <linearGradient id="glowVentas" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="var(--accent-mint)" stopOpacity={0.3} />
+                      <stop offset="100%" stopColor="var(--accent-mint)" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <XAxis 
+                    dataKey="name" 
+                    stroke="var(--text-dim)" 
+                    fontSize={8} 
+                    tickLine={false} 
+                    axisLine={false} 
+                    dy={4}
+                  />
+                  <Tooltip 
+                    contentStyle={{ backgroundColor: 'rgba(10,10,10,0.95)', border: '1px solid var(--accent-mint)', borderRadius: '6px', fontSize: '9px', padding: '4px 8px' }}
+                    itemStyle={{ color: '#fff', padding: 0 }}
+                    labelStyle={{ color: 'var(--text-dim)', fontWeight: 'bold', margin: 0 }}
+                    formatter={(value) => [`${value} ${value === 1 ? 'póliza' : 'pólizas'}`, 'Ventas']}
+                  />
+                  <Area 
+                    type="linear" 
+                    dataKey="ventas" 
+                    stroke="var(--accent-mint)" 
+                    strokeWidth={2} 
+                    fillOpacity={1} 
+                    fill="url(#glowVentas)" 
+                    dot={false}
+                    activeDot={{ r: 4 }}
+                    className="sparkline-glow-ventas"
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+          {/* Card Pagos Subsecuentes */}
+          <div 
+            className="glass-card" 
+            onClick={() => setDrillDown({ title: `Pagos Subsecuentes - ${activeSubTab.toUpperCase()}`, list: subTabKPIs.renewalsList || [] })}
+            style={{ padding: '20px 24px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', cursor: 'pointer', position: 'relative', overflow: 'hidden', border: '1px solid var(--glass-border)', height: '210px' }}
+          >
+            <div style={{ position: 'absolute', top: 0, left: 0, width: '3px', height: '100%', background: '#4488ff' }}></div>
+            <div>
+              <p style={{ color: 'var(--text-dim)', fontSize: '0.75rem', textTransform: 'uppercase', fontWeight: '600', margin: 0 }}>Subsecuentes</p>
+              <p style={{ color: 'var(--text-dim)', fontSize: '0.62rem', margin: '1px 0 0 0', textTransform: 'none' }}>Pagos a partir del 2° mes o renovaciones</p>
+              <p style={{ fontSize: '1.4rem', fontWeight: 'bold', color: '#4488ff', margin: '4px 0 0 0' }}>
+                {activeSubTab === 'consolidado' ? fmt(data.kpis.renewalsMXN) : formatRawValue(subTabKPIs.renewalsValue, activeSubTab)}
+              </p>
+            </div>
+            
+            {/* Live Sparkline */}
+            <div style={{ height: '80px', marginTop: '10px', width: '100%' }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={subTabFlow} margin={{ top: 2, right: 2, left: 2, bottom: 2 }}>
+                  <defs>
+                    <linearGradient id="glowSubsecuentes" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#4488ff" stopOpacity={0.3} />
+                      <stop offset="100%" stopColor="#4488ff" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <XAxis 
+                    dataKey="name" 
+                    stroke="var(--text-dim)" 
+                    fontSize={8} 
+                    tickLine={false} 
+                    axisLine={false} 
+                    dy={4}
+                  />
+                  <Tooltip 
+                    contentStyle={{ backgroundColor: 'rgba(10,10,10,0.95)', border: '1px solid #4488ff', borderRadius: '6px', fontSize: '9px', padding: '4px 8px' }}
+                    itemStyle={{ color: '#fff', padding: 0 }}
+                    labelStyle={{ color: 'var(--text-dim)', fontWeight: 'bold', margin: 0 }}
+                    formatter={(value) => [activeSubTab === 'consolidado' ? fmt(value) : formatRawValue(value, activeSubTab), 'Cobrado']}
+                  />
+                  <Area 
+                    type="linear" 
+                    dataKey="cobrado" 
+                    stroke="#4488ff" 
+                    strokeWidth={2} 
+                    fillOpacity={1} 
+                    fill="url(#glowSubsecuentes)" 
+                    dot={false} 
+                    activeDot={{ r: 4 }}
+                    className="sparkline-glow-subsecuentes"
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+          {/* Card Valor Total Cartera Anual */}
+          <div 
+            className="glass-card" 
+            onClick={() => setDrillDown({ title: `Valor Total de la Cartera - ${activeSubTab.toUpperCase()}`, list: getSubTabAllActiveClients(activeSubTab) })}
+            style={{ padding: '24px', display: 'flex', flexDirection: 'column', justifyContent: 'center', cursor: 'pointer', position: 'relative', overflow: 'hidden', border: '1px solid var(--glass-border)', height: '210px' }}
           >
             <div style={{ position: 'absolute', top: 0, left: 0, width: '4px', height: '100%', background: activeSubTab === 'gmm' ? '#ffaa00' : 'var(--accent-gold)' }}></div>
-            <p style={{ color: 'var(--text-dim)', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.5px', margin: '0 0 8px 0', fontWeight: '600' }}>
-              Ingresos Pagados del Mes ({activeSubTab === 'consolidado' || activeSubTab === 'gmm' ? 'Pesos' : activeSubTab.toUpperCase()})
-            </p>
-            <p style={{ 
-              fontSize: '2rem', 
-              fontWeight: 'bold', 
-              color: activeSubTab === 'gmm' ? '#ffaa00' : 'var(--accent-gold)', 
-              margin: 0, 
-              textShadow: activeSubTab === 'gmm' ? '0 0 10px rgba(255,170,0,0.1)' : '0 0 10px rgba(226,176,66,0.1)' 
-            }}>
-              {activeSubTab === 'consolidado' ? fmtPesos(data.kpis.collectedMXN) : formatRawValue(subTabKPIs.collected, activeSubTab === 'gmm' ? 'MXN' : activeSubTab)}
-            </p>
-            
-            {activeSubTab !== 'consolidado' && activeSubTab !== 'gmm' && (
-              <p style={{ fontSize: '0.85rem', color: 'var(--text-dim)', margin: '4px 0 0 0', fontWeight: '600' }}>
-                ~ {fmtPesos(convertAmount(subTabKPIs.collected, activeSubTab))}
-              </p>
-            )}
-
-            {activeSubTab === 'consolidado' && (
-              <div style={{ marginTop: '12px', paddingTop: '10px', borderTop: '1px solid rgba(255,255,255,0.05)', fontSize: '0.75rem', color: 'var(--text-dim)', lineHeight: '1.4' }}>
-                <strong>Desglose original:</strong><br />
-                🇲🇽 {fmt(collectedBreakdown.MXN)} MXN <span style={{color: 'rgba(255,255,255,0.2)'}}>|</span> 
-                💵 {collectedBreakdown.USD.toLocaleString('es-MX', { minimumFractionDigits: 0, maximumFractionDigits: 2 })} USD <span style={{color: 'rgba(255,255,255,0.2)'}}>|</span> 
-                🧬 {collectedBreakdown.UDI.toLocaleString('es-MX', { minimumFractionDigits: 0, maximumFractionDigits: 2 })} UDI
-              </div>
-            )}
-            <p style={{ fontSize: '0.7rem', color: activeSubTab === 'gmm' ? '#ffaa00' : 'var(--accent-gold)', marginTop: '8px', margin: '14px 0 0 0', textAlign: 'right' }}>🔎 Ver desglose</p>
-          </div>
-          
-          {/* KPI 2: Pendientes */}
-          <div 
-            className="glass-card stat-widget" 
-            onClick={() => setDrillDown({ title: `Pendientes de Cobro - ${activeSubTab.toUpperCase()}`, list: getSubTabClients(activeSubTab).filter(c => c.status !== 'Pagada') })}
-            style={{ padding: '24px', position: 'relative', cursor: 'pointer', overflow: 'hidden', border: '1px solid var(--glass-border)' }}
-          >
-            <div style={{ position: 'absolute', top: 0, left: 0, width: '4px', height: '100%', background: 'var(--text-muted)' }}></div>
-            <p style={{ color: 'var(--text-dim)', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.5px', margin: '0 0 8px 0', fontWeight: '600' }}>
-              Pendiente de Cobro ({activeSubTab === 'consolidado' || activeSubTab === 'gmm' ? 'Pesos' : activeSubTab.toUpperCase()})
-            </p>
-            <p style={{ fontSize: '2rem', fontWeight: 'bold', color: 'var(--text-main)', margin: 0 }}>
-              {activeSubTab === 'consolidado' ? fmtPesos(data.kpis.pendingMXN) : formatRawValue(subTabKPIs.pending, activeSubTab === 'gmm' ? 'MXN' : activeSubTab)}
-            </p>
-            
-            {activeSubTab !== 'consolidado' && activeSubTab !== 'gmm' && (
-              <p style={{ fontSize: '0.85rem', color: 'var(--text-dim)', margin: '4px 0 0 0', fontWeight: '600' }}>
-                ~ {fmtPesos(convertAmount(subTabKPIs.pending, activeSubTab))}
-              </p>
-            )}
-
-            {activeSubTab === 'consolidado' && (
-              <div style={{ marginTop: '12px', paddingTop: '10px', borderTop: '1px solid rgba(255,255,255,0.05)', fontSize: '0.75rem', color: 'var(--text-dim)', lineHeight: '1.4' }}>
-                <strong>Desglose original:</strong><br />
-                🇲🇽 {fmt(pendingBreakdown.MXN)} MXN <span style={{color: 'rgba(255,255,255,0.2)'}}>|</span> 
-                💵 {pendingBreakdown.USD.toLocaleString('es-MX', { minimumFractionDigits: 0, maximumFractionDigits: 2 })} USD <span style={{color: 'rgba(255,255,255,0.2)'}}>|</span> 
-                🧬 {pendingBreakdown.UDI.toLocaleString('es-MX', { minimumFractionDigits: 0, maximumFractionDigits: 2 })} UDI
-              </div>
-            )}
-            <p style={{ fontSize: '0.7rem', color: 'var(--text-dim)', marginTop: '8px', margin: '14px 0 0 0', textAlign: 'right' }}>🔎 Ver desglose</p>
-          </div>
-
-          {/* KPI 3: Atrasados */}
-          <div 
-            className="glass-card stat-widget" 
-            onClick={() => setDrillDown({ title: `Pólizas Atrasadas - ${activeSubTab.toUpperCase()}`, list: subTabKPIs.lateList || [] })}
-            style={{ padding: '24px', position: 'relative', cursor: 'pointer', overflow: 'hidden', border: '1px solid rgba(255, 68, 68, 0.2)', background: 'rgba(255, 68, 68, 0.02)' }}
-          >
-            <div style={{ position: 'absolute', top: 0, left: 0, width: '4px', height: '100%', background: '#ff4444' }}></div>
-            <p style={{ color: '#ff4444', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.5px', margin: '0 0 8px 0', fontWeight: '700' }}>
-              🚨 Atrasados ({activeSubTab === 'consolidado' || activeSubTab === 'gmm' ? 'Pesos' : activeSubTab.toUpperCase()})
-            </p>
-            <p style={{ fontSize: '2rem', fontWeight: 'bold', color: '#ff4444', margin: 0 }}>
-              {activeSubTab === 'consolidado' ? fmtPesos(data.kpis.lateMXN || 0) : formatRawValue(subTabKPIs.lateValue, activeSubTab === 'gmm' ? 'MXN' : activeSubTab)}
-            </p>
-            
-            {activeSubTab !== 'consolidado' && activeSubTab !== 'gmm' && (
-              <p style={{ fontSize: '0.85rem', color: 'var(--text-dim)', margin: '4px 0 0 0', fontWeight: '600' }}>
-                ~ {fmtPesos(convertAmount(subTabKPIs.lateValue, activeSubTab))}
-              </p>
-            )}
-            <p style={{ fontSize: '0.75rem', color: 'var(--text-dim)', marginTop: '8px', margin: '8px 0 0 0', lineHeight: '1.4' }}>
-              Pólizas con atraso de pago programado.
-            </p>
-            <p style={{ fontSize: '0.7rem', color: '#ff4444', marginTop: '8px', margin: '14px 0 0 0', textAlign: 'right' }}>🔎 Ver desglose</p>
-          </div>
-
-          {/* KPI 3: Ventas Nuevas */}
-          <div 
-            className="glass-card stat-widget" 
-            onClick={() => setDrillDown({ title: `Ventas Nuevas del Mes - ${activeSubTab.toUpperCase()}`, list: subTabKPIs.newSalesList || [] })}
-            style={{ padding: '24px', position: 'relative', cursor: 'pointer', overflow: 'hidden', border: '1px solid var(--glass-border)' }}
-          >
-            <div style={{ position: 'absolute', top: 0, left: 0, width: '4px', height: '100%', background: 'var(--accent-mint)' }}></div>
-            <p style={{ color: 'var(--text-dim)', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.5px', margin: '0 0 8px 0', fontWeight: '600' }}>Ventas Nuevas</p>
-            <p style={{ fontSize: '2rem', fontWeight: 'bold', color: 'var(--accent-mint)', margin: 0 }}>
-              {activeSubTab === 'consolidado' ? fmtPesos(data.kpis.newSalesMXN) : formatRawValue(subTabKPIs.newSalesValue, activeSubTab === 'gmm' ? 'MXN' : activeSubTab)}
-            </p>
-            <p style={{ fontSize: '0.75rem', color: 'var(--text-dim)', marginTop: '8px', margin: '8px 0 0 0', lineHeight: '1.4' }}>
-              Pólizas emitidas en el mes ({month || 'N/A'}/{year}).
-            </p>
-            <p style={{ fontSize: '0.7rem', color: 'var(--accent-mint)', marginTop: '8px', margin: '14px 0 0 0', textAlign: 'right' }}>🔎 Ver desglose</p>
-          </div>
-
-          {/* KPI 4: Pagos Subsecuentes */}
-          <div 
-            className="glass-card stat-widget" 
-            onClick={() => setDrillDown({ title: `Pagos Subsecuentes - ${activeSubTab.toUpperCase()}`, list: subTabKPIs.renewalsList || [] })}
-            style={{ padding: '24px', position: 'relative', cursor: 'pointer', overflow: 'hidden', border: '1px solid var(--glass-border)' }}
-          >
-            <div style={{ position: 'absolute', top: 0, left: 0, width: '4px', height: '100%', background: '#4488ff' }}></div>
-            <p style={{ color: 'var(--text-dim)', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.5px', margin: '0 0 8px 0', fontWeight: '600' }}>Pagos Subsecuentes</p>
-            <p style={{ fontSize: '2rem', fontWeight: 'bold', color: '#4488ff', margin: 0 }}>
-              {activeSubTab === 'consolidado' ? fmtPesos(data.kpis.renewalsMXN) : formatRawValue(subTabKPIs.renewalsValue, activeSubTab === 'gmm' ? 'MXN' : activeSubTab)}
-            </p>
-            <p style={{ fontSize: '0.75rem', color: 'var(--text-dim)', marginTop: '8px', margin: '8px 0 0 0', lineHeight: '1.4' }}>
-              Cobranzas de renovación y subsecuentes programadas.
-            </p>
-            <p style={{ fontSize: '0.7rem', color: '#4488ff', marginTop: '8px', margin: '14px 0 0 0', textAlign: 'right' }}>🔎 Ver desglose</p>
-          </div>
-
-          {/* KPI 5: Valor Anual Cartera */}
-          <div 
-            className="glass-card stat-widget" 
-            onClick={() => setDrillDown({ title: `Valor Total de la Cartera - ${activeSubTab.toUpperCase()}`, list: getSubTabAllActiveClients(activeSubTab) })}
-            style={{ padding: '24px', position: 'relative', cursor: 'pointer', overflow: 'hidden', border: '1px solid var(--glass-border)' }}
-          >
-            <div style={{ position: 'absolute', top: 0, left: 0, width: '4px', height: '100%', background: '#e2b042' }}></div>
-            <p style={{ color: 'var(--text-dim)', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.5px', margin: '0 0 8px 0', fontWeight: '600' }}>
+            <p style={{ color: 'var(--text-dim)', fontSize: '0.75rem', textTransform: 'uppercase', fontWeight: '600', margin: 0, letterSpacing: '0.5px' }}>
               Valor Total Cartera Anual ({activeSubTab === 'consolidado' || activeSubTab === 'gmm' ? 'Pesos' : activeSubTab.toUpperCase()})
             </p>
-            <p style={{ fontSize: '2rem', fontWeight: 'bold', color: 'var(--text-main)', margin: 0 }}>
+            <p style={{ fontSize: '1.6rem', fontWeight: 'bold', color: 'var(--text-main)', margin: '6px 0 0 0' }}>
               {activeSubTab === 'consolidado' ? fmtPesos(data.kpis.portfolio.totalMXN) :
                activeSubTab === 'gmm' ? fmtPesos(data.kpis.portfolio.GMM) :
                activeSubTab === 'usd' ? formatRawValue(data.kpis.portfolio.USD, 'USD') :
                formatRawValue(data.kpis.portfolio.UDI, 'UDI')}
             </p>
-            
             {activeSubTab !== 'consolidado' && activeSubTab !== 'gmm' && (
-              <p style={{ fontSize: '0.85rem', color: 'var(--text-dim)', margin: '4px 0 0 0', fontWeight: '600' }}>
+              <p style={{ fontSize: '0.75rem', color: 'var(--text-dim)', margin: '2px 0 0 0', fontWeight: '600' }}>
                 ~ {fmtPesos(activeSubTab === 'usd' ? data.kpis.portfolio.USD * data.exchangeRates?.USD : data.kpis.portfolio.UDI * data.exchangeRates?.UDI)}
               </p>
             )}
-
-            <p style={{ fontSize: '0.75rem', color: 'var(--text-dim)', marginTop: '8px', margin: '8px 0 0 0', lineHeight: '1.4' }}>
-              Suma global anualizada de pólizas activas.
-            </p>
-            <p style={{ fontSize: '0.7rem', color: 'var(--accent-gold)', marginTop: '8px', margin: '14px 0 0 0', textAlign: 'right' }}>🔎 Ver desglose</p>
           </div>
         </div>
 
-        {/* GRÁFICAS DE ALTO IMPACTO FILTRADAS POR SUBPESTAÑA */}
-        <div style={{ display: 'grid', gridTemplateColumns: activeSubTab === 'consolidado' ? '2fr 1fr' : '1fr 1fr', gap: '24px', marginBottom: '40px' }}>
+        {/* FILA 3: EL FLUJO HISTÓRICO Y LA DISTRIBUCIÓN PLANES (2 Columnas) */}
+        <div className="analytics-grid-row-3">
           
-          {/* Gráfica de Área Suave: Flujo Mensual */}
+          {/* Gráfica de Barras Apiladas: Flujo Mensual */}
           <div className="glass-card" style={{ padding: '24px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
               <h3 style={{ margin: 0, color: 'var(--text-main)', fontSize: '1.1rem', fontWeight: '700' }}>
@@ -752,19 +1017,10 @@ const Analytics = () => {
                 Unidad: {activeSubTab === 'consolidado' || activeSubTab === 'gmm' ? 'Pesos MXN' : activeSubTab.toUpperCase()}
               </span>
             </div>
+            
             <div style={{ height: '320px' }}>
               <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={subTabFlow}>
-                  <defs>
-                    <linearGradient id="colorCobradoSub" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor={activeSubTab === 'gmm' ? '#ffaa00' : 'var(--accent-gold)'} stopOpacity={0.4}/>
-                      <stop offset="95%" stopColor={activeSubTab === 'gmm' ? '#ffaa00' : 'var(--accent-gold)'} stopOpacity={0.0}/>
-                    </linearGradient>
-                    <linearGradient id="colorPendienteSub" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="var(--text-muted)" stopOpacity={0.2}/>
-                      <stop offset="95%" stopColor="var(--text-muted)" stopOpacity={0.0}/>
-                    </linearGradient>
-                  </defs>
+                <BarChart data={subTabFlow} margin={{ top: 10, right: 10, left: 10, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="var(--glass-border)" vertical={false} />
                   <XAxis dataKey="name" stroke="var(--text-dim)" fontSize={11} tickLine={false} axisLine={false} />
                   <YAxis 
@@ -775,117 +1031,92 @@ const Analytics = () => {
                     tickFormatter={(value) => activeSubTab === 'consolidado' || activeSubTab === 'gmm' ? `$${(value/1000).toFixed(0)}k` : `${value.toLocaleString()}`} 
                   />
                   <Tooltip 
-                    cursor={{stroke: 'var(--glass-border)', strokeWidth: 1}}
+                    cursor={{fill: 'var(--glass-border)'}}
                     contentStyle={{ backgroundColor: 'rgba(10,10,10,0.95)', border: '1px solid var(--accent-gold)', borderRadius: '12px', backdropFilter: 'blur(10px)', boxShadow: '0 10px 25px rgba(0,0,0,0.5)' }}
                     itemStyle={{ color: '#fff' }}
                     formatter={(value) => activeSubTab === 'consolidado' || activeSubTab === 'gmm' ? fmtPesos(value) : formatRawValue(value, activeSubTab)}
                   />
-                  <Legend iconType="circle" wrapperStyle={{ paddingTop: '15px', fontSize: '0.8rem' }} />
-                  <Area type="monotone" dataKey="cobrado" name="Pagado" stroke={activeSubTab === 'gmm' ? '#ffaa00' : 'var(--accent-gold)'} strokeWidth={2.5} fillOpacity={1} fill="url(#colorCobradoSub)" />
-                  <Area type="monotone" dataKey="pendiente" name="Pendiente" stroke="var(--text-muted)" strokeWidth={2} fillOpacity={1} fill="url(#colorPendienteSub)" />
-                </AreaChart>
+                  <Legend iconType="circle" wrapperStyle={{ paddingTop: '15px', fontSize: '0.85rem' }} />
+                  <Bar dataKey="cobrado" name="Pagado" stackId="a" fill={activeSubTab === 'gmm' ? '#ffaa00' : 'var(--accent-gold)'} radius={[0, 0, 4, 4]} />
+                  <Bar dataKey="pendiente" name="Pendiente" stackId="a" fill="var(--bar-pending-color)" radius={[4, 4, 0, 0]} />
+                </BarChart>
               </ResponsiveContainer>
             </div>
           </div>
 
-          {/* Gráfica Auxiliar según pestaña */}
-          {activeSubTab === 'consolidado' ? (
-            /* Dona de Participación de Ramos General */
-            <div className="glass-card" style={{ padding: '24px', display: 'flex', flexDirection: 'column' }}>
-              <h3 style={{ margin: '0 0 16px 0', color: 'var(--text-main)', fontSize: '1.1rem', fontWeight: '700', textAlign: 'center' }}>Distribución de Cartera</h3>
-              <div style={{ flex: 1, minHeight: '180px', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie 
-                      data={data.pieProducts} 
-                      cx="50%" 
-                      cy="50%" 
-                      innerRadius={50} 
-                      outerRadius={75} 
-                      paddingAngle={5} 
-                      dataKey="value"
-                    >
-                      {data.pieProducts.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={PIE_COLORS[index % PIE_COLORS.length]} stroke="rgba(0,0,0,0.5)" strokeWidth={2} />
-                      ))}
-                    </Pie>
-                    <Tooltip contentStyle={{ backgroundColor: 'rgba(0,0,0,0.9)', border: 'none', borderRadius: '8px' }} />
-                    <Legend verticalAlign="bottom" height={36} iconType="circle" wrapperStyle={{ fontSize: '0.8rem' }} />
-                  </PieChart>
-                </ResponsiveContainer>
-              </div>
-            </div>
-          ) : (
-            /* Dona de Distribución de Planes Específicos */
-            <div className="glass-card" style={{ padding: '24px', display: 'flex', flexDirection: 'column' }}>
-              <h3 style={{ margin: '0 0 16px 0', color: 'var(--text-main)', fontSize: '1.1rem', fontWeight: '700', textAlign: 'center' }}>Planes Vendidos ({activeSubTab.toUpperCase()})</h3>
-              <div style={{ flex: 1, minHeight: '180px', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-                {subTabPlans.length === 0 ? (
+          {/* Gráfica de Distribución de Planes Específicos/Totales */}
+          <div className="glass-card" style={{ padding: '24px', display: 'flex', flexDirection: 'column' }}>
+            <h3 style={{ margin: '0 0 16px 0', color: 'var(--text-main)', fontSize: '1.1rem', fontWeight: '700', textAlign: 'center' }}>
+              {activeSubTab === 'consolidado' ? 'Planes Totales' : `Distribución de Planes`}
+            </h3>
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: '16px', minHeight: '180px' }}>
+              {activeSubTab === 'consolidado' ? (
+                <>
+                  <div style={{ width: '55%', height: '100%', minHeight: '180px' }}>
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie data={data.piePlans} cx="50%" cy="50%" outerRadius={70} dataKey="value">
+                          {data.piePlans.map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} stroke="rgba(0,0,0,0.5)" strokeWidth={1} />
+                          ))}
+                        </Pie>
+                        <Tooltip contentStyle={{ backgroundColor: 'rgba(0,0,0,0.9)', border: 'none', borderRadius: '8px' }} />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </div>
+                  <div style={{ width: '45%', display: 'flex', flexDirection: 'column', gap: '10px', maxHeight: '180px', overflowY: 'auto' }}>
+                    {data.piePlans.map((entry, index) => (
+                      <div key={index} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: COLORS[index % COLORS.length], flexShrink: 0 }}></div>
+                        <div style={{ display: 'flex', flexDirection: 'column' }}>
+                          <span style={{ fontSize: '0.74rem', fontWeight: 'bold', color: 'var(--text-main)' }}>{entry.name}</span>
+                          <span style={{ fontSize: '0.68rem', color: 'var(--text-dim)' }}>{entry.value} pólizas</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              ) : (
+                subTabPlans.length === 0 ? (
                   <p style={{ color: 'var(--text-dim)', fontSize: '0.85rem' }}>No hay registros de planes para este periodo.</p>
                 ) : (
-                  <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
-                      <Pie 
-                        data={subTabPlans} 
-                        cx="50%" 
-                        cy="50%" 
-                        innerRadius={50} 
-                        outerRadius={75} 
-                        paddingAngle={5} 
-                        dataKey="value"
-                        label={{ fill: '#aaa', fontSize: 10 }}
-                      >
-                        {subTabPlans.map((entry, index) => (
-                          <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} stroke="rgba(0,0,0,0.5)" strokeWidth={2} />
-                        ))}
-                      </Pie>
-                      <Tooltip contentStyle={{ backgroundColor: 'rgba(0,0,0,0.9)', border: 'none', borderRadius: '8px' }} />
-                    </PieChart>
-                  </ResponsiveContainer>
-                )}
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* TENDENCIA Y CIERRES COMPARATIVO */}
-        <div style={{ display: 'grid', gridTemplateColumns: activeSubTab === 'consolidado' ? '1fr 2fr' : '1fr', gap: '24px' }}>
-          
-          {activeSubTab === 'consolidado' && (
-            <div className="glass-card" style={{ padding: '24px' }}>
-              <h3 style={{ color: 'var(--text-main)', fontSize: '1.1rem', fontWeight: '700', marginBottom: '16px', textAlign: 'center' }}>Planes Totales</h3>
-              <div style={{ height: '220px' }}>
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie data={data.piePlans} cx="50%" cy="50%" outerRadius={70} dataKey="value" label={{ fill: '#aaa', fontSize: 10 }}>
-                      {data.piePlans.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} stroke="rgba(0,0,0,0.5)" strokeWidth={1} />
+                  <>
+                    <div style={{ width: '55%', height: '100%', minHeight: '180px' }}>
+                      <ResponsiveContainer width="100%" height="100%">
+                        <PieChart>
+                          <Pie 
+                            data={subTabPlans} 
+                            cx="50%" 
+                            cy="50%" 
+                            outerRadius={70} 
+                            dataKey="value"
+                          >
+                            {subTabPlans.map((entry, index) => (
+                              <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} stroke="rgba(0,0,0,0.5)" strokeWidth={1} />
+                            ))}
+                          </Pie>
+                          <Tooltip contentStyle={{ backgroundColor: 'rgba(0,0,0,0.9)', border: 'none', borderRadius: '8px' }} />
+                        </PieChart>
+                      </ResponsiveContainer>
+                    </div>
+                    <div style={{ width: '45%', display: 'flex', flexDirection: 'column', gap: '10px', maxHeight: '180px', overflowY: 'auto' }}>
+                      {subTabPlans.map((entry, index) => (
+                        <div key={index} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: COLORS[index % COLORS.length], flexShrink: 0 }}></div>
+                          <div style={{ display: 'flex', flexDirection: 'column' }}>
+                            <span style={{ fontSize: '0.74rem', fontWeight: 'bold', color: 'var(--text-main)' }}>{entry.name}</span>
+                            <span style={{ fontSize: '0.68rem', color: 'var(--text-dim)' }}>{entry.value} pólizas</span>
+                          </div>
+                        </div>
                       ))}
-                    </Pie>
-                    <Tooltip contentStyle={{ backgroundColor: 'rgba(0,0,0,0.9)', border: 'none', borderRadius: '8px' }} />
-                  </PieChart>
-                </ResponsiveContainer>
-              </div>
-            </div>
-          )}
-
-          <div className="glass-card" style={{ padding: '24px' }}>
-            <h3 style={{ marginBottom: '24px', color: 'var(--text-main)', fontSize: '1.1rem', fontWeight: '700' }}>Velocidad de Cierres (Tendencia Mensual en Periodo)</h3>
-            <div style={{ height: '220px' }}>
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={subTabFlow}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="var(--glass-border)" vertical={false} />
-                  <XAxis dataKey="name" stroke="var(--text-dim)" fontSize={11} tickLine={false} axisLine={false} />
-                  <YAxis stroke="var(--text-dim)" fontSize={11} tickLine={false} axisLine={false} allowDecimals={false} />
-                  <Tooltip 
-                    contentStyle={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--accent-mint)', borderRadius: '8px' }}
-                  />
-                  <Line type="monotone" dataKey="ventas" name="Ventas Cobradas" stroke="var(--accent-mint)" strokeWidth={3} dot={{ fill: 'var(--bg-deep)', strokeWidth: 2, r: 4 }} activeDot={{ r: 6 }} />
-                </LineChart>
-              </ResponsiveContainer>
+                    </div>
+                  </>
+                )
+              )}
             </div>
           </div>
         </div>
+
 
         {/* CONTROL DE ANTIGÜEDAD Y PERSISTENCIA DE CARTERA */}
         <div className="glass-card" style={{ padding: '28px', marginTop: '32px' }}>
