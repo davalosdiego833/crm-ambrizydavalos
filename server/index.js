@@ -157,6 +157,38 @@ const saveDB = () => {
   fs.writeFileSync(DB_FILE, JSON.stringify(users, null, 2));
 };
 
+const backupDB = () => {
+  try {
+    const backupDir = path.join(__dirname, 'backups');
+    if (!fs.existsSync(backupDir)) {
+      fs.mkdirSync(backupDir, { recursive: true });
+    }
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const backupFile = path.join(backupDir, `db-backup-${timestamp}.json`);
+    
+    if (fs.existsSync(DB_FILE)) {
+      fs.copyFileSync(DB_FILE, backupFile);
+      console.log(`💾 Respaldo de base de datos creado exitosamente: ${backupFile}`);
+      
+      // Limpieza: mantener solo los últimos 30 respaldos
+      const files = fs.readdirSync(backupDir)
+        .filter(f => f.startsWith('db-backup-') && f.endsWith('.json'))
+        .map(f => ({ name: f, time: fs.statSync(path.join(backupDir, f)).mtime.getTime() }))
+        .sort((a, b) => b.time - a.time);
+        
+      if (files.length > 30) {
+        files.slice(30).forEach(f => {
+          fs.unlinkSync(path.join(backupDir, f.name));
+          console.log(`🗑️ Respaldo antiguo eliminado: ${f.name}`);
+        });
+      }
+    }
+  } catch (error) {
+    console.error('❌ Error al realizar el respaldo de la base de datos:', error);
+  }
+};
+
+
 const checkAndUpdateLateAndAnnulledClients = (user) => {
   if (!user || !user.clients) return;
   
@@ -227,6 +259,8 @@ const runDatabaseMaintenance = (user) => {
 };
 
 let users = loadDB();
+backupDB(); // Respaldo al arrancar el servidor
+setInterval(backupDB, 1000 * 60 * 60 * 24); // Respaldo automático diario
 
 // ======================================
 // INTELLECTUAL AND AUTONOMOUS HELPERS

@@ -19,6 +19,13 @@ echo "🌐 Conectando a Hostinger para actualizar servidor..."
 ssh -i ~/.ssh/id_rsa_panel u211138134@195.35.10.40 -p 65002 << 'ENDSSH'
   export PATH=/opt/alt/alt-nodejs20/root/usr/bin:$PATH
   cd domains/crm.ambrizydavalos.com/nodejs
+  
+  if [ -f server/db.json ]; then
+    echo "💾 Creando copia de seguridad de db.json antes del despliegue..."
+    mkdir -p server/backups 2>/dev/null || true
+    cp server/db.json server/backups/db_backup_predeploy_$(date +%Y-%m-%d_%H%M%S).json
+  fi
+  
   echo "📥 Descargando última versión de GitHub..."
   git fetch --all
   git reset --hard origin/main

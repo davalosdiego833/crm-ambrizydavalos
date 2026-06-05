@@ -5,3 +5,4 @@ server/node_modules/
 .env
 server/uploads/
 server/db.json
+server/backups/

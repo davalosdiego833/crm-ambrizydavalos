@@ -6,3 +6,411 @@
 🤖 Robot Financiero: USD Oficial del DOF obtenido: 17.378
 🤖 Robot Financiero: UDI Oficial del DOF obtenido: 8.837062
 🤖 Robot Financiero: Tipos de cambio actualizados con éxito: { USD: 17.378, UDI: 8.837062, lastUpdated: '2026-06-02T21:29:07.782Z' }
+🤖 Robot Financiero: Consultando Diario Oficial de la Federación (DOF)...
+🤖 Robot Financiero: USD Oficial del DOF obtenido: 17.378
+🤖 Robot Financiero: UDI Oficial del DOF obtenido: 8.837062
+🤖 Robot Financiero: Tipos de cambio actualizados con éxito: { USD: 17.378, UDI: 8.837062, lastUpdated: '2026-06-02T22:29:10.453Z' }
+🤖 Robot Financiero: Consultando Diario Oficial de la Federación (DOF)...
+🤖 Robot Financiero: USD Oficial del DOF obtenido: 17.378
+🤖 Robot Financiero: UDI Oficial del DOF obtenido: 8.837062
+🤖 Robot Financiero: Tipos de cambio actualizados con éxito: { USD: 17.378, UDI: 8.837062, lastUpdated: '2026-06-02T23:31:43.970Z' }
+🤖 Robot Financiero: Consultando Diario Oficial de la Federación (DOF)...
+🤖 Robot Financiero: USD Oficial del DOF obtenido: 17.378
+🤖 Robot Financiero: UDI Oficial del DOF obtenido: 8.837062
+🤖 Robot Financiero: Tipos de cambio actualizados con éxito: { USD: 17.378, UDI: 8.837062, lastUpdated: '2026-06-03T00:37:36.243Z' }
+🤖 Robot Financiero: Consultando Diario Oficial de la Federación (DOF)...
+🤖 Robot Financiero: USD Oficial del DOF obtenido: 17.378
+🤖 Robot Financiero: UDI Oficial del DOF obtenido: 8.837062
+🤖 Robot Financiero: Tipos de cambio actualizados con éxito: { USD: 17.378, UDI: 8.837062, lastUpdated: '2026-06-03T01:37:35.983Z' }
+🤖 Robot Financiero: Consultando Diario Oficial de la Federación (DOF)...
+🤖 Robot Financiero: USD Oficial del DOF obtenido: 17.378
+🤖 Robot Financiero: UDI Oficial del DOF obtenido: 8.837062
+🤖 Robot Financiero: Tipos de cambio actualizados con éxito: { USD: 17.378, UDI: 8.837062, lastUpdated: '2026-06-03T02:37:35.859Z' }
+🤖 Robot Financiero: Consultando Diario Oficial de la Federación (DOF)...
+🤖 Robot Financiero: USD Oficial del DOF obtenido: 17.378
+🤖 Robot Financiero: UDI Oficial del DOF obtenido: 8.837062
+🤖 Robot Financiero: Tipos de cambio actualizados con éxito: { USD: 17.378, UDI: 8.837062, lastUpdated: '2026-06-03T03:37:35.840Z' }
+🤖 Robot Financiero: Consultando Diario Oficial de la Federación (DOF)...
+🤖 Robot Financiero: USD Oficial del DOF obtenido: 17.378
+🤖 Robot Financiero: UDI Oficial del DOF obtenido: 8.837062
+🤖 Robot Financiero: Tipos de cambio actualizados con éxito: { USD: 17.378, UDI: 8.837062, lastUpdated: '2026-06-03T04:49:05.242Z' }
+🤖 Robot Financiero: Consultando Diario Oficial de la Federación (DOF)...
+🤖 Robot Financiero: USD Oficial del DOF obtenido: 17.378
+🤖 Robot Financiero: UDI Oficial del DOF obtenido: 8.837062
+🤖 Robot Financiero: Tipos de cambio actualizados con éxito: { USD: 17.378, UDI: 8.837062, lastUpdated: '2026-06-03T05:54:30.595Z' }
+🤖 Robot Financiero: Consultando Diario Oficial de la Federación (DOF)...
+🤖 Robot Financiero: USD Oficial del DOF obtenido: 17.378
+🤖 Robot Financiero: UDI Oficial del DOF obtenido: 8.837062
+🤖 Robot Financiero: Tipos de cambio actualizados con éxito: { USD: 17.378, UDI: 8.837062, lastUpdated: '2026-06-03T07:06:30.514Z' }
+🤖 Robot Financiero: Consultando Diario Oficial de la Federación (DOF)...
+🤖 Robot Financiero: USD Oficial del DOF obtenido: 17.378
+🤖 Robot Financiero: UDI Oficial del DOF obtenido: 8.837062
+🤖 Robot Financiero: Tipos de cambio actualizados con éxito: { USD: 17.378, UDI: 8.837062, lastUpdated: '2026-06-03T08:11:09.281Z' }
+🤖 Robot Financiero: Consultando Diario Oficial de la Federación (DOF)...
+🤖 Robot Financiero: USD Oficial del DOF obtenido: 17.378
+🤖 Robot Financiero: UDI Oficial del DOF obtenido: 8.837062
+🤖 Robot Financiero: Tipos de cambio actualizados con éxito: { USD: 17.378, UDI: 8.837062, lastUpdated: '2026-06-03T09:17:33.969Z' }
+🤖 Robot Financiero: Consultando Diario Oficial de la Federación (DOF)...
+❌ Robot Financiero: Error consultando tipos de cambio: TypeError: fetch failed
+    at node:internal/deps/undici/undici:16480:13
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async Timeout.fetchRates [as _onTimeout] (/Users/diego/Desktop/CRM AMBRIZ/server/index.js:51:22) {
+  [cause]: Error: read ECONNRESET
+      at TLSWrap.onStreamRead (node:internal/stream_base_commons:216:20) {
+    errno: -54,
+    code: 'ECONNRESET',
+    syscall: 'read'
+  }
+}
+🤖 Robot Financiero: Consultando Diario Oficial de la Federación (DOF)...
+🤖 Robot Financiero: USD Oficial del DOF obtenido: 17.2945
+🤖 Robot Financiero: UDI Oficial del DOF obtenido: 8.836172
+🤖 Robot Financiero: Tipos de cambio actualizados con éxito: {
+  USD: 17.2945,
+  UDI: 8.836172,
+  lastUpdated: '2026-06-03T12:32:36.375Z'
+}
+🤖 Robot Financiero: Consultando Diario Oficial de la Federación (DOF)...
+🤖 Robot Financiero: USD Oficial del DOF obtenido: 17.2945
+🤖 Robot Financiero: UDI Oficial del DOF obtenido: 8.836172
+🤖 Robot Financiero: Tipos de cambio actualizados con éxito: {
+  USD: 17.2945,
+  UDI: 8.836172,
+  lastUpdated: '2026-06-03T13:33:33.926Z'
+}
+🤖 Robot Financiero: Consultando Diario Oficial de la Federación (DOF)...
+🤖 Robot Financiero: USD Oficial del DOF obtenido: 17.2945
+🤖 Robot Financiero: UDI Oficial del DOF obtenido: 8.836172
+🤖 Robot Financiero: Tipos de cambio actualizados con éxito: {
+  USD: 17.2945,
+  UDI: 8.836172,
+  lastUpdated: '2026-06-03T14:34:45.126Z'
+}
+🤖 Robot Financiero: Consultando Diario Oficial de la Federación (DOF)...
+🤖 Robot Financiero: USD Oficial del DOF obtenido: 17.2945
+🤖 Robot Financiero: UDI Oficial del DOF obtenido: 8.836172
+🤖 Robot Financiero: Tipos de cambio actualizados con éxito: {
+  USD: 17.2945,
+  UDI: 8.836172,
+  lastUpdated: '2026-06-03T15:34:44.945Z'
+}
+🤖 Robot Financiero: Consultando Diario Oficial de la Federación (DOF)...
+🤖 Robot Financiero: USD Oficial del DOF obtenido: 17.2945
+🤖 Robot Financiero: UDI Oficial del DOF obtenido: 8.836172
+🤖 Robot Financiero: Tipos de cambio actualizados con éxito: {
+  USD: 17.2945,
+  UDI: 8.836172,
+  lastUpdated: '2026-06-03T16:34:45.115Z'
+}
+🤖 Robot Financiero: Consultando Diario Oficial de la Federación (DOF)...
+🤖 Robot Financiero: USD Oficial del DOF obtenido: 17.2945
+🤖 Robot Financiero: UDI Oficial del DOF obtenido: 8.836172
+🤖 Robot Financiero: Tipos de cambio actualizados con éxito: {
+  USD: 17.2945,
+  UDI: 8.836172,
+  lastUpdated: '2026-06-03T17:34:45.081Z'
+}
+🤖 Robot Financiero: Consultando Diario Oficial de la Federación (DOF)...
+🤖 Robot Financiero: USD Oficial del DOF obtenido: 17.2945
+🤖 Robot Financiero: UDI Oficial del DOF obtenido: 8.836172
+🤖 Robot Financiero: Tipos de cambio actualizados con éxito: {
+  USD: 17.2945,
+  UDI: 8.836172,
+  lastUpdated: '2026-06-03T18:34:45.047Z'
+}
+🤖 Robot Financiero: Consultando Diario Oficial de la Federación (DOF)...
+🤖 Robot Financiero: USD Oficial del DOF obtenido: 17.2945
+🤖 Robot Financiero: UDI Oficial del DOF obtenido: 8.836172
+🤖 Robot Financiero: Tipos de cambio actualizados con éxito: {
+  USD: 17.2945,
+  UDI: 8.836172,
+  lastUpdated: '2026-06-03T19:34:44.728Z'
+}
+🤖 Robot Financiero: Consultando Diario Oficial de la Federación (DOF)...
+🤖 Robot Financiero: USD Oficial del DOF obtenido: 17.2945
+🤖 Robot Financiero: UDI Oficial del DOF obtenido: 8.836172
+🤖 Robot Financiero: Tipos de cambio actualizados con éxito: {
+  USD: 17.2945,
+  UDI: 8.836172,
+  lastUpdated: '2026-06-03T20:47:17.429Z'
+}
+🤖 Robot Financiero: Consultando Diario Oficial de la Federación (DOF)...
+🤖 Robot Financiero: USD Oficial del DOF obtenido: 17.2945
+🤖 Robot Financiero: UDI Oficial del DOF obtenido: 8.836172
+🤖 Robot Financiero: Tipos de cambio actualizados con éxito: {
+  USD: 17.2945,
+  UDI: 8.836172,
+  lastUpdated: '2026-06-03T21:48:25.763Z'
+}
+🤖 Robot Financiero: Consultando Diario Oficial de la Federación (DOF)...
+🤖 Robot Financiero: USD Oficial del DOF obtenido: 17.2945
+🤖 Robot Financiero: UDI Oficial del DOF obtenido: 8.836172
+🤖 Robot Financiero: Tipos de cambio actualizados con éxito: {
+  USD: 17.2945,
+  UDI: 8.836172,
+  lastUpdated: '2026-06-03T22:53:44.409Z'
+}
+🤖 Robot Financiero: Consultando Diario Oficial de la Federación (DOF)...
+🤖 Robot Financiero: USD Oficial del DOF obtenido: 17.2945
+🤖 Robot Financiero: UDI Oficial del DOF obtenido: 8.836172
+🤖 Robot Financiero: Tipos de cambio actualizados con éxito: {
+  USD: 17.2945,
+  UDI: 8.836172,
+  lastUpdated: '2026-06-03T23:58:24.872Z'
+}
+🤖 Robot Financiero: Consultando Diario Oficial de la Federación (DOF)...
+🤖 Robot Financiero: USD Oficial del DOF obtenido: 17.2945
+🤖 Robot Financiero: UDI Oficial del DOF obtenido: 8.836172
+🤖 Robot Financiero: Tipos de cambio actualizados con éxito: {
+  USD: 17.2945,
+  UDI: 8.836172,
+  lastUpdated: '2026-06-04T01:09:33.569Z'
+}
+🤖 Robot Financiero: Consultando Diario Oficial de la Federación (DOF)...
+🤖 Robot Financiero: USD Oficial del DOF obtenido: 17.2945
+🤖 Robot Financiero: UDI Oficial del DOF obtenido: 8.836172
+🤖 Robot Financiero: Tipos de cambio actualizados con éxito: {
+  USD: 17.2945,
+  UDI: 8.836172,
+  lastUpdated: '2026-06-04T02:18:28.396Z'
+}
+🤖 Robot Financiero: Consultando Diario Oficial de la Federación (DOF)...
+🤖 Robot Financiero: USD Oficial del DOF obtenido: 17.2945
+🤖 Robot Financiero: UDI Oficial del DOF obtenido: 8.836172
+🤖 Robot Financiero: Tipos de cambio actualizados con éxito: {
+  USD: 17.2945,
+  UDI: 8.836172,
+  lastUpdated: '2026-06-04T03:18:27.954Z'
+}
+🤖 Robot Financiero: Consultando Diario Oficial de la Federación (DOF)...
+🤖 Robot Financiero: USD Oficial del DOF obtenido: 17.2945
+🤖 Robot Financiero: UDI Oficial del DOF obtenido: 8.836172
+🤖 Robot Financiero: Tipos de cambio actualizados con éxito: {
+  USD: 17.2945,
+  UDI: 8.836172,
+  lastUpdated: '2026-06-04T04:18:27.842Z'
+}
+🤖 Robot Financiero: Consultando Diario Oficial de la Federación (DOF)...
+🤖 Robot Financiero: USD Oficial del DOF obtenido: 17.2945
+🤖 Robot Financiero: UDI Oficial del DOF obtenido: 8.836172
+🤖 Robot Financiero: Tipos de cambio actualizados con éxito: {
+  USD: 17.2945,
+  UDI: 8.836172,
+  lastUpdated: '2026-06-04T05:18:27.959Z'
+}
+🤖 Robot Financiero: Consultando Diario Oficial de la Federación (DOF)...
+❌ Robot Financiero: Error consultando tipos de cambio: TypeError: fetch failed
+    at node:internal/deps/undici/undici:16480:13
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async Timeout.fetchRates [as _onTimeout] (/Users/diego/Desktop/CRM AMBRIZ/server/index.js:51:22) {
+  [cause]: Error: getaddrinfo ENOTFOUND www.dof.gob.mx
+      at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:121:26) {
+    errno: -3008,
+    code: 'ENOTFOUND',
+    syscall: 'getaddrinfo',
+    hostname: 'www.dof.gob.mx'
+  }
+}
+🤖 Robot Financiero: Consultando Diario Oficial de la Federación (DOF)...
+🤖 Robot Financiero: USD Oficial del DOF obtenido: 17.3328
+🤖 Robot Financiero: UDI Oficial del DOF obtenido: 8.835281
+🤖 Robot Financiero: Tipos de cambio actualizados con éxito: {
+  USD: 17.3328,
+  UDI: 8.835281,
+  lastUpdated: '2026-06-04T16:23:23.105Z'
+}
+🤖 Robot Financiero: Consultando Diario Oficial de la Federación (DOF)...
+🤖 Robot Financiero: USD Oficial del DOF obtenido: 17.3328
+🤖 Robot Financiero: UDI Oficial del DOF obtenido: 8.835281
+🤖 Robot Financiero: Tipos de cambio actualizados con éxito: {
+  USD: 17.3328,
+  UDI: 8.835281,
+  lastUpdated: '2026-06-04T17:23:25.173Z'
+}
+🤖 Robot Financiero: Consultando Diario Oficial de la Federación (DOF)...
+🤖 Robot Financiero: USD Oficial del DOF obtenido: 17.3328
+🤖 Robot Financiero: UDI Oficial del DOF obtenido: 8.835281
+🤖 Robot Financiero: Tipos de cambio actualizados con éxito: {
+  USD: 17.3328,
+  UDI: 8.835281,
+  lastUpdated: '2026-06-04T18:23:25.160Z'
+}
+🤖 Robot Financiero: Consultando Diario Oficial de la Federación (DOF)...
+🤖 Robot Financiero: USD Oficial del DOF obtenido: 17.3328
+🤖 Robot Financiero: UDI Oficial del DOF obtenido: 8.835281
+🤖 Robot Financiero: Tipos de cambio actualizados con éxito: {
+  USD: 17.3328,
+  UDI: 8.835281,
+  lastUpdated: '2026-06-04T19:23:25.022Z'
+}
+🤖 Robot Financiero: Consultando Diario Oficial de la Federación (DOF)...
+🤖 Robot Financiero: USD Oficial del DOF obtenido: 17.3328
+🤖 Robot Financiero: UDI Oficial del DOF obtenido: 8.835281
+🤖 Robot Financiero: Tipos de cambio actualizados con éxito: {
+  USD: 17.3328,
+  UDI: 8.835281,
+  lastUpdated: '2026-06-04T20:23:24.973Z'
+}
+🤖 Robot Financiero: Consultando Diario Oficial de la Federación (DOF)...
+🤖 Robot Financiero: USD Oficial del DOF obtenido: 17.3328
+🤖 Robot Financiero: UDI Oficial del DOF obtenido: 8.835281
+🤖 Robot Financiero: Tipos de cambio actualizados con éxito: {
+  USD: 17.3328,
+  UDI: 8.835281,
+  lastUpdated: '2026-06-04T21:23:24.947Z'
+}
+🤖 Robot Financiero: Consultando Diario Oficial de la Federación (DOF)...
+🤖 Robot Financiero: USD Oficial del DOF obtenido: 17.3328
+🤖 Robot Financiero: UDI Oficial del DOF obtenido: 8.835281
+🤖 Robot Financiero: Tipos de cambio actualizados con éxito: {
+  USD: 17.3328,
+  UDI: 8.835281,
+  lastUpdated: '2026-06-04T22:23:25.034Z'
+}
+🤖 Robot Financiero: Consultando Diario Oficial de la Federación (DOF)...
+🤖 Robot Financiero: USD Oficial del DOF obtenido: 17.3328
+🤖 Robot Financiero: UDI Oficial del DOF obtenido: 8.835281
+🤖 Robot Financiero: Tipos de cambio actualizados con éxito: {
+  USD: 17.3328,
+  UDI: 8.835281,
+  lastUpdated: '2026-06-04T23:23:24.944Z'
+}
+🤖 Robot Financiero: Consultando Diario Oficial de la Federación (DOF)...
+🤖 Robot Financiero: USD Oficial del DOF obtenido: 17.3328
+🤖 Robot Financiero: UDI Oficial del DOF obtenido: 8.835281
+🤖 Robot Financiero: Tipos de cambio actualizados con éxito: {
+  USD: 17.3328,
+  UDI: 8.835281,
+  lastUpdated: '2026-06-05T00:23:24.789Z'
+}
+🤖 Robot Financiero: Consultando Diario Oficial de la Federación (DOF)...
+🤖 Robot Financiero: USD Oficial del DOF obtenido: 17.3328
+🤖 Robot Financiero: UDI Oficial del DOF obtenido: 8.835281
+🤖 Robot Financiero: Tipos de cambio actualizados con éxito: {
+  USD: 17.3328,
+  UDI: 8.835281,
+  lastUpdated: '2026-06-05T01:23:24.666Z'
+}
+🤖 Robot Financiero: Consultando Diario Oficial de la Federación (DOF)...
+🤖 Robot Financiero: USD Oficial del DOF obtenido: 17.3328
+🤖 Robot Financiero: UDI Oficial del DOF obtenido: 8.835281
+🤖 Robot Financiero: Tipos de cambio actualizados con éxito: {
+  USD: 17.3328,
+  UDI: 8.835281,
+  lastUpdated: '2026-06-05T02:23:25.615Z'
+}
+🤖 Robot Financiero: Consultando Diario Oficial de la Federación (DOF)...
+🤖 Robot Financiero: USD Oficial del DOF obtenido: 17.3328
+🤖 Robot Financiero: UDI Oficial del DOF obtenido: 8.835281
+🤖 Robot Financiero: Tipos de cambio actualizados con éxito: {
+  USD: 17.3328,
+  UDI: 8.835281,
+  lastUpdated: '2026-06-05T03:23:24.377Z'
+}
+🤖 Robot Financiero: Consultando Diario Oficial de la Federación (DOF)...
+🤖 Robot Financiero: USD Oficial del DOF obtenido: 17.3328
+🤖 Robot Financiero: UDI Oficial del DOF obtenido: 8.835281
+🤖 Robot Financiero: Tipos de cambio actualizados con éxito: {
+  USD: 17.3328,
+  UDI: 8.835281,
+  lastUpdated: '2026-06-05T04:24:45.777Z'
+}
+🤖 Robot Financiero: Consultando Diario Oficial de la Federación (DOF)...
+🤖 Robot Financiero: USD Oficial del DOF obtenido: 17.3328
+🤖 Robot Financiero: UDI Oficial del DOF obtenido: 8.835281
+🤖 Robot Financiero: Tipos de cambio actualizados con éxito: {
+  USD: 17.3328,
+  UDI: 8.835281,
+  lastUpdated: '2026-06-05T05:26:12.320Z'
+}
+🤖 Robot Financiero: Consultando Diario Oficial de la Federación (DOF)...
+🤖 Robot Financiero: USD Oficial del DOF obtenido: 17.3328
+🤖 Robot Financiero: UDI Oficial del DOF obtenido: 8.835281
+🤖 Robot Financiero: Tipos de cambio actualizados con éxito: {
+  USD: 17.3328,
+  UDI: 8.835281,
+  lastUpdated: '2026-06-05T06:27:11.414Z'
+}
+🤖 Robot Financiero: Consultando Diario Oficial de la Federación (DOF)...
+🤖 Robot Financiero: USD Oficial del DOF obtenido: 17.3328
+🤖 Robot Financiero: UDI Oficial del DOF obtenido: 8.835281
+🤖 Robot Financiero: Tipos de cambio actualizados con éxito: {
+  USD: 17.3328,
+  UDI: 8.835281,
+  lastUpdated: '2026-06-05T07:31:58.693Z'
+}
+🤖 Robot Financiero: Consultando Diario Oficial de la Federación (DOF)...
+🤖 Robot Financiero: USD Oficial del DOF obtenido: 17.3328
+🤖 Robot Financiero: UDI Oficial del DOF obtenido: 8.835281
+🤖 Robot Financiero: Tipos de cambio actualizados con éxito: {
+  USD: 17.3328,
+  UDI: 8.835281,
+  lastUpdated: '2026-06-05T08:35:49.035Z'
+}
+🤖 Robot Financiero: Consultando Diario Oficial de la Federación (DOF)...
+🤖 Robot Financiero: USD Oficial del DOF obtenido: 17.3328
+🤖 Robot Financiero: UDI Oficial del DOF obtenido: 8.835281
+🤖 Robot Financiero: Tipos de cambio actualizados con éxito: {
+  USD: 17.3328,
+  UDI: 8.835281,
+  lastUpdated: '2026-06-05T09:39:20.721Z'
+}
+🤖 Robot Financiero: Consultando Diario Oficial de la Federación (DOF)...
+❌ Robot Financiero: Error consultando tipos de cambio: TypeError: fetch failed
+    at node:internal/deps/undici/undici:16480:13
+    at async Timeout.fetchRates [as _onTimeout] (/Users/diego/Desktop/CRM AMBRIZ/server/index.js:51:22) {
+  [cause]: Error: read ECONNRESET
+      at TLSWrap.onStreamRead (node:internal/stream_base_commons:216:20) {
+    errno: -54,
+    code: 'ECONNRESET',
+    syscall: 'read'
+  }
+}
+🤖 Robot Financiero: Consultando Diario Oficial de la Federación (DOF)...
+🤖 Robot Financiero: USD Oficial del DOF obtenido: 17.2888
+🤖 Robot Financiero: UDI Oficial del DOF obtenido: 8.834391
+🤖 Robot Financiero: Tipos de cambio actualizados con éxito: {
+  USD: 17.2888,
+  UDI: 8.834391,
+  lastUpdated: '2026-06-05T11:43:49.962Z'
+}
+🤖 Robot Financiero: Consultando Diario Oficial de la Federación (DOF)...
+🤖 Robot Financiero: USD Oficial del DOF obtenido: 17.2888
+🤖 Robot Financiero: UDI Oficial del DOF obtenido: 8.834391
+🤖 Robot Financiero: Tipos de cambio actualizados con éxito: {
+  USD: 17.2888,
+  UDI: 8.834391,
+  lastUpdated: '2026-06-05T12:50:03.053Z'
+}
+🤖 Robot Financiero: Consultando Diario Oficial de la Federación (DOF)...
+🤖 Robot Financiero: USD Oficial del DOF obtenido: 17.2888
+🤖 Robot Financiero: UDI Oficial del DOF obtenido: 8.834391
+🤖 Robot Financiero: Tipos de cambio actualizados con éxito: {
+  USD: 17.2888,
+  UDI: 8.834391,
+  lastUpdated: '2026-06-05T13:58:41.644Z'
+}
+🤖 Robot Financiero: Consultando Diario Oficial de la Federación (DOF)...
+🤖 Robot Financiero: USD Oficial del DOF obtenido: 17.2888
+🤖 Robot Financiero: UDI Oficial del DOF obtenido: 8.834391
+🤖 Robot Financiero: Tipos de cambio actualizados con éxito: {
+  USD: 17.2888,
+  UDI: 8.834391,
+  lastUpdated: '2026-06-05T15:19:28.763Z'
+}
+🤖 Robot Financiero: Consultando Diario Oficial de la Federación (DOF)...
+🤖 Robot Financiero: USD Oficial del DOF obtenido: 17.2888
+🤖 Robot Financiero: UDI Oficial del DOF obtenido: 8.834391
+🤖 Robot Financiero: Tipos de cambio actualizados con éxito: {
+  USD: 17.2888,
+  UDI: 8.834391,
+  lastUpdated: '2026-06-05T16:19:28.573Z'
+}
+🤖 Robot Financiero: Consultando Diario Oficial de la Federación (DOF)...
+🤖 Robot Financiero: USD Oficial del DOF obtenido: 17.2888
+🤖 Robot Financiero: UDI Oficial del DOF obtenido: 8.834391
+🤖 Robot Financiero: Tipos de cambio actualizados con éxito: {
+  USD: 17.2888,
+  UDI: 8.834391,
+  lastUpdated: '2026-06-05T17:19:28.529Z'
+}

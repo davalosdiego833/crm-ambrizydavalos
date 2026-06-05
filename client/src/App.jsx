@@ -1141,6 +1141,7 @@ const AdminPanel = () => {
   const [editEmail, setEditEmail] = useState('');
   const [editPassword, setEditPassword] = useState('');
   const [showPasswords, setShowPasswords] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
 
   useEffect(() => { loadUsers(); }, []);
 
@@ -1206,6 +1207,11 @@ const AdminPanel = () => {
       .then(() => loadUsers());
   };
 
+  const filteredUsers = usersList.filter(u => 
+    u.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    u.email?.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
   const inputStyle = { padding: '10px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--glass-border)', borderRadius: '8px', color: 'var(--text-main)', fontSize: '0.85rem', width: '100%', boxSizing: 'border-box' };
 
   return (
@@ -1226,83 +1232,114 @@ const AdminPanel = () => {
 
         {/* Tabla de Credenciales */}
         <div className="glass-card" style={{ gridColumn: 'span 8', padding: '0', overflow: 'hidden' }}>
-          <div style={{ padding: '20px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--glass-border)' }}>
-            <h3>Base de Datos de Usuarios</h3>
-            <button onClick={() => setShowPasswords(!showPasswords)} style={{ fontSize: '0.75rem', color: 'var(--accent-gold)', cursor: 'pointer' }}>
-              {showPasswords ? '🔒 Ocultar Contraseñas' : '👁️ Ver Contraseñas'}
-            </button>
+          <div style={{ padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: '16px', borderBottom: '1px solid var(--glass-border)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h3 style={{ margin: 0 }}>Base de Datos de Usuarios</h3>
+              <button onClick={() => setShowPasswords(!showPasswords)} style={{ background: 'none', border: 'none', fontSize: '0.75rem', color: 'var(--accent-gold)', cursor: 'pointer' }}>
+                {showPasswords ? '🔒 Ocultar Contraseñas' : '👁️ Ver Contraseñas'}
+              </button>
+            </div>
+
+            {/* Filtro de búsqueda */}
+            <div style={{ position: 'relative' }}>
+              <input
+                type="text"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder="🔍 Buscar por nombre o correo..."
+                style={{
+                  ...inputStyle,
+                  padding: '10px 14px 10px 38px',
+                  borderRadius: '8px',
+                  background: 'rgba(255,255,255,0.03)',
+                  border: '1px solid var(--glass-border)',
+                  color: 'var(--text-main)',
+                  width: '100%'
+                }}
+              />
+            </div>
           </div>
 
-          <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
-            <thead>
-              <tr style={{ borderBottom: '1px solid var(--glass-border)', background: 'rgba(255,255,255,0.02)' }}>
-                <th style={{ padding: '16px' }}>Nombre</th>
-                <th style={{ padding: '16px' }}>Correo</th>
-                <th style={{ padding: '16px' }}>Contraseña</th>
-                <th style={{ padding: '16px' }}>Clientes</th>
-                <th style={{ padding: '16px' }}>Estatus</th>
-                <th style={{ padding: '16px' }}>Acciones</th>
-              </tr>
-            </thead>
-            <tbody>
-              {usersList.map(u => (
-                <tr key={u.id} style={{ borderBottom: '1px solid var(--glass-border)', opacity: u.blocked ? 0.5 : 1 }}>
-                  <td style={{ padding: '16px' }}>
-                    {editingUser === u.id ? (
-                      <input value={editName} onChange={(e) => setEditName(e.target.value)} style={{ ...inputStyle, padding: '6px 8px' }} />
-                    ) : (
-                      <div>
-                        <p style={{ fontWeight: '600' }}>{u.name}</p>
-                        <span style={{ fontSize: '0.65rem', padding: '2px 8px', borderRadius: '20px', background: u.role === 'admin' ? 'rgba(226,176,66,0.15)' : 'rgba(255,255,255,0.05)', color: u.role === 'admin' ? 'var(--accent-gold)' : 'var(--text-dim)' }}>
-                          {u.role === 'admin' ? 'MASTER' : 'ASESOR'}
-                        </span>
-                      </div>
-                    )}
-                  </td>
-                  <td style={{ padding: '16px', fontSize: '0.85rem' }}>
-                    {editingUser === u.id ? (
-                      <input value={editEmail} onChange={(e) => setEditEmail(e.target.value)} style={{ ...inputStyle, padding: '6px 8px' }} />
-                    ) : u.email}
-                  </td>
-                  <td style={{ padding: '16px', fontSize: '0.85rem', fontFamily: 'monospace' }}>
-                    {editingUser === u.id ? (
-                      <input value={editPassword} onChange={(e) => setEditPassword(e.target.value)} placeholder="(sin cambio)" style={{ ...inputStyle, padding: '6px 8px' }} />
-                    ) : (
-                      showPasswords ? u.rawPassword : '••••••'
-                    )}
-                  </td>
-                  <td style={{ padding: '16px', textAlign: 'center', fontWeight: 'bold' }}>{u.totalClients}</td>
-                  <td style={{ padding: '16px' }}>
-                    {u.blocked ? (
-                      <span style={{ fontSize: '0.7rem', padding: '4px 10px', borderRadius: '20px', background: 'rgba(255,68,68,0.15)', color: '#ff4444' }}>BLOQUEADO</span>
-                    ) : (
-                      <span style={{ fontSize: '0.7rem', padding: '4px 10px', borderRadius: '20px', background: 'rgba(0,255,170,0.1)', color: 'var(--accent-mint)' }}>ACTIVO</span>
-                    )}
-                  </td>
-                  <td style={{ padding: '16px' }}>
-                    {editingUser === u.id ? (
-                      <div style={{ display: 'flex', gap: '8px' }}>
-                        <button onClick={() => saveEdit(u.id)} style={{ color: 'var(--accent-mint)', fontSize: '0.8rem', cursor: 'pointer' }}>Guardar</button>
-                        <button onClick={() => setEditingUser(null)} style={{ color: 'var(--text-dim)', fontSize: '0.8rem', cursor: 'pointer' }}>Cancelar</button>
-                      </div>
-                    ) : (
-                      <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                        <button onClick={() => startEdit(u)} style={{ color: 'var(--accent-gold)', fontSize: '0.75rem', cursor: 'pointer' }}>Editar</button>
-                        {u.role !== 'admin' && (
-                          <>
-                            <button onClick={() => toggleBlock(u.id)} style={{ color: u.blocked ? 'var(--accent-mint)' : '#ff8800', fontSize: '0.75rem', cursor: 'pointer' }}>
-                              {u.blocked ? 'Desbloquear' : 'Bloquear'}
-                            </button>
-                            <button onClick={() => deleteUser(u.id)} style={{ color: '#ff4444', fontSize: '0.75rem', cursor: 'pointer' }}>Eliminar</button>
-                          </>
-                        )}
-                      </div>
-                    )}
-                  </td>
+          <div style={{ maxHeight: '420px', overflowY: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+              <thead style={{ position: 'sticky', top: 0, zIndex: 10, background: 'var(--bg-surface)' }}>
+                <tr style={{ borderBottom: '1px solid var(--glass-border)' }}>
+                  <th style={{ padding: '16px' }}>Nombre</th>
+                  <th style={{ padding: '16px' }}>Correo</th>
+                  <th style={{ padding: '16px' }}>Contraseña</th>
+                  <th style={{ padding: '16px' }}>Clientes</th>
+                  <th style={{ padding: '16px' }}>Estatus</th>
+                  <th style={{ padding: '16px' }}>Acciones</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {filteredUsers.length === 0 ? (
+                  <tr>
+                    <td colSpan="6" style={{ padding: '32px', textAlign: 'center', color: 'var(--text-muted)' }}>
+                      No se encontraron usuarios
+                    </td>
+                  </tr>
+                ) : (
+                  filteredUsers.map(u => (
+                    <tr key={u.id} style={{ borderBottom: '1px solid var(--glass-border)', opacity: u.blocked ? 0.5 : 1 }}>
+                      <td style={{ padding: '16px' }}>
+                        {editingUser === u.id ? (
+                          <input value={editName} onChange={(e) => setEditName(e.target.value)} style={{ ...inputStyle, padding: '6px 8px' }} />
+                        ) : (
+                          <div>
+                            <p style={{ fontWeight: '600' }}>{u.name}</p>
+                            <span style={{ fontSize: '0.65rem', padding: '2px 8px', borderRadius: '20px', background: u.role === 'admin' ? 'rgba(226,176,66,0.15)' : 'rgba(255,255,255,0.05)', color: u.role === 'admin' ? 'var(--accent-gold)' : 'var(--text-dim)' }}>
+                              {u.role === 'admin' ? 'MASTER' : 'ASESOR'}
+                            </span>
+                          </div>
+                        )}
+                      </td>
+                      <td style={{ padding: '16px', fontSize: '0.85rem' }}>
+                        {editingUser === u.id ? (
+                          <input value={editEmail} onChange={(e) => setEditEmail(e.target.value)} style={{ ...inputStyle, padding: '6px 8px' }} />
+                        ) : u.email}
+                      </td>
+                      <td style={{ padding: '16px', fontSize: '0.85rem', fontFamily: 'monospace' }}>
+                        {editingUser === u.id ? (
+                          <input value={editPassword} onChange={(e) => setEditPassword(e.target.value)} placeholder="(sin cambio)" style={{ ...inputStyle, padding: '6px 8px' }} />
+                        ) : (
+                          showPasswords ? u.rawPassword : '••••••'
+                        )}
+                      </td>
+                      <td style={{ padding: '16px', textAlign: 'center', fontWeight: 'bold' }}>{u.totalClients}</td>
+                      <td style={{ padding: '16px' }}>
+                        {u.blocked ? (
+                          <span style={{ fontSize: '0.7rem', padding: '4px 10px', borderRadius: '20px', background: 'rgba(255,68,68,0.15)', color: '#ff4444' }}>BLOQUEADO</span>
+                        ) : (
+                          <span style={{ fontSize: '0.7rem', padding: '4px 10px', borderRadius: '20px', background: 'rgba(0,255,170,0.1)', color: 'var(--accent-mint)' }}>ACTIVO</span>
+                        )}
+                      </td>
+                      <td style={{ padding: '16px' }}>
+                        {editingUser === u.id ? (
+                          <div style={{ display: 'flex', gap: '8px' }}>
+                            <button onClick={() => saveEdit(u.id)} style={{ color: 'var(--accent-mint)', fontSize: '0.8rem', cursor: 'pointer' }}>Guardar</button>
+                            <button onClick={() => setEditingUser(null)} style={{ color: 'var(--text-dim)', fontSize: '0.8rem', cursor: 'pointer' }}>Cancelar</button>
+                          </div>
+                        ) : (
+                          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                            <button onClick={() => startEdit(u)} style={{ color: 'var(--accent-gold)', fontSize: '0.75rem', cursor: 'pointer' }}>Editar</button>
+                            {u.role !== 'admin' && (
+                              <>
+                                <button onClick={() => toggleBlock(u.id)} style={{ color: u.blocked ? 'var(--accent-mint)' : '#ff8800', fontSize: '0.75rem', cursor: 'pointer' }}>
+                                  {u.blocked ? 'Desbloquear' : 'Bloquear'}
+                                </button>
+                                <button onClick={() => deleteUser(u.id)} style={{ color: '#ff4444', fontSize: '0.75rem', cursor: 'pointer' }}>Eliminar</button>
+                              </>
+                            )}
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
     </div>
