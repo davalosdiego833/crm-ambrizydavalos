@@ -96,7 +96,7 @@ const LoginPage = ({ theme, toggleTheme }) => {
     setError('');
     setLoading(true);
     try {
-      await login(email, password);
+      await login(email.trim(), password);
     } catch (err) {
       setError(err.message);
     }
@@ -1156,7 +1156,7 @@ const AdminPanel = () => {
     authFetch('/api/admin/users', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: newName, email: newEmail, password: newPassword })
+      body: JSON.stringify({ name: newName, email: newEmail.trim(), password: newPassword })
     })
     .then(res => res.json())
     .then(data => {
@@ -1178,7 +1178,7 @@ const AdminPanel = () => {
   const saveEdit = (id) => {
     const body = {};
     if (editName) body.name = editName;
-    if (editEmail) body.email = editEmail;
+    if (editEmail) body.email = editEmail.trim();
     if (editPassword) body.password = editPassword;
 
     authFetch(`/api/admin/users/${id}`, {

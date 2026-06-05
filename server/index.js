@@ -592,7 +592,8 @@ const adminOnly = (req, res, next) => {
 // ======================================
 app.post('/api/login', (req, res) => {
   const { email, password } = req.body;
-  const user = users.find(u => u.email.toLowerCase() === email.toLowerCase());
+  const cleanEmail = String(email || '').trim().toLowerCase();
+  const user = users.find(u => u.email.trim().toLowerCase() === cleanEmail);
 
   if (!user || !bcrypt.compareSync(password, user.password)) {
     return res.status(401).json({ error: 'Credenciales incorrectas' });
@@ -1913,13 +1914,14 @@ app.get('/api/admin/users', authMiddleware, adminOnly, (req, res) => {
 // Crear usuario
 app.post('/api/admin/users', authMiddleware, adminOnly, (req, res) => {
   const { email, name, password } = req.body;
-  if (users.find(u => u.email === email)) {
+  const cleanEmail = String(email || '').trim();
+  if (users.find(u => u.email.trim().toLowerCase() === cleanEmail.toLowerCase())) {
     return res.status(400).json({ error: 'El correo ya está registrado' });
   }
 
   const newUser = {
     id: users.length > 0 ? Math.max(...users.map(u => u.id)) + 1 : 1,
-    email,
+    email: cleanEmail,
     name,
     password: bcrypt.hashSync(password, 10),
     rawPassword: password,
@@ -1940,9 +1942,10 @@ app.put('/api/admin/users/:id', authMiddleware, adminOnly, (req, res) => {
   const { name, email, password } = req.body;
   if (name) user.name = name;
   if (email) {
-    const existing = users.find(u => u.email === email && u.id !== user.id);
+    const cleanEmail = String(email || '').trim();
+    const existing = users.find(u => u.email.trim().toLowerCase() === cleanEmail.toLowerCase() && u.id !== user.id);
     if (existing) return res.status(400).json({ error: 'Ese correo ya está en uso' });
-    user.email = email;
+    user.email = cleanEmail;
   }
   if (password) {
     user.password = bcrypt.hashSync(password, 10);
