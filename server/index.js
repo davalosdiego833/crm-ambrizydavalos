@@ -1928,6 +1928,7 @@ app.post('/api/admin/users', authMiddleware, adminOnly, (req, res) => {
     clients: []
   };
   users.push(newUser);
+  saveDB();
   res.json({ success: true, user: { id: newUser.id, name: newUser.name, email: newUser.email } });
 });
 
@@ -1947,6 +1948,7 @@ app.put('/api/admin/users/:id', authMiddleware, adminOnly, (req, res) => {
     user.password = bcrypt.hashSync(password, 10);
     user.rawPassword = password;
   }
+  saveDB();
   res.json({ success: true });
 });
 
@@ -1955,6 +1957,7 @@ app.put('/api/admin/users/:id/toggle-block', authMiddleware, adminOnly, (req, re
   const user = users.find(u => u.id == req.params.id && u.role !== 'admin');
   if (!user) return res.status(404).json({ error: 'No se puede bloquear esa cuenta' });
   user.blocked = !user.blocked;
+  saveDB();
   res.json({ success: true, blocked: user.blocked });
 });
 
@@ -1963,6 +1966,7 @@ app.delete('/api/admin/users/:id', authMiddleware, adminOnly, (req, res) => {
   const index = users.findIndex(u => u.id == req.params.id && u.role !== 'admin');
   if (index === -1) return res.status(404).json({ error: 'No se puede eliminar' });
   users.splice(index, 1);
+  saveDB();
   res.json({ success: true });
 });
 
