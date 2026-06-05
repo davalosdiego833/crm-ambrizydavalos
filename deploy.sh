@@ -35,6 +35,7 @@ ssh -i ~/.ssh/id_rsa_panel u211138134@195.35.10.40 -p 65002 << 'ENDSSH'
   npm install --omit=dev
   
   echo "🔄 Reiniciando servidor Node.js..."
+  cd ..
   mkdir -p tmp 2>/dev/null || true
   touch tmp/restart.txt 2>/dev/null || true
 ENDSSH
