@@ -596,6 +596,29 @@ const parseFechaPago = (text, emissionDateStr, paymentFrequency, status) => {
   };
 };
 
+// Función para homologar y mapear el tipo de plan a los valores estándar de la lista de selección
+const mapPlanType = (planName, product) => {
+  if (!planName) return product === 'GMM' ? 'Pleno' : 'Orvi';
+  
+  const planUpper = String(planName).toUpperCase();
+  if (planUpper.includes('ORVI')) return 'Orvi';
+  if (planUpper.includes('DOTAL')) return 'Dotal';
+  if (planUpper.includes('MUJER')) return 'Vida mujer';
+  if (planUpper.includes('IMAGINA') || planUpper.includes('SER')) return 'Imagina ser';
+  if (planUpper.includes('PLANITUD')) return 'Nuevo planitud';
+  if (planUpper.includes('SEGU') || planUpper.includes('BECA')) return 'Segubeca';
+  if (planUpper.includes('MIO')) return 'Mio';
+  if (planUpper.includes('OBJETIVO')) return 'Objetivo Vida';
+  if (planUpper.includes('TEMPORAL')) return 'Temporal';
+  if (planUpper.includes('PLENO')) return 'Pleno';
+  if (planUpper.includes('INTEGRO') || planUpper.includes('ÍNTEGRO')) return 'Integro';
+  if (planUpper.includes('PRACTICO') || planUpper.includes('PRÁCTICO')) return 'Practico';
+  if (planUpper.includes('FLEX A')) return 'Flex A';
+  if (planUpper.includes('FLEX B')) return 'Flex B';
+  
+  return product === 'GMM' ? 'Pleno' : 'Orvi';
+};
+
 // Función inteligente para parsear la prima anual base desde fórmulas o sanar montos brutos en UDI o USD
 const parseAnnualPremiumFromFormula = (formulaStr, currency, defaultVal, emissionDateStr) => {
   // 1. Si no hay fórmula y es un valor numérico bruto, aplicamos lógica de auto-sanación (self-healing)
@@ -2134,7 +2157,7 @@ app.post('/api/migrate', authMiddleware, upload.single('file'), (req, res) => {
         collectionDay,
         paymentFrequency,
         paymentMethod,
-        planType: cleanRow["nombre del plan"] ? String(cleanRow["nombre del plan"]).trim() : (cleanRow["tipo de plan"] ? String(cleanRow["tipo de plan"]).trim() : ""),
+        planType: mapPlanType(cleanRow["nombre del plan"] || cleanRow["tipo de plan"], product),
         product,
         annualPremium,
         premium,
