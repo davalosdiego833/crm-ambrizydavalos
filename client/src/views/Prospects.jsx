@@ -10,7 +10,6 @@ const useAuth = () => {
       ...options,
       headers: {
         ...options.headers,
-        'Content-Type': 'application/json',
         Authorization: `Bearer ${token}`
       }
     });
@@ -103,6 +102,28 @@ const Prospects = () => {
     }));
   };
 
+  const handleMigration = (file) => {
+    if (!file) return;
+    const formData = new FormData();
+    formData.append('file', file);
+    authFetch('/api/migrate-prospects', {
+      method: 'POST',
+      body: formData
+    })
+      .then(res => {
+        if (!res.ok) throw new Error('Error en el servidor al migrar');
+        return res.json();
+      })
+      .then(data => {
+        alert(`¡Éxito! Se migraron ${data.count} prospectos a tu base de datos.`);
+        loadProspects();
+      })
+      .catch(err => {
+        console.error('Error migrando prospectos:', err);
+        alert('Hubo un error al migrar el archivo Excel. Verifica el formato e inténtalo de nuevo.');
+      });
+  };
+
   const handleSubmit = (e) => {
     e.preventDefault();
     if (!prospectData.name.trim()) return alert('El nombre del prospecto es requerido');
@@ -112,6 +133,7 @@ const Prospects = () => {
 
     authFetch(url, {
       method,
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(prospectData)
     })
       .then(res => res.json())
@@ -196,16 +218,25 @@ const Prospects = () => {
   return (
     <div className="animate-up">
       {/* Encabezado */}
-      <header style={{ marginBottom: '32px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
+      <header style={{ marginBottom: '32px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', flexWrap: 'wrap', gap: '16px' }}>
         <div>
           <h1 style={{ fontSize: '2.5rem', fontWeight: '800' }}>Panel de <span className="text-gradient-gold">Prospección</span></h1>
           <p style={{ color: 'var(--text-muted)', marginTop: '8px' }}>
             Lleva el control de tus citas, fuentes y compromisos de búsqueda de manera independiente.
           </p>
         </div>
-        <button onClick={openAddModal} className="btn-primary">
-          ➕ Añadir Prospecto
-        </button>
+        <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+          <label className="glass-card" style={{ padding: '12px 24px', cursor: 'pointer', border: '1px solid var(--accent-gold)', color: 'var(--accent-gold)', borderRadius: 'var(--radius-md)', display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.85rem', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.5px', boxShadow: '0 4px 15px rgba(0, 0, 0, 0.2)', transition: 'all 0.3s' }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = 'linear-gradient(135deg, rgba(226, 176, 66, 0.1) 0%, rgba(226, 176, 66, 0.02) 100%)'; e.currentTarget.style.transform = 'translateY(-2px)'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.transform = 'translateY(0)'; }}
+          >
+            📊 Migrar Excel
+            <input type="file" accept=".xlsx, .xls" hidden onChange={(e) => handleMigration(e.target.files[0])} />
+          </label>
+          <button onClick={openAddModal} className="btn-primary">
+            ➕ Añadir Prospecto
+          </button>
+        </div>
       </header>
 
       {/* Sección de Tarjetas de Aviso */}

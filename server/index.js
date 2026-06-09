@@ -974,6 +974,87 @@ app.delete('/api/prospects/:prospectId', authMiddleware, (req, res) => {
   res.json({ success: true });
 });
 
+// Migración Masiva de Prospectos (Excel)
+app.post('/api/migrate-prospects', authMiddleware, upload.single('file'), (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'No se subió ningún archivo' });
+
+  try {
+    const workbook = xlsx.readFile(req.file.path);
+    const sheetName = workbook.SheetNames[0];
+    const sheet = workbook.Sheets[sheetName];
+    
+    // Leemos el archivo en formato de objetos
+    const rawRows = xlsx.utils.sheet_to_json(sheet);
+
+    // Mapeo de cabeceras tolerante
+    const possibleName = ['nombre del prospecto', 'prospecto', 'nombre'];
+    const possibleFirstCita = ['fecha primera cita', 'fecha 1ra cita', '1ra cita', 'primera cita'];
+    const possibleSecondCita = ['fecha segunda cita', 'fecha 2da cita', '2da cita', 'segunda cita'];
+    const possibleSource = ['fuente', 'origen', 'de donde salio', 'de dónde salió'];
+    const possibleCommitment = ['fecha de compromiso de búsqueda', 'fecha de compromiso de busqueda', 'compromiso de busqueda', 'compromiso de búsqueda', 'compromiso'];
+    const possibleComments = ['observación', 'observacion', 'comentarios', 'comentario', 'comentarios/observacion', 'observaciones'];
+
+    const prospects = req.user.prospects || [];
+    let nextId = prospects.length > 0 ? Math.max(...prospects.map(p => p.id)) + 1 : 1;
+    let addedCount = 0;
+
+    const getHeaderValue = (rowObj, possibleHeaders) => {
+      const keys = Object.keys(rowObj);
+      for (const key of keys) {
+        // Reemplazar non-breaking spaces (\u00a0) y múltiples espacios por un solo espacio estándar, luego trim y lowercase
+        const cleanKey = key.replace(/\u00a0/g, ' ').replace(/\s+/g, ' ').trim().toLowerCase();
+        if (possibleHeaders.includes(cleanKey)) {
+          return rowObj[key];
+        }
+      }
+      return undefined;
+    };
+
+    rawRows.forEach(row => {
+      const rawName = getHeaderValue(row, possibleName);
+      const name = String(rawName || '').trim();
+      if (!name) return; // Si no tiene nombre, ignorar la fila
+
+      const rawFirstCita = getHeaderValue(row, possibleFirstCita);
+      const rawSecondCita = getHeaderValue(row, possibleSecondCita);
+      const rawSource = getHeaderValue(row, possibleSource);
+      const rawCommitment = getHeaderValue(row, possibleCommitment);
+      const rawComments = getHeaderValue(row, possibleComments);
+
+      const newProspect = {
+        id: nextId++,
+        name,
+        firstAppointmentDate: rawFirstCita ? parseDate(rawFirstCita) : '',
+        secondAppointmentDate: rawSecondCita ? parseDate(rawSecondCita) : '',
+        source: String(rawSource || '').trim(),
+        searchCommitmentDate: rawCommitment ? parseDate(rawCommitment) : '',
+        comments: String(rawComments || '').trim(),
+        createdAt: new Date().toISOString()
+      };
+
+      prospects.push(newProspect);
+      addedCount++;
+    });
+
+    req.user.prospects = prospects;
+    saveDB();
+
+    res.json({ success: true, count: addedCount });
+  } catch (error) {
+    console.error('Error al migrar prospectos:', error);
+    res.status(500).json({ error: 'Error al procesar el archivo Excel' });
+  } finally {
+    try {
+      const filePath = path.resolve(req.file.path);
+      if (fs.existsSync(filePath)) {
+        fs.unlinkSync(filePath);
+      }
+    } catch (err) {
+      console.error('Error al limpiar archivo temporal:', err);
+    }
+  }
+});
+
 // Subir documento a un cliente del usuario
 app.post('/api/upload/:clientId', authMiddleware, upload.single('document'), (req, res) => {
   const client = req.user.clients.find(c => c.id == req.params.clientId);
