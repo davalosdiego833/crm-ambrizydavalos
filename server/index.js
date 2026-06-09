@@ -457,6 +457,145 @@ const parseBirthday = (cellVal, cellW) => {
   return parseDate(cellVal);
 };
 
+// Función para parsear el día y calcular la fecha de cobro desde FECHA PAGO
+const parseFechaPago = (text, emissionDateStr, paymentFrequency, status) => {
+  const cleanText = String(text || '').trim().toLowerCase();
+  
+  // 1. Extraer número de día si existe
+  const dayMatch = cleanText.match(/\b(\d{1,2})\b/);
+  let parsedDay = dayMatch ? parseInt(dayMatch[1], 10) : null;
+  
+  // 2. Extraer meses
+  const matchedMonthsSet = new Set();
+  const monthNamesMap = {
+    ene: 0, enero: 0,
+    feb: 1, febrero: 1,
+    mar: 2, marzo: 2,
+    abr: 3, abril: 3,
+    may: 4, mayo: 4,
+    jun: 5, junio: 5,
+    jul: 6, julio: 6,
+    ago: 7, agosto: 7,
+    sep: 8, sept: 8, septiembre: 8,
+    oct: 9, octubre: 9,
+    nov: 10, noviembre: 10,
+    dic: 11, diciembre: 11
+  };
+  const sortedMonthNames = Object.keys(monthNamesMap).sort((a, b) => b.length - a.length);
+  
+  let tempText = cleanText;
+  sortedMonthNames.forEach(mName => {
+    const regex = new RegExp(`${mName}`, 'g');
+    if (regex.test(tempText)) {
+      matchedMonthsSet.add(monthNamesMap[mName]);
+      tempText = tempText.replace(regex, '___');
+    }
+  });
+  
+  const matchedMonths = Array.from(matchedMonthsSet).sort((a, b) => a - b);
+  
+  // 3. Cálculo de la fecha
+  const now = new Date();
+  const currentYear = now.getFullYear();
+  const currentMonth = now.getMonth(); // 0-indexed
+  
+  let emDate = new Date();
+  if (emissionDateStr) {
+    const parsedEm = new Date(emissionDateStr + 'T00:00:00');
+    if (!isNaN(parsedEm.getTime())) {
+      emDate = parsedEm;
+    }
+  }
+  
+  let targetYear = currentYear;
+  let targetMonth = currentMonth;
+  let targetDay = parsedDay;
+  
+  const freq = String(paymentFrequency).toUpperCase().trim();
+  
+  const getDaysInMonth = (y, m) => new Date(y, m + 1, 0).getDate();
+  
+  if (matchedMonths.length > 0) {
+    if (status === 'Pendiente') {
+      if (matchedMonths.includes(currentMonth)) {
+        targetMonth = currentMonth;
+      } else {
+        let closestMonth = matchedMonths[0];
+        let minDiff = 12;
+        matchedMonths.forEach(m => {
+          let diff = m - currentMonth;
+          if (diff < 0) diff += 12;
+          if (diff < minDiff) {
+            minDiff = diff;
+            closestMonth = m;
+          }
+        });
+        targetMonth = closestMonth;
+        if (targetMonth < currentMonth) {
+          targetYear = currentYear + 1;
+        }
+      }
+    } else {
+      const nextMonth = matchedMonths.find(m => m > currentMonth);
+      if (nextMonth !== undefined) {
+        targetMonth = nextMonth;
+        targetYear = currentYear;
+      } else {
+        targetMonth = matchedMonths[0];
+        targetYear = currentYear + 1;
+      }
+    }
+    
+    if (targetDay === null) {
+      targetDay = getDaysInMonth(targetYear, targetMonth);
+    }
+  } else {
+    if (targetDay === null) {
+      targetDay = emDate.getDate();
+    }
+    
+    if (status === 'Pendiente') {
+      targetMonth = currentMonth;
+      targetYear = currentYear;
+    } else {
+      let baseMonth = emDate.getMonth();
+      let scheduledMonths = [];
+      if (freq.includes('MENS')) {
+        for (let i = 0; i < 12; i++) scheduledMonths.push(i);
+      } else if (freq.includes('TRIM')) {
+        for (let i = 0; i < 4; i++) scheduledMonths.push((baseMonth + i * 3) % 12);
+      } else if (freq.includes('SEME')) {
+        for (let i = 0; i < 2; i++) scheduledMonths.push((baseMonth + i * 6) % 12);
+      } else {
+        scheduledMonths.push(baseMonth);
+      }
+      scheduledMonths.sort((a, b) => a - b);
+      
+      const nextMonth = scheduledMonths.find(m => m > currentMonth);
+      if (nextMonth !== undefined) {
+        targetMonth = nextMonth;
+        targetYear = currentYear;
+      } else {
+        targetMonth = scheduledMonths[0];
+        targetYear = currentYear + 1;
+      }
+    }
+  }
+  
+  const maxDay = getDaysInMonth(targetYear, targetMonth);
+  if (targetDay > maxDay) {
+    targetDay = maxDay;
+  }
+  
+  const formattedDay = String(targetDay).padStart(2, '0');
+  const formattedMonth = String(targetMonth + 1).padStart(2, '0');
+  
+  return {
+    collectionDay: targetDay,
+    collectionDate: `${targetYear}-${formattedMonth}-${formattedDay}`
+  };
+};
+
 // Función inteligente para parsear la prima anual base desde fórmulas o sanar montos brutos en UDI o USD
 const parseAnnualPremiumFromFormula = (formulaStr, currency, defaultVal, emissionDateStr) => {
   // 1. Si no hay fórmula y es un valor numérico bruto, aplicamos lógica de auto-sanación (self-healing)
@@ -1717,11 +1856,14 @@ app.post('/api/migrate', authMiddleware, upload.single('file'), (req, res) => {
     const sheet = workbook.Sheets[sheetName];
     const rows = xlsx.utils.sheet_to_json(sheet, { header: 1 });
 
-    // Encontrar la fila que contiene las cabeceras buscando "cliente"
+    // Encontrar la fila que contiene las cabeceras buscando "cliente", "contratante" o "nombre del cliente"
     let headerIndex = -1;
     for (let i = 0; i < rows.length; i++) {
       const row = rows[i];
-      if (row && row.some(cell => String(cell || '').trim().toLowerCase() === 'cliente')) {
+      if (row && row.some(cell => {
+        const val = String(cell || '').trim().toLowerCase();
+        return val === 'cliente' || val === 'nombre del cliente' || val === 'nombre' || val === 'contratante';
+      })) {
         headerIndex = i;
         break;
       }
@@ -1739,7 +1881,7 @@ app.post('/api/migrate', authMiddleware, upload.single('file'), (req, res) => {
             obj[header] = row[colIndex];
             
             // Si la cabecera es "Prima anual", capturamos la fórmula cruda de la celda de Excel
-            if (header.toLowerCase() === 'prima anual') {
+            if (header.toLowerCase() === 'prima anual' || header.toLowerCase() === 'prima anual ' || header.toLowerCase() === 'prima anual udis/pesos') {
               const excelRowIndex = headerIndex + rowIndex + 2; // +1 cabecera base 0, +1 1-indexed Excel
               const colLetter = xlsx.utils.encode_col(colIndex);
               const cellAddress = `${colLetter}${excelRowIndex}`;
@@ -1750,7 +1892,7 @@ app.post('/api/migrate', authMiddleware, upload.single('file'), (req, res) => {
             }
 
             // Si la cabecera es "Cumpleaños", capturamos el texto formateado original de Excel (para detectar cumpleaños sin año)
-            if (header.toLowerCase() === 'cumpleaños') {
+            if (header.toLowerCase() === 'cumpleaños' || header.toLowerCase() === 'fecha de nacimiento' || header.toLowerCase() === 'fecha de nacimiento contratante') {
               const excelRowIndex = headerIndex + rowIndex + 2;
               const colLetter = xlsx.utils.encode_col(colIndex);
               const cellAddress = `${colLetter}${excelRowIndex}`;
@@ -1767,8 +1909,6 @@ app.post('/api/migrate', authMiddleware, upload.single('file'), (req, res) => {
       rawData = xlsx.utils.sheet_to_json(sheet);
     }
 
-
-
     const maxId = req.user.clients.reduce((max, c) => Math.max(max, c.id), 0);
     const migratedClients = [];
 
@@ -1779,13 +1919,95 @@ app.post('/api/migrate', authMiddleware, upload.single('file'), (req, res) => {
         cleanRow[key.trim().toLowerCase()] = row[key];
       });
 
+      // Estandarizar claves alternativas para mayor flexibilidad
+      if (cleanRow["contratante"] && !cleanRow["cliente"]) {
+        cleanRow["cliente"] = cleanRow["contratante"];
+      }
+      if (cleanRow["nombre del cliente"] && !cleanRow["cliente"]) {
+        cleanRow["cliente"] = cleanRow["nombre del cliente"];
+      }
+      if (cleanRow["fecha de nacimiento contratante"] && !cleanRow["cumpleaños"]) {
+        cleanRow["cumpleaños"] = cleanRow["fecha de nacimiento contratante"];
+        if (cleanRow["_cumpleanosformatted"] === undefined && row["_cumpleanosformatted"]) {
+          cleanRow["_cumpleanosformatted"] = row["_cumpleanosformatted"];
+        }
+      }
+      if (cleanRow["fecha de nacimiento"] && !cleanRow["cumpleaños"]) {
+        cleanRow["cumpleaños"] = cleanRow["fecha de nacimiento"];
+        if (cleanRow["_cumpleanosformatted"] === undefined && row["_cumpleanosformatted"]) {
+          cleanRow["_cumpleanosformatted"] = row["_cumpleanosformatted"];
+        }
+      }
+      if (cleanRow["plan"] && !cleanRow["tipo de plan"]) {
+        cleanRow["tipo de plan"] = cleanRow["plan"];
+      }
+      if (cleanRow["producto contratado"] && !cleanRow["tipo de plan"]) {
+        cleanRow["tipo de plan"] = cleanRow["producto contratado"];
+      }
+      if (cleanRow["fecha emision"] && !cleanRow["emisión"]) {
+        cleanRow["emisión"] = cleanRow["fecha emision"];
+      }
+      if (cleanRow["fecha de emisión"] && !cleanRow["emisión"]) {
+        cleanRow["emisión"] = cleanRow["fecha de emisión"];
+      }
+      if (cleanRow["fecha de emision"] && !cleanRow["emisión"]) {
+        cleanRow["emisión"] = cleanRow["fecha de emision"];
+      }
+      if (cleanRow["poliza"] && !cleanRow["número de póliza"]) {
+        cleanRow["número de póliza"] = cleanRow["poliza"];
+      }
+      if (cleanRow["número de poliza"] && !cleanRow["número de póliza"]) {
+        cleanRow["número de póliza"] = cleanRow["número de poliza"];
+      }
+      if (cleanRow["numero de póliza"] && !cleanRow["número de póliza"]) {
+        cleanRow["número de póliza"] = cleanRow["numero de póliza"];
+      }
+      if (cleanRow["numero de poliza"] && !cleanRow["número de póliza"]) {
+        cleanRow["número de póliza"] = cleanRow["numero de poliza"];
+      }
+      if (cleanRow["prima anual udis/pesos"] && !cleanRow["prima anual"]) {
+        cleanRow["prima anual"] = cleanRow["prima anual udis/pesos"];
+      }
+      if (cleanRow["cobro"] && !cleanRow["forma de pago"]) {
+        cleanRow["forma de pago"] = cleanRow["cobro"];
+      }
+      if (cleanRow["frecuencia"] && !cleanRow["forma de pago"]) {
+        cleanRow["forma de pago"] = cleanRow["frecuencia"];
+      }
+      if (cleanRow["pago"] && !cleanRow["modo de cobro"]) {
+        cleanRow["modo de cobro"] = cleanRow["pago"];
+      }
+      if (cleanRow["modo"] && !cleanRow["modo de cobro"]) {
+        cleanRow["modo de cobro"] = cleanRow["modo"];
+      }
+      if (cleanRow["correo"] && !cleanRow["correo electrónico"]) {
+        cleanRow["correo electrónico"] = cleanRow["correo"];
+      }
+      if (cleanRow["telefono"] && !cleanRow["teléfono"]) {
+        cleanRow["teléfono"] = cleanRow["telefono"];
+      }
+
       // Validar si existe un nombre de cliente
       if (!cleanRow["cliente"] || String(cleanRow["cliente"]).trim().length === 0) return;
 
       // Sanitizar Ramo / Producto
-      const rawPlan = cleanRow["tipo de plan"] || cleanRow["plan"] || cleanRow["producto"];
       let product = "Vida"; // Default a Vida
-      if (rawPlan) {
+      const rawPolicy = cleanRow["número de póliza"] || "";
+      const rawPlan = cleanRow["tipo de plan"] || cleanRow["plan"] || cleanRow["producto"] || "";
+      
+      if (rawPolicy) {
+        const policyStr = String(rawPolicy).trim().toUpperCase();
+        if (policyStr.startsWith("GM")) {
+          product = "GMM";
+        } else if (policyStr.startsWith("VI")) {
+          product = "Vida";
+        } else if (rawPlan) {
+          const planTypeStr = String(rawPlan).trim().toLowerCase();
+          if (planTypeStr.includes("gastos") || planTypeStr.includes("gmm") || planTypeStr.includes("médicos")) {
+            product = "GMM";
+          }
+        }
+      } else if (rawPlan) {
         const planTypeStr = String(rawPlan).trim().toLowerCase();
         if (planTypeStr.includes("gastos") || planTypeStr.includes("gmm") || planTypeStr.includes("médicos")) {
           product = "GMM";
@@ -1836,29 +2058,57 @@ app.post('/api/migrate', authMiddleware, upload.single('file'), (req, res) => {
       else if (paymentFrequency === 'SEMESTRAL') divisor = 2;
       const premium = parseFloat((annualPremium / divisor).toFixed(2));
 
-      // Sanitizar Modo de Cobro (dejar vacío si no existe en el Excel)
+      // Sanitizar Modo de Cobro
       const rawMethod = cleanRow["modo de cobro"];
-      let paymentMethod = "";
+      let paymentMethod = "Manual"; // Default as requested
       if (rawMethod) {
         const methodStr = String(rawMethod).trim().toUpperCase();
-        if (methodStr.includes("TC") || methodStr.includes("CRED")) paymentMethod = "TC";
-        else if (methodStr.includes("TD") || methodStr.includes("DEB")) paymentMethod = "TD";
-        else if (methodStr.includes("MAN") || methodStr.includes("EFEC")) paymentMethod = "Manual";
-        else paymentMethod = methodStr;
+        if (methodStr.includes("TDC") || methodStr === "TC") {
+          paymentMethod = "TC";
+        } else if (methodStr.includes("TDD") || methodStr === "TD") {
+          paymentMethod = "TD";
+        }
       }
 
       // Determinar el status inicial: "Pendiente" si le toca cobro en el mes corriente, "Pagada" en caso contrario
       let status = "Pagada";
-      if (isPaymentDueInCurrentMonth(emissionDate, paymentFrequency)) {
+      const rawComments = cleanRow["comentarios adicionales"] || cleanRow["comentarios"] || "";
+      const commentsStr = String(rawComments).trim().toLowerCase();
+      if (commentsStr.includes("cancelada")) {
+        status = "Anulada";
+      } else if (isPaymentDueInCurrentMonth(emissionDate, paymentFrequency)) {
         status = "Pendiente";
       }
 
       // Calcular el cobro inicial de forma inteligente (para que no aparezcan cobros vencidos hace 8 años)
-      const collectionDate = getInitialCollectionDate(emissionDate, paymentFrequency, status);
-      const collectionDay = collectionDate ? new Date(collectionDate + 'T00:00:00').getDate() : "";
+      let collectionDate = "";
+      let collectionDay = "";
+      
+      const fechaPagoText = cleanRow["fecha pago"] || cleanRow["fecha de pago"] || "";
+      if (fechaPagoText) {
+        const parsedFP = parseFechaPago(fechaPagoText, emissionDate, paymentFrequency, status);
+        collectionDate = parsedFP.collectionDate;
+        collectionDay = parsedFP.collectionDay;
+      } else {
+        collectionDate = getInitialCollectionDate(emissionDate, paymentFrequency, status);
+        collectionDay = collectionDate ? new Date(collectionDate + 'T00:00:00').getDate() : "";
+      }
 
       // Parsear cumpleaños con soporte para mes/día sin año
       const contractorBirthDate = parseBirthday(cleanRow["cumpleaños"], cleanRow["_cumpleanosformatted"]);
+
+      // Si existe fecha de cumpleaños asegurado
+      let insureds = [{ 
+        name: String(cleanRow["cliente"]).trim(), 
+        birthDate: contractorBirthDate 
+      }];
+      if (cleanRow["cumpleaños asegurado"]) {
+        const insuredBirthDate = parseBirthday(cleanRow["cumpleaños asegurado"], row["_cumpleanosformatted_asegurado"]);
+        insureds.push({
+          name: `Asegurado de ${String(cleanRow["cliente"]).trim()}`,
+          birthDate: insuredBirthDate
+        });
+      }
 
       migratedClients.push({
         id: maxId + migratedClients.length + 1,
@@ -1866,17 +2116,14 @@ app.post('/api/migrate', authMiddleware, upload.single('file'), (req, res) => {
         contractorBirthDate,
         email: cleanRow["correo electrónico"] ? String(cleanRow["correo electrónico"]).trim() : "",
         phone: cleanRow["teléfono"] ? String(cleanRow["teléfono"]).trim() : "",
-        insureds: [{ 
-          name: String(cleanRow["cliente"]).trim(), 
-          birthDate: contractorBirthDate 
-        }],
+        insureds,
         policyNumber: cleanRow["número de póliza"] ? String(cleanRow["número de póliza"]).trim() : "",
         emissionDate,
         collectionDate,
         collectionDay,
         paymentFrequency,
         paymentMethod,
-        planType: cleanRow["nombre del plan"] ? String(cleanRow["nombre del plan"]).trim() : "",
+        planType: cleanRow["nombre del plan"] ? String(cleanRow["nombre del plan"]).trim() : (cleanRow["tipo de plan"] ? String(cleanRow["tipo de plan"]).trim() : ""),
         product,
         annualPremium,
         premium,
