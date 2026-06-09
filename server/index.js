@@ -731,6 +731,10 @@ const authMiddleware = (req, res, next) => {
     const decoded = jwt.verify(token, JWT_SECRET);
     const user = users.find(u => u.id === decoded.id);
     if (!user) throw new Error();
+    if (!user.prospects) {
+      user.prospects = [];
+      saveDB();
+    }
     req.user = user;
     next();
   } catch (err) {
@@ -902,6 +906,70 @@ app.delete('/api/clients/:clientId', authMiddleware, (req, res) => {
   const index = req.user.clients.findIndex(c => c.id == req.params.clientId);
   if (index === -1) return res.status(404).json({ error: 'Cliente no encontrado' });
   req.user.clients.splice(index, 1);
+  saveDB();
+  res.json({ success: true });
+});
+
+// ======================================
+// ENDPOINTS DE PROSPECTOS (PROSPECCIÓN)
+// ======================================
+
+// Listar prospectos del usuario
+app.get('/api/prospects', authMiddleware, (req, res) => {
+  res.json(req.user.prospects || []);
+});
+
+// Crear prospecto
+app.post('/api/prospects', authMiddleware, (req, res) => {
+  const { name, firstAppointmentDate, secondAppointmentDate, source, searchCommitmentDate, comments } = req.body;
+  if (!name) return res.status(400).json({ error: 'El nombre del prospecto es requerido' });
+
+  const prospects = req.user.prospects || [];
+  const nextId = prospects.length > 0 ? Math.max(...prospects.map(p => p.id)) + 1 : 1;
+
+  const newProspect = {
+    id: nextId,
+    name,
+    firstAppointmentDate: firstAppointmentDate || '',
+    secondAppointmentDate: secondAppointmentDate || '',
+    source: source || '',
+    searchCommitmentDate: searchCommitmentDate || '',
+    comments: comments || '',
+    createdAt: new Date().toISOString()
+  };
+
+  prospects.push(newProspect);
+  req.user.prospects = prospects;
+  saveDB();
+
+  res.json({ success: true, prospect: newProspect });
+});
+
+// Actualizar prospecto
+app.put('/api/prospects/:prospectId', authMiddleware, (req, res) => {
+  const prospects = req.user.prospects || [];
+  const index = prospects.findIndex(p => p.id == req.params.prospectId);
+  if (index === -1) return res.status(404).json({ error: 'Prospecto no encontrado' });
+
+  const { name, firstAppointmentDate, secondAppointmentDate, source, searchCommitmentDate, comments } = req.body;
+  if (name) prospects[index].name = name;
+  prospects[index].firstAppointmentDate = firstAppointmentDate !== undefined ? firstAppointmentDate : prospects[index].firstAppointmentDate;
+  prospects[index].secondAppointmentDate = secondAppointmentDate !== undefined ? secondAppointmentDate : prospects[index].secondAppointmentDate;
+  prospects[index].source = source !== undefined ? source : prospects[index].source;
+  prospects[index].searchCommitmentDate = searchCommitmentDate !== undefined ? searchCommitmentDate : prospects[index].searchCommitmentDate;
+  prospects[index].comments = comments !== undefined ? comments : prospects[index].comments;
+
+  saveDB();
+  res.json({ success: true, prospect: prospects[index] });
+});
+
+// Eliminar prospecto
+app.delete('/api/prospects/:prospectId', authMiddleware, (req, res) => {
+  const prospects = req.user.prospects || [];
+  const index = prospects.findIndex(p => p.id == req.params.prospectId);
+  if (index === -1) return res.status(404).json({ error: 'Prospecto no encontrado' });
+
+  prospects.splice(index, 1);
   saveDB();
   res.json({ success: true });
 });

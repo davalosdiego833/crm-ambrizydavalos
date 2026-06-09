@@ -2,6 +2,7 @@ import React, { useState, useEffect, createContext, useContext } from 'react';
 import Clients from './views/Clients';
 import Analytics from './views/Analytics';
 import TemplatesPanel from './views/TemplatesPanel';
+import Prospects from './views/Prospects';
 
 
 
@@ -1449,6 +1450,7 @@ const AppContent = () => {
   const navItems = [
     { name: 'Dashboard', id: 'Dashboard' },
     { name: 'Base de Datos', id: 'Database' },
+    { name: 'Prospección', id: 'Prospects' },
     { name: 'Estadísticas', id: 'Analytics' },
     { name: 'Plantillas', id: 'Templates' },
   ];
@@ -1564,6 +1566,7 @@ const AppContent = () => {
       <main className="main-content" style={{ marginLeft: isSidebarOpen ? '280px' : '0', transition: 'margin-left 0.4s cubic-bezier(0.22, 1, 0.36, 1)' }}>
         {currentView === 'Dashboard' && <Dashboard />}
         {currentView === 'Database' && <Clients />}
+        {currentView === 'Prospects' && <Prospects />}
         {currentView === 'Analytics' && <Analytics />}
         {currentView === 'Templates' && <TemplatesPanel />}
         {currentView === 'Admin' && user.role === 'admin' && <AdminPanel />}
