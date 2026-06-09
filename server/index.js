@@ -2024,6 +2024,17 @@ app.post('/api/migrate', authMiddleware, upload.single('file'), (req, res) => {
         else if (curStr.includes("MXN") || curStr.includes("PESO")) currency = "MXN";
         else currency = curStr;
       }
+      // Buscar indicios de moneda en el nombre del plan si la columna moneda está vacía
+      if (!currency && rawPlan) {
+        const planStr = String(rawPlan).trim().toLowerCase();
+        if (planStr.includes("udi")) {
+          currency = "UDI";
+        } else if (planStr.includes("dll") || planStr.includes("usd") || planStr.includes("dól") || planStr.includes("dol")) {
+          currency = "USD";
+        } else if (planStr.includes("peso") || planStr.includes("mxn")) {
+          currency = "MXN";
+        }
+      }
       // Defaults lógicos
       if (!currency) {
         currency = product === "GMM" ? "MXN" : "UDI";

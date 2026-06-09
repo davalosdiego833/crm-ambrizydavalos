@@ -147,6 +147,7 @@ const Clients = () => {
             else if (planUpper.includes('SEGU') || planUpper.includes('BECA')) mappedPlan = 'Segubeca';
             else if (planUpper.includes('MIO')) mappedPlan = 'Mio';
             else if (planUpper.includes('OBJETIVO')) mappedPlan = 'Objetivo Vida';
+            else if (planUpper.includes('TEMPORAL')) mappedPlan = 'Temporal';
             else if (planUpper.includes('PLENO')) mappedPlan = 'Pleno';
             else if (planUpper.includes('INTEGRO')) mappedPlan = 'Integro';
             else if (planUpper.includes('PRACTICO')) mappedPlan = 'Practico';
@@ -712,6 +713,7 @@ const Clients = () => {
                         <option value="Segubeca">Segubeca</option>
                         <option value="Mio">Mio</option>
                         <option value="Objetivo Vida">Objetivo Vida</option>
+                        <option value="Temporal">Temporal</option>
                       </>
                     )}
                   </select>
