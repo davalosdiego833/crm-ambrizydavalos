@@ -1152,19 +1152,16 @@ const AdminPanel = () => {
       .then(setUsersList);
   };
 
-  const handleShareWelcome = (u) => {
+  const handleCopyWelcome = (u) => {
     const message = `¡Hola, ${u.name}! Bienvenido(a) al CRM de Ambriz y Dávalos. 💼✨\n\nAquí tienes tus credenciales para acceder a la plataforma:\n🔗 Enlace: https://crm.ambrizydavalos.com\n📧 Usuario: ${u.email}\n🔑 Contraseña: ${u.rawPassword}\n\nCualquier duda, estoy a tus órdenes. ¡Mucho éxito! 🚀`;
     
     navigator.clipboard.writeText(message)
       .then(() => {
-        const confirmShare = window.confirm('📋 Mensaje de bienvenida copiado al portapapeles.\n\n¿Quieres abrir WhatsApp para enviárselo al asesor?');
-        if (confirmShare) {
-          window.open(`https://wa.me/?text=${encodeURIComponent(message)}`, '_blank');
-        }
+        alert('📋 ¡Mensaje de bienvenida copiado al portapapeles! Ya puedes pegarlo donde prefieras.');
       })
       .catch(err => {
         console.error('Error al copiar:', err);
-        window.open(`https://wa.me/?text=${encodeURIComponent(message)}`, '_blank');
+        alert('Error al copiar al portapapeles. Inténtalo de nuevo.');
       });
   };
 
@@ -1180,7 +1177,7 @@ const AdminPanel = () => {
       if (data.success) {
         alert(`✅ CRM creado para ${newName}`);
         const tempUser = { name: newName, email: newEmail.trim(), rawPassword: newPassword };
-        handleShareWelcome(tempUser);
+        handleCopyWelcome(tempUser);
         setNewName(''); setNewEmail(''); setNewPassword('');
         loadUsers();
       } else { alert(data.error); }
@@ -1342,7 +1339,7 @@ const AdminPanel = () => {
                         ) : (
                           <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
                             <button onClick={() => startEdit(u)} style={{ color: 'var(--accent-gold)', fontSize: '0.75rem', cursor: 'pointer' }}>Editar</button>
-                            <button onClick={() => handleShareWelcome(u)} style={{ color: 'var(--accent-mint)', fontSize: '0.75rem', cursor: 'pointer' }}>Enviar Bienvenida</button>
+                            <button onClick={() => handleCopyWelcome(u)} style={{ color: 'var(--accent-mint)', fontSize: '0.75rem', cursor: 'pointer' }}>Copiar Bienvenida</button>
                             {u.role !== 'admin' && (
                               <>
                                 <button onClick={() => toggleBlock(u.id)} style={{ color: u.blocked ? 'var(--accent-mint)' : '#ff8800', fontSize: '0.75rem', cursor: 'pointer' }}>
