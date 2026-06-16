@@ -1132,7 +1132,7 @@ const Dashboard = () => {
 // PANEL DE ADMINISTRACIÓN (Solo Master)
 // ======================================
 const AdminPanel = () => {
-  const { authFetch } = useAuth();
+  const { user, authFetch } = useAuth();
   const [usersList, setUsersList] = useState([]);
   const [newName, setNewName] = useState('');
   const [newEmail, setNewEmail] = useState('');
