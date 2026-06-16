@@ -749,7 +749,7 @@ app.get('/api/rates', authMiddleware, (req, res) => {
 
 // Middleware para verificar Admin
 const adminOnly = (req, res, next) => {
-  if (req.user.role !== 'admin') return res.status(403).json({ error: 'Acceso denegado' });
+  if (req.user.role !== 'admin' && req.user.role !== 'administrador') return res.status(403).json({ error: 'Acceso denegado' });
   next();
 };
 
@@ -2343,11 +2343,14 @@ app.get('/api/admin/users', authMiddleware, adminOnly, (req, res) => {
 
 // Crear usuario
 app.post('/api/admin/users', authMiddleware, adminOnly, (req, res) => {
-  const { email, name, password } = req.body;
+  const { email, name, password, role } = req.body;
   const cleanEmail = String(email || '').trim();
   if (users.find(u => u.email.trim().toLowerCase() === cleanEmail.toLowerCase())) {
     return res.status(400).json({ error: 'El correo ya está registrado' });
   }
+
+  // Permitir asignación de 'administrador' o 'advisor'. El rol 'admin' (Master) está bloqueado por seguridad.
+  const targetRole = (role === 'administrador') ? 'administrador' : 'advisor';
 
   const newUser = {
     id: users.length > 0 ? Math.max(...users.map(u => u.id)) + 1 : 1,
@@ -2355,13 +2358,13 @@ app.post('/api/admin/users', authMiddleware, adminOnly, (req, res) => {
     name,
     password: bcrypt.hashSync(password, 10),
     rawPassword: password,
-    role: 'advisor',
+    role: targetRole,
     blocked: false,
     clients: []
   };
   users.push(newUser);
   saveDB();
-  res.json({ success: true, user: { id: newUser.id, name: newUser.name, email: newUser.email } });
+  res.json({ success: true, user: { id: newUser.id, name: newUser.name, email: newUser.email, role: newUser.role } });
 });
 
 // Editar usuario
@@ -2369,7 +2372,12 @@ app.put('/api/admin/users/:id', authMiddleware, adminOnly, (req, res) => {
   const user = users.find(u => u.id == req.params.id);
   if (!user) return res.status(404).json({ error: 'Usuario no encontrado' });
 
-  const { name, email, password } = req.body;
+  // Seguridad: Un sub-administrador no puede modificar al usuario Master (Diego)
+  if (user.role === 'admin' && req.user.role !== 'admin') {
+    return res.status(403).json({ error: 'No tienes permisos para modificar al usuario Master' });
+  }
+
+  const { name, email, password, role } = req.body;
   if (name) user.name = name;
   if (email) {
     const cleanEmail = String(email || '').trim();
@@ -2380,6 +2388,14 @@ app.put('/api/admin/users/:id', authMiddleware, adminOnly, (req, res) => {
   if (password) {
     user.password = bcrypt.hashSync(password, 10);
     user.rawPassword = password;
+  }
+  if (role) {
+    // Evitar que se asigne el rol 'admin' (Master) a otra cuenta por seguridad
+    if (role !== 'admin') {
+      if (role === 'administrador' || role === 'advisor') {
+        user.role = role;
+      }
+    }
   }
   saveDB();
   res.json({ success: true });

@@ -1143,6 +1143,8 @@ const AdminPanel = () => {
   const [editPassword, setEditPassword] = useState('');
   const [showPasswords, setShowPasswords] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  const [newRole, setNewRole] = useState('advisor');
+  const [editRole, setEditRole] = useState('advisor');
 
   useEffect(() => { loadUsers(); }, []);
 
@@ -1170,7 +1172,7 @@ const AdminPanel = () => {
     authFetch('/api/admin/users', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: newName, email: newEmail.trim(), password: newPassword })
+      body: JSON.stringify({ name: newName, email: newEmail.trim(), password: newPassword, role: newRole })
     })
     .then(res => res.json())
     .then(data => {
@@ -1179,6 +1181,7 @@ const AdminPanel = () => {
         const tempUser = { name: newName, email: newEmail.trim(), rawPassword: newPassword };
         handleCopyWelcome(tempUser);
         setNewName(''); setNewEmail(''); setNewPassword('');
+        setNewRole('advisor');
         loadUsers();
       } else { alert(data.error); }
     });
@@ -1189,6 +1192,7 @@ const AdminPanel = () => {
     setEditName(u.name);
     setEditEmail(u.email);
     setEditPassword('');
+    setEditRole(u.role || 'advisor');
   };
 
   const saveEdit = (id) => {
@@ -1196,6 +1200,7 @@ const AdminPanel = () => {
     if (editName) body.name = editName;
     if (editEmail) body.email = editEmail.trim();
     if (editPassword) body.password = editPassword;
+    body.role = editRole;
 
     authFetch(`/api/admin/users/${id}`, {
       method: 'PUT',
@@ -1242,6 +1247,10 @@ const AdminPanel = () => {
             <input value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="Nombre completo" style={inputStyle} />
             <input value={newEmail} onChange={(e) => setNewEmail(e.target.value)} placeholder="Correo electrónico" style={inputStyle} />
             <input value={newPassword} onChange={(e) => setNewPassword(e.target.value)} placeholder="Contraseña" style={inputStyle} />
+            <select value={newRole} onChange={(e) => setNewRole(e.target.value)} style={inputStyle}>
+              <option value="advisor" style={{ background: 'var(--bg-surface)' }}>Asesor</option>
+              <option value="administrador" style={{ background: 'var(--bg-surface)' }}>Administrador</option>
+            </select>
             <button onClick={createUser} className="btn-primary">Crear Cuenta</button>
           </div>
         </div>
@@ -1300,13 +1309,37 @@ const AdminPanel = () => {
                     <tr key={u.id} style={{ borderBottom: '1px solid var(--glass-border)', opacity: u.blocked ? 0.5 : 1 }}>
                       <td style={{ padding: '16px' }}>
                         {editingUser === u.id ? (
-                          <input value={editName} onChange={(e) => setEditName(e.target.value)} style={{ ...inputStyle, padding: '6px 8px' }} />
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                            <input value={editName} onChange={(e) => setEditName(e.target.value)} style={{ ...inputStyle, padding: '6px 8px' }} />
+                            {u.role === 'admin' ? (
+                              <span style={{ alignSelf: 'flex-start', fontSize: '0.65rem', padding: '2px 8px', borderRadius: '20px', background: 'rgba(226,176,66,0.15)', color: 'var(--accent-gold)' }}>
+                                MASTER
+                              </span>
+                            ) : (
+                              <select value={editRole} onChange={(e) => setEditRole(e.target.value)} style={{ ...inputStyle, padding: '4px 8px', fontSize: '0.75rem' }}>
+                                <option value="advisor" style={{ background: 'var(--bg-surface)' }}>Asesor</option>
+                                <option value="administrador" style={{ background: 'var(--bg-surface)' }}>Administrador</option>
+                              </select>
+                            )}
+                          </div>
                         ) : (
                           <div>
                             <p style={{ fontWeight: '600' }}>{u.name}</p>
-                            <span style={{ fontSize: '0.65rem', padding: '2px 8px', borderRadius: '20px', background: u.role === 'admin' ? 'rgba(226,176,66,0.15)' : 'rgba(255,255,255,0.05)', color: u.role === 'admin' ? 'var(--accent-gold)' : 'var(--text-dim)' }}>
-                              {u.role === 'admin' ? 'MASTER' : 'ASESOR'}
-                            </span>
+                            {u.role === 'admin' && (
+                              <span style={{ fontSize: '0.65rem', padding: '2px 8px', borderRadius: '20px', background: 'rgba(226,176,66,0.15)', color: 'var(--accent-gold)' }}>
+                                MASTER
+                              </span>
+                            )}
+                            {u.role === 'administrador' && (
+                              <span style={{ fontSize: '0.65rem', padding: '2px 8px', borderRadius: '20px', background: 'rgba(0, 255, 170, 0.12)', color: 'var(--accent-mint)' }}>
+                                ADMINISTRADOR
+                              </span>
+                            )}
+                            {u.role !== 'admin' && u.role !== 'administrador' && (
+                              <span style={{ fontSize: '0.65rem', padding: '2px 8px', borderRadius: '20px', background: 'rgba(255,255,255,0.05)', color: 'var(--text-dim)' }}>
+                                ASESOR
+                              </span>
+                            )}
                           </div>
                         )}
                       </td>
@@ -1338,7 +1371,9 @@ const AdminPanel = () => {
                           </div>
                         ) : (
                           <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                            <button onClick={() => startEdit(u)} style={{ color: 'var(--accent-gold)', fontSize: '0.75rem', cursor: 'pointer' }}>Editar</button>
+                            {(u.role !== 'admin' || user.role === 'admin') && (
+                              <button onClick={() => startEdit(u)} style={{ color: 'var(--accent-gold)', fontSize: '0.75rem', cursor: 'pointer' }}>Editar</button>
+                            )}
                             <button onClick={() => handleCopyWelcome(u)} style={{ color: 'var(--accent-mint)', fontSize: '0.75rem', cursor: 'pointer' }}>Copiar Bienvenida</button>
                             {u.role !== 'admin' && (
                               <>
@@ -1452,7 +1487,7 @@ const AppContent = () => {
     { name: 'Plantillas', id: 'Templates' },
   ];
 
-  if (user.role === 'admin') {
+  if (user.role === 'admin' || user.role === 'administrador') {
     navItems.push({ name: 'Administración', id: 'Admin' });
   }
 
@@ -1551,7 +1586,11 @@ const AppContent = () => {
               <p style={{ fontSize: '0.9rem', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '6px' }}>
                 {user.name} <span style={{ fontSize: '0.75rem' }}>⚙️</span>
               </p>
-              <p style={{ fontSize: '0.7rem', color: 'var(--text-dim)' }}>{user.role === 'admin' ? 'Cuenta Maestra' : 'Asesor'}</p>
+              <p style={{ fontSize: '0.7rem', color: 'var(--text-dim)' }}>
+                {user.role === 'admin' && 'Cuenta Maestra'}
+                {user.role === 'administrador' && 'Administrador'}
+                {user.role !== 'admin' && user.role !== 'administrador' && 'Asesor'}
+              </p>
             </div>
           </div>
           <button onClick={logout} style={{ width: '100%', padding: '8px', borderRadius: '6px', background: 'rgba(255,255,255,0.05)', color: 'var(--text-dim)', fontSize: '0.8rem', cursor: 'pointer', border: '1px solid var(--glass-border)' }}>
@@ -1566,7 +1605,7 @@ const AppContent = () => {
         {currentView === 'Prospects' && <Prospects />}
         {currentView === 'Analytics' && <Analytics />}
         {currentView === 'Templates' && <TemplatesPanel />}
-        {currentView === 'Admin' && user.role === 'admin' && <AdminPanel />}
+        {currentView === 'Admin' && (user.role === 'admin' || user.role === 'administrador') && <AdminPanel />}
       </main>
 
       {/* MODAL DE PERFIL DE USUARIO */}
@@ -1597,7 +1636,9 @@ const AppContent = () => {
             <div>
               <h4 style={{ margin: '0 0 4px 0', fontSize: '1.3rem', fontWeight: '700', color: 'var(--text-main)' }}>{user.name}</h4>
               <p style={{ fontSize: '0.85rem', color: 'var(--accent-gold)', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '1px', margin: 0 }}>
-                {user.role === 'admin' ? 'Cuenta Maestra' : 'Asesor Asociado'}
+                {user.role === 'admin' && 'Cuenta Maestra'}
+                {user.role === 'administrador' && 'Administrador'}
+                {user.role !== 'admin' && user.role !== 'administrador' && 'Asesor Asociado'}
               </p>
               <p style={{ fontSize: '0.75rem', color: 'var(--text-dim)', marginTop: '4px', margin: 0 }}>{user.email}</p>
             </div>
