@@ -850,6 +850,7 @@ app.post('/api/clients', authMiddleware, (req, res) => {
     phone: data.phone || '',
     status: initialStatus,
     paymentDate: payDate,
+    highlighted: data.highlighted !== undefined ? !!data.highlighted : false,
     documents: []
   };
 
@@ -887,6 +888,7 @@ app.put('/api/clients/:clientId', authMiddleware, (req, res) => {
     premium: data.premium !== undefined ? parseFloat(data.premium) : req.user.clients[index].premium,
     currency: data.currency !== undefined ? data.currency : req.user.clients[index].currency,
     phone: data.phone !== undefined ? data.phone : req.user.clients[index].phone,
+    highlighted: data.highlighted !== undefined ? !!data.highlighted : req.user.clients[index].highlighted
   };
   
   if (data.collectionDate) {
@@ -895,6 +897,16 @@ app.put('/api/clients/:clientId', authMiddleware, (req, res) => {
 
   // Correr mantenimiento tras editar
   runDatabaseMaintenance(req.user);
+  saveDB();
+  res.json({ success: true, client: req.user.clients[index] });
+});
+
+// Alternar identificación (resaltado) de cliente
+app.put('/api/clients/:clientId/toggle-highlight', authMiddleware, (req, res) => {
+  const index = req.user.clients.findIndex(c => c.id == req.params.clientId);
+  if (index === -1) return res.status(404).json({ error: 'Cliente no encontrado' });
+
+  req.user.clients[index].highlighted = !req.user.clients[index].highlighted;
   saveDB();
   res.json({ success: true, client: req.user.clients[index] });
 });

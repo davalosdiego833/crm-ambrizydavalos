@@ -103,7 +103,8 @@ const Clients = () => {
     emissionDate: '', collectionDate: '',
     paymentFrequency: 'MENSUAL', paymentMethod: 'TC',
     annualPremium: '', currency: 'UDI',
-    insureds: [{ name: '', birthDate: '' }]
+    insureds: [{ name: '', birthDate: '' }],
+    highlighted: false
   };
   const [clientData, setClientData] = useState(initialClientData);
   const [parsingPdf, setParsingPdf] = useState(false);
@@ -293,6 +294,16 @@ const Clients = () => {
     });
   };
 
+    const handleToggleHighlight = (clientId) => {
+      authFetch(`/api/clients/${clientId}/toggle-highlight`, {
+        method: 'PUT'
+      })
+      .then(res => res.json())
+      .then(data => {
+        if (data.success) fetchClients();
+      });
+    };
+
   const openNewModal = () => {
     setEditingClientId(null);
     setClientData(initialClientData);
@@ -315,7 +326,8 @@ const Clients = () => {
       paymentMethod: client.paymentMethod || 'TC',
       annualPremium: client.annualPremium || '',
       currency: client.currency || 'UDI',
-      insureds: client.insureds && client.insureds.length > 0 ? client.insureds : [{ name: client.contractor || '', birthDate: client.contractorBirthDate || '' }]
+      insureds: client.insureds && client.insureds.length > 0 ? client.insureds : [{ name: client.contractor || '', birthDate: client.contractorBirthDate || '' }],
+      highlighted: client.highlighted || false
     });
     setShowClientModal(true);
   };
@@ -471,12 +483,30 @@ const Clients = () => {
                   style={{ 
                     borderBottom: '1px solid var(--glass-border)',
                     opacity: isAnnulled ? 0.4 : 1,
-                    transition: 'all 0.3s'
+                    transition: 'all 0.3s',
+                    background: client.highlighted ? 'rgba(226, 176, 66, 0.08)' : 'transparent',
+                    borderLeft: client.highlighted ? '4px solid var(--accent-gold)' : '4px solid transparent',
+                    boxShadow: client.highlighted ? 'inset 0 0 10px rgba(226, 176, 66, 0.05)' : 'none'
                   }}
                 >
                   <td style={{ padding: '12px 16px', fontWeight: '600', textDecoration: isAnnulled ? 'line-through' : 'none' }}>
-                    {client.contractor}<br/>
-                    <span style={{ fontSize: '0.75rem', color: 'var(--text-dim)', textDecoration: 'none', display: 'inline-block' }}>🎂 {formatBirthday(client.contractorBirthDate)}</span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                      <span>{client.contractor}</span>
+                      {client.highlighted && (
+                        <span style={{ 
+                          fontSize: '0.65rem', 
+                          background: 'rgba(226, 176, 66, 0.15)', 
+                          color: 'var(--accent-gold)', 
+                          padding: '2px 6px', 
+                          borderRadius: '4px', 
+                          fontWeight: 'bold',
+                          border: '1px solid rgba(226, 176, 66, 0.3)'
+                        }}>
+                          📌 Identificado
+                        </span>
+                      )}
+                    </div>
+                    <span style={{ fontSize: '0.75rem', color: 'var(--text-dim)', textDecoration: 'none', display: 'inline-block', marginTop: '4px' }}>🎂 {formatBirthday(client.contractorBirthDate)}</span>
                   </td>
                   <td style={{ padding: '12px 16px', fontSize: '0.85rem', textDecoration: isAnnulled ? 'line-through' : 'none' }}>
                     {client.insureds && client.insureds.map((ins, idx) => (
@@ -534,6 +564,20 @@ const Clients = () => {
                   <td style={{ padding: '12px 16px' }}>
                     <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                       <button onClick={() => openEditModal(client)} style={{ color: 'var(--accent-gold)', fontSize: '0.75rem', cursor: 'pointer', background: 'none', border: 'none' }}>Editar</button>
+                      <button 
+                        onClick={() => handleToggleHighlight(client.id)} 
+                        style={{ 
+                          color: client.highlighted ? 'var(--accent-gold)' : 'var(--text-dim)', 
+                          fontSize: '0.75rem', 
+                          cursor: 'pointer', 
+                          background: 'none', 
+                          border: 'none',
+                          fontWeight: client.highlighted ? 'bold' : 'normal'
+                        }}
+                        title={client.highlighted ? "Quitar marca de identificación" : "Identificar este cliente"}
+                      >
+                        {client.highlighted ? '📌 Desmarcar' : '📌 Identificar'}
+                      </button>
                       {isAnnulled ? (
                         <button 
                           onClick={() => handleReactivate(client.id)} 
@@ -628,6 +672,18 @@ const Clients = () => {
                   <label style={{ fontSize: '0.8rem', color: 'var(--text-dim)', marginBottom: '6px', display: 'block' }}>Nacimiento (Contratante)</label>
                   <input type="date" value={clientData.contractorBirthDate} onChange={e => setClientData({...clientData, contractorBirthDate: e.target.value})} style={inputStyle} />
                 </div>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'rgba(255,255,255,0.02)', padding: '10px 14px', borderRadius: '8px', border: '1px solid var(--glass-border)' }}>
+                <input 
+                  type="checkbox" 
+                  id="highlighted" 
+                  checked={clientData.highlighted || false} 
+                  onChange={e => setClientData({...clientData, highlighted: e.target.checked})} 
+                  style={{ width: '16px', height: '16px', cursor: 'pointer', accentColor: 'var(--accent-gold)' }} 
+                />
+                <label htmlFor="highlighted" style={{ fontSize: '0.8rem', color: 'white', cursor: 'pointer', userSelect: 'none' }}>
+                  📌 Identificar cliente (Resaltar fila completa en la base de datos)
+                </label>
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
                 <div>
