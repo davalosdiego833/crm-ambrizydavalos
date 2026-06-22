@@ -6,7 +6,6 @@ const path = require('path');
 const xlsx = require('xlsx');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
-const { PDFParse } = require('pdf-parse');
 const fs = require('fs');
 
 
@@ -1105,6 +1104,7 @@ app.post('/api/policies/parse', authMiddleware, upload.single('policy'), async (
   }
 
   try {
+    const { PDFParse } = require('pdf-parse');
     const filePath = path.resolve(req.file.path);
     const dataBuffer = new Uint8Array(fs.readFileSync(filePath));
     
