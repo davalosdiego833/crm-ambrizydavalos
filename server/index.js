@@ -231,14 +231,23 @@ const checkAndRolloverPaidClients = (user) => {
         else if (freq.includes('ANUA')) monthsToAdd = 12;
 
         const nextDate = new Date(c.collectionDate + 'T00:00:00');
-        nextDate.setMonth(nextDate.getMonth() + monthsToAdd);
-        
-        if (c.collectionDay) {
-          const maxDays = new Date(nextDate.getFullYear(), nextDate.getMonth() + 1, 0).getDate();
-          nextDate.setDate(Math.min(c.collectionDay, maxDays));
+        const currentYear = nextDate.getFullYear();
+        const currentMonth = nextDate.getMonth(); // 0-indexed (0-11)
+
+        let targetYear = currentYear;
+        let targetMonth = currentMonth + monthsToAdd;
+        if (targetMonth > 11) {
+          targetYear += Math.floor(targetMonth / 12);
+          targetMonth = targetMonth % 12;
         }
 
-        c.collectionDate = nextDate.toISOString().slice(0, 10);
+        const preferredDay = c.collectionDay || nextDate.getDate();
+        const maxDays = new Date(targetYear, targetMonth + 1, 0).getDate();
+        const safeDay = Math.min(preferredDay, maxDays);
+
+        const nextDateClean = new Date(targetYear, targetMonth, safeDay);
+
+        c.collectionDate = nextDateClean.toISOString().slice(0, 10);
         c.status = 'Pendiente';
         c.paymentDate = null;
         modified = true;
@@ -319,54 +328,78 @@ const createSafeDate = (y, m, d) => {
 };
 
 // Calcular el cobro inicial de forma inteligente (para fecha de emisión y frecuencia)
-const getInitialCollectionDate = (emissionDateStr, paymentFrequency, status) => {
+const getInitialCollectionDate = (emissionDateStr, paymentFrequency, status, collectionDay) => {
   const parsed = parseDate(emissionDateStr);
   if (!parsed) return '';
 
   const d = new Date(parsed + 'T00:00:00');
   if (isNaN(d.getTime())) return '';
 
-  const day = d.getDate();
-  const emissionMonth = d.getMonth(); // 0-indexed (0-11)
+  const day = collectionDay || d.getDate();
+  const emissionYear = d.getFullYear();
+  const emissionMonth = d.getMonth();
   
   const now = new Date();
   const currentYear = now.getFullYear();
-  const currentMonth = now.getMonth(); // 0-indexed (0-11)
+  const currentMonth = now.getMonth();
 
   const freq = String(paymentFrequency).toUpperCase();
-  let scheduledMonths = [];
+  let monthsStep = 1;
+  if (freq.includes('TRIM')) monthsStep = 3;
+  else if (freq.includes('SEME')) monthsStep = 6;
+  else if (freq.includes('ANUA')) monthsStep = 12;
 
-  if (freq.includes('MENS')) {
-    for (let i = 0; i < 12; i++) scheduledMonths.push(i);
-  } else if (freq.includes('TRIM')) {
-    for (let i = 0; i < 4; i++) {
-      scheduledMonths.push((emissionMonth + i * 3) % 12);
-    }
-  } else if (freq.includes('SEME')) {
-    for (let i = 0; i < 2; i++) {
-      scheduledMonths.push((emissionMonth + i * 6) % 12);
-    }
-  } else {
-    // ANUAL
-    scheduledMonths.push(emissionMonth);
+  // Empezar a buscar desde el primer cobro después de la emisión (el cobro de emisión se considera pagado en el acto)
+  let targetYear = emissionYear;
+  let targetMonth = emissionMonth + monthsStep;
+  if (targetMonth > 11) {
+    targetYear += Math.floor(targetMonth / 12);
+    targetMonth = targetMonth % 12;
+  }
+  
+  const maxDays = new Date(targetYear, targetMonth + 1, 0).getDate();
+  const safeDay = Math.min(day, maxDays);
+  let candidate = new Date(targetYear, targetMonth, safeDay);
+
+  const todayStart = new Date(currentYear, currentMonth, now.getDate());
+
+  // Si el primer cobro después de emisión está en el futuro/hoy, esa es la fecha inicial
+  if (candidate >= todayStart) {
+    return candidate.toISOString().slice(0, 10);
   }
 
-  scheduledMonths.sort((a, b) => a - b);
-
-  if (status === 'Pendiente') {
-    // Debe ser en el mes corriente (mayo 2026)
-    const colDate = createSafeDate(currentYear, currentMonth, day);
-    return colDate.toISOString().slice(0, 10);
-  } else {
-    // Pagada: buscamos el siguiente mes de cobro programado estrictamente posterior al mes corriente
-    const nextMonthInYear = scheduledMonths.find(m => m > currentMonth);
-    if (nextMonthInYear !== undefined) {
-      const colDate = createSafeDate(currentYear, nextMonthInYear, day);
-      return colDate.toISOString().slice(0, 10);
-    } else {
-      const colDate = createSafeDate(currentYear + 1, scheduledMonths[0], day);
-      return colDate.toISOString().slice(0, 10);
+  // De lo contrario, recorremos hacia adelante de ciclo en ciclo hasta encontrar
+  // la primera fecha que sea >= hoy
+  while (true) {
+    let nextMonth = candidate.getMonth() + monthsStep;
+    let nextYear = candidate.getFullYear();
+    if (nextMonth > 11) {
+      nextYear += Math.floor(nextMonth / 12);
+      nextMonth = nextMonth % 12;
     }
+    
+    const nextMaxDays = new Date(nextYear, nextMonth + 1, 0).getDate();
+    const nextSafeDay = Math.min(day, nextMaxDays);
+    const nextCandidate = new Date(nextYear, nextMonth, nextSafeDay);
+    
+    if (nextCandidate >= todayStart) {
+      if (status === 'Pendiente') {
+        return nextCandidate.toISOString().slice(0, 10);
+      } else {
+        // Si ya está pagado para este período, calculamos el siguiente vencimiento
+        let finalMonth = nextCandidate.getMonth() + monthsStep;
+        let finalYear = nextCandidate.getFullYear();
+        if (finalMonth > 11) {
+          finalYear += Math.floor(finalMonth / 12);
+          finalMonth = finalMonth % 12;
+        }
+        const finalMaxDays = new Date(finalYear, finalMonth + 1, 0).getDate();
+        const finalSafeDay = Math.min(day, finalMaxDays);
+        const finalCandidate = new Date(finalYear, finalMonth, finalSafeDay);
+        return finalCandidate.toISOString().slice(0, 10);
+      }
+    }
+    candidate = nextCandidate;
   }
 };
 
@@ -821,11 +854,15 @@ app.post('/api/clients', authMiddleware, (req, res) => {
   const data = req.body;
 
   const emDate = parseDate(data.emissionDate || '');
-  const initialStatus = 'Pagada';
+  const initialStatus = 'Pendiente';
   
   // Usar la fecha de cobro especificada por el usuario o calcularla de manera automática
-  const colDate = data.collectionDate ? parseDate(data.collectionDate) : getInitialCollectionDate(emDate, data.paymentFrequency || 'MENSUAL', 'Pagada');
-  const collectionDay = colDate ? new Date(colDate + 'T00:00:00').getDate() : "";
+  const colDate = data.collectionDate ? parseDate(data.collectionDate) : getInitialCollectionDate(emDate, data.paymentFrequency || 'MENSUAL', 'Pendiente');
+  
+  // Guardamos el día de cobro original basado en la fecha de cobro manual o en su defecto en la fecha de emisión
+  const collectionDay = data.collectionDate 
+    ? new Date(parseDate(data.collectionDate) + 'T00:00:00').getDate() 
+    : (emDate ? new Date(emDate + 'T00:00:00').getDate() : "");
 
   // Si la póliza inicia como Pagada, su fecha de pago inicial es la fecha de cobro asignada por el usuario (o la calculada si no se asignó)
   const payDate = initialStatus === 'Pagada' ? (data.collectionDate ? parseDate(data.collectionDate) : new Date().toISOString().slice(0, 10)) : null;
@@ -2006,21 +2043,30 @@ app.put('/api/clients/:clientId/reactivate', authMiddleware, (req, res) => {
   client.paymentDate = todayStr;
   
   // Actualizar la fecha de cobro al mes siguiente basándose en su frecuencia
-  const emDate = new Date(client.emissionDate || todayStr);
   const freq = String(client.paymentFrequency || 'MENSUAL').toUpperCase().trim();
   
-  let nextDueDate = new Date(today);
-  if (freq.includes('MENS')) nextDueDate.setMonth(today.getMonth() + 1);
-  else if (freq.includes('TRIM')) nextDueDate.setMonth(today.getMonth() + 3);
-  else if (freq.includes('SEME')) nextDueDate.setMonth(today.getMonth() + 6);
-  else nextDueDate.setFullYear(today.getFullYear() + 1);
-  
-  // Mantener el día original de cobro si es posible
-  if (client.collectionDay) {
-    nextDueDate.setDate(client.collectionDay);
+  let monthsToAdd = 1;
+  if (freq.includes('TRIM')) monthsToAdd = 3;
+  else if (freq.includes('SEME')) monthsToAdd = 6;
+  else if (freq.includes('ANUA')) monthsToAdd = 12;
+
+  const currentYear = today.getFullYear();
+  const currentMonth = today.getMonth(); // 0-indexed (0-11)
+
+  let targetYear = currentYear;
+  let targetMonth = currentMonth + monthsToAdd;
+  if (targetMonth > 11) {
+    targetYear += Math.floor(targetMonth / 12);
+    targetMonth = targetMonth % 12;
   }
+
+  const preferredDay = client.collectionDay || today.getDate();
+  const maxDays = new Date(targetYear, targetMonth + 1, 0).getDate();
+  const safeDay = Math.min(preferredDay, maxDays);
+
+  const nextDueDateClean = new Date(targetYear, targetMonth, safeDay);
   
-  client.collectionDate = nextDueDate.toISOString().slice(0, 10);
+  client.collectionDate = nextDueDateClean.toISOString().slice(0, 10);
   
   saveDB();
   res.json({ success: true, client: client });
