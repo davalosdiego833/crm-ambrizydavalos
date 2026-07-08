@@ -1623,8 +1623,10 @@ app.get('/api/dashboard', authMiddleware, (req, res) => {
       }
       
       // Para pólizas Pagadas que tienen un próximo cobro cercano (dentro de 30 días),
-      // mostrarlas en la Cobranza Próxima para que el asesor sepa que se acerca el cobro
-      if (c.collectionDate) {
+      // mostrarlas en la Cobranza Próxima SOLO si aún no han pagado este ciclo.
+      // Si ya tienen paymentDate, significa que este cobro ya se atendió y el rollover
+      // se encargará de mover la fecha al siguiente periodo.
+      if (c.collectionDate && !c.paymentDate) {
         const colDate = new Date(c.collectionDate);
         colDate.setHours(23, 59, 59, 999);
         const diff = Math.ceil((colDate - now) / (1000 * 60 * 60 * 24));
