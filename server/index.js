@@ -1621,6 +1621,32 @@ app.get('/api/dashboard', authMiddleware, (req, res) => {
           paymentFrequency: c.paymentFrequency || 'MENSUAL'
         });
       }
+      
+      // Para pólizas Pagadas que tienen un próximo cobro cercano (dentro de 30 días),
+      // mostrarlas en la Cobranza Próxima para que el asesor sepa que se acerca el cobro
+      if (c.collectionDate) {
+        const colDate = new Date(c.collectionDate);
+        colDate.setHours(23, 59, 59, 999);
+        const diff = Math.ceil((colDate - now) / (1000 * 60 * 60 * 24));
+        if (diff >= 0 && diff <= 30) {
+          const alertItem = {
+            id: c.id,
+            name: c.contractor, 
+            policyNumber: c.policyNumber,
+            amount: c.premium,
+            currency: c.currency,
+            product: c.product,
+            days: diff,
+            phone: c.phone,
+            collectionDate: c.collectionDate,
+            paymentFrequency: c.paymentFrequency || 'MENSUAL'
+          };
+          if (diff === 0) upcomingLists.hoy.push(alertItem);
+          else if (diff > 0 && diff <= 5) upcomingLists.en5Dias.push(alertItem);
+          else if (diff > 5 && diff <= 15) upcomingLists.en15Dias.push(alertItem);
+          else if (diff > 15 && diff <= 30) upcomingLists.enMes.push(alertItem);
+        }
+      }
     } else {
       kpis.pending += (c.premium || 0);
       
