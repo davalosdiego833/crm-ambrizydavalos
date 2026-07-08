@@ -403,6 +403,52 @@ const getInitialCollectionDate = (emissionDateStr, paymentFrequency, status, col
   }
 };
 
+const rollForwardIfPast = (dateStr, paymentFrequency) => {
+  const parsed = parseDate(dateStr);
+  if (!parsed) return '';
+  
+  const d = new Date(parsed + 'T00:00:00');
+  if (isNaN(d.getTime())) return '';
+  
+  const now = new Date();
+  const startOfCurrentMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+  
+  if (d >= startOfCurrentMonth) {
+    return parsed; // already in current month or future
+  }
+  
+  const freq = String(paymentFrequency).toUpperCase();
+  let monthsStep = 1;
+  if (freq.includes('TRIM')) monthsStep = 3;
+  else if (freq.includes('SEME')) monthsStep = 6;
+  else if (freq.includes('ANUA')) monthsStep = 12;
+  
+  const day = d.getDate();
+  let candidate = d;
+  while (candidate < startOfCurrentMonth) {
+    let nextMonth = candidate.getMonth() + monthsStep;
+    let nextYear = candidate.getFullYear();
+    if (nextMonth > 11) {
+      nextYear += Math.floor(nextMonth / 12);
+      nextMonth = nextMonth % 12;
+    }
+    
+    const nextMaxDays = new Date(nextYear, nextMonth + 1, 0).getDate();
+    const nextSafeDay = Math.min(day, nextMaxDays);
+    candidate = new Date(nextYear, nextMonth, nextSafeDay);
+  }
+  
+  return candidate.toISOString().slice(0, 10);
+};
+
+const isDateInCurrentMonth = (dateStr) => {
+  if (!dateStr) return false;
+  const d = new Date(dateStr + 'T00:00:00');
+  if (isNaN(d.getTime())) return false;
+  const now = new Date();
+  return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
+};
+
 // Función inteligente para determinar si un cobro cae en el mes corriente
 const isPaymentDueInCurrentMonth = (emissionDateStr, paymentFrequency) => {
   if (!emissionDateStr) return false;
@@ -854,18 +900,60 @@ app.post('/api/clients', authMiddleware, (req, res) => {
   const data = req.body;
 
   const emDate = parseDate(data.emissionDate || '');
-  const initialStatus = 'Pendiente';
-  
-  // Usar la fecha de cobro especificada por el usuario o calcularla de manera automática
-  const colDate = data.collectionDate ? parseDate(data.collectionDate) : getInitialCollectionDate(emDate, data.paymentFrequency || 'MENSUAL', 'Pendiente');
+  const isNewPolicyThisMonth = emDate && isDateInCurrentMonth(emDate);
+
+  let colDate = "";
+  let initialStatus = "Pagada";
+  let payDate = null;
+
+  if (isNewPolicyThisMonth) {
+    // Es una venta nueva de este mes. Nace PAGADA y el siguiente cobro es en el futuro.
+    initialStatus = 'Pagada';
+    colDate = data.collectionDate ? parseDate(data.collectionDate) : getInitialCollectionDate(emDate, data.paymentFrequency || 'MENSUAL', 'Pagada');
+    if (colDate) {
+      colDate = rollForwardIfPast(colDate, data.paymentFrequency || 'MENSUAL');
+      // Forzar a que esté en el mes siguiente o futuro
+      const dCol = new Date(colDate + 'T00:00:00');
+      const today = new Date();
+      const startOfNextMonth = new Date(today.getFullYear(), today.getMonth() + 1, 1);
+      if (dCol < startOfNextMonth) {
+        const freq = String(data.paymentFrequency || 'MENSUAL').toUpperCase();
+        let monthsStep = 1;
+        if (freq.includes('TRIM')) monthsStep = 3;
+        else if (freq.includes('SEME')) monthsStep = 6;
+        else if (freq.includes('ANUA')) monthsStep = 12;
+
+        const day = dCol.getDate();
+        let nextMonth = dCol.getMonth() + monthsStep;
+        let nextYear = dCol.getFullYear();
+        if (nextMonth > 11) {
+          nextYear += Math.floor(nextMonth / 12);
+          nextMonth = nextMonth % 12;
+        }
+        const nextMaxDays = new Date(nextYear, nextMonth + 1, 0).getDate();
+        const nextSafeDay = Math.min(day, nextMaxDays);
+        colDate = new Date(nextYear, nextMonth, nextSafeDay).toISOString().slice(0, 10);
+      }
+    }
+    payDate = emDate || new Date().toISOString().slice(0, 10);
+  } else {
+    // Es una póliza antigua. Los cobros pasados ya están pagados.
+    colDate = data.collectionDate ? parseDate(data.collectionDate) : getInitialCollectionDate(emDate, data.paymentFrequency || 'MENSUAL', 'Pendiente');
+    if (colDate) {
+      colDate = rollForwardIfPast(colDate, data.paymentFrequency || 'MENSUAL');
+    }
+    
+    initialStatus = 'Pagada';
+    if (colDate && isDateInCurrentMonth(colDate)) {
+      initialStatus = 'Pendiente';
+    }
+    payDate = null;
+  }
   
   // Guardamos el día de cobro original basado en la fecha de cobro manual o en su defecto en la fecha de emisión
   const collectionDay = data.collectionDate 
     ? new Date(parseDate(data.collectionDate) + 'T00:00:00').getDate() 
     : (emDate ? new Date(emDate + 'T00:00:00').getDate() : "");
-
-  // Si la póliza inicia como Pagada, su fecha de pago inicial es la fecha de cobro asignada por el usuario (o la calculada si no se asignó)
-  const payDate = initialStatus === 'Pagada' ? (data.collectionDate ? parseDate(data.collectionDate) : new Date().toISOString().slice(0, 10)) : null;
 
   const newClient = {
     id: maxId + 1,
@@ -928,8 +1016,58 @@ app.put('/api/clients/:clientId', authMiddleware, (req, res) => {
     highlighted: data.highlighted !== undefined ? !!data.highlighted : req.user.clients[index].highlighted
   };
   
-  if (data.collectionDate) {
-    req.user.clients[index].collectionDay = new Date(data.collectionDate + 'T00:00:00').getDate();
+  const updatedClient = req.user.clients[index];
+  const isNewPolicyThisMonth = updatedClient.emissionDate && isDateInCurrentMonth(updatedClient.emissionDate);
+
+  if (updatedClient.collectionDate) {
+    updatedClient.collectionDate = rollForwardIfPast(updatedClient.collectionDate, updatedClient.paymentFrequency || 'MENSUAL');
+    // Si es venta nueva de este mes, forzar a que el cobro esté en el futuro
+    if (isNewPolicyThisMonth) {
+      const dCol = new Date(updatedClient.collectionDate + 'T00:00:00');
+      const today = new Date();
+      const startOfNextMonth = new Date(today.getFullYear(), today.getMonth() + 1, 1);
+      if (dCol < startOfNextMonth) {
+        const freq = String(updatedClient.paymentFrequency || 'MENSUAL').toUpperCase();
+        let monthsStep = 1;
+        if (freq.includes('TRIM')) monthsStep = 3;
+        else if (freq.includes('SEME')) monthsStep = 6;
+        else if (freq.includes('ANUA')) monthsStep = 12;
+
+        const day = dCol.getDate();
+        let nextMonth = dCol.getMonth() + monthsStep;
+        let nextYear = dCol.getFullYear();
+        if (nextMonth > 11) {
+          nextYear += Math.floor(nextMonth / 12);
+          nextMonth = nextMonth % 12;
+        }
+        const nextMaxDays = new Date(nextYear, nextMonth + 1, 0).getDate();
+        const nextSafeDay = Math.min(day, nextMaxDays);
+        updatedClient.collectionDate = new Date(nextYear, nextMonth, nextSafeDay).toISOString().slice(0, 10);
+      }
+    }
+    updatedClient.collectionDay = new Date(updatedClient.collectionDate + 'T00:00:00').getDate();
+  }
+
+  if (updatedClient.status !== 'Anulada') {
+    if (isNewPolicyThisMonth) {
+      updatedClient.status = 'Pagada';
+      if (!updatedClient.paymentDate) {
+        updatedClient.paymentDate = updatedClient.emissionDate || new Date().toISOString().slice(0, 10);
+      }
+    } else {
+      if (updatedClient.collectionDate && isDateInCurrentMonth(updatedClient.collectionDate)) {
+        updatedClient.status = 'Pendiente';
+        updatedClient.paymentDate = null;
+      } else {
+        updatedClient.status = 'Pagada';
+        const now = new Date();
+        const currentMonthStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+        const paidThisMonth = updatedClient.paymentDate && updatedClient.paymentDate.startsWith(currentMonthStr);
+        if (!paidThisMonth) {
+          updatedClient.paymentDate = null;
+        }
+      }
+    }
   }
 
   // Correr mantenimiento tras editar
@@ -1914,7 +2052,11 @@ app.get('/api/analytics', authMiddleware, (req, res) => {
         if (isPaidThisMonth) {
           monthlyFlow[mIndex].cobrado += premiumVal;
           monthlyFlow[mIndex].cobradoMXN += mxnVal;
-          monthlyFlow[mIndex].ventas += 1;
+          
+          const isNewSale = c.emissionDate && c.emissionDate.startsWith(`${currentYear}-${mStr}`);
+          if (isNewSale) {
+            monthlyFlow[mIndex].ventas += 1;
+          }
         } else {
           monthlyFlow[mIndex].pendiente += premiumVal;
           monthlyFlow[mIndex].pendienteMXN += mxnVal;
@@ -2311,13 +2453,15 @@ app.post('/api/migrate', authMiddleware, upload.single('file'), (req, res) => {
         }
       }
 
-      // Determinar el status inicial: "Pendiente" si le toca cobro en el mes corriente, "Pagada" en caso contrario
+      // Determinar si es una póliza nueva del mes actual
+      const isNewPolicyThisMonth = emissionDate && isDateInCurrentMonth(emissionDate);
+      
       let status = "Pagada";
       const rawComments = cleanRow["comentarios adicionales"] || cleanRow["comentarios"] || "";
       const commentsStr = String(rawComments).trim().toLowerCase();
       if (commentsStr.includes("cancelada")) {
         status = "Anulada";
-      } else if (isPaymentDueInCurrentMonth(emissionDate, paymentFrequency)) {
+      } else if (!isNewPolicyThisMonth && isPaymentDueInCurrentMonth(emissionDate, paymentFrequency)) {
         status = "Pendiente";
       }
 
@@ -2334,6 +2478,48 @@ app.post('/api/migrate', authMiddleware, upload.single('file'), (req, res) => {
         collectionDate = getInitialCollectionDate(emissionDate, paymentFrequency, status);
         collectionDay = collectionDate ? new Date(collectionDate + 'T00:00:00').getDate() : "";
       }
+
+      // Rodar fecha hacia adelante si cayó en el pasado
+      if (collectionDate) {
+        collectionDate = rollForwardIfPast(collectionDate, paymentFrequency);
+        // Si es una póliza nueva de este mes, forzar que el cobro esté en el futuro
+        if (isNewPolicyThisMonth) {
+          const dCol = new Date(collectionDate + 'T00:00:00');
+          const today = new Date();
+          const startOfNextMonth = new Date(today.getFullYear(), today.getMonth() + 1, 1);
+          if (dCol < startOfNextMonth) {
+            const freq = String(paymentFrequency).toUpperCase();
+            let monthsStep = 1;
+            if (freq.includes('TRIM')) monthsStep = 3;
+            else if (freq.includes('SEME')) monthsStep = 6;
+            else if (freq.includes('ANUA')) monthsStep = 12;
+
+            const day = dCol.getDate();
+            let nextMonth = dCol.getMonth() + monthsStep;
+            let nextYear = dCol.getFullYear();
+            if (nextMonth > 11) {
+              nextYear += Math.floor(nextMonth / 12);
+              nextMonth = nextMonth % 12;
+            }
+            const nextMaxDays = new Date(nextYear, nextMonth + 1, 0).getDate();
+            const nextSafeDay = Math.min(day, nextMaxDays);
+            collectionDate = new Date(nextYear, nextMonth, nextSafeDay).toISOString().slice(0, 10);
+          }
+        }
+        collectionDay = new Date(collectionDate + 'T00:00:00').getDate();
+      }
+
+      if (status !== "Anulada") {
+        if (isNewPolicyThisMonth) {
+          status = "Pagada";
+        } else if (collectionDate && isDateInCurrentMonth(collectionDate)) {
+          status = "Pendiente";
+        } else {
+          status = "Pagada";
+        }
+      }
+
+      const paymentDate = (status === "Pagada" && isNewPolicyThisMonth) ? (emissionDate || new Date().toISOString().slice(0, 10)) : null;
 
       // Parsear cumpleaños con soporte para mes/día sin año
       const contractorBirthDate = parseBirthday(cleanRow["cumpleaños"], cleanRow["_cumpleanosformatted"]);
@@ -2370,6 +2556,7 @@ app.post('/api/migrate', authMiddleware, upload.single('file'), (req, res) => {
         premium,
         currency,
         status,
+        paymentDate,
         documents: []
       });
     });
