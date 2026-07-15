@@ -1881,6 +1881,11 @@ app.get('/api/analytics', authMiddleware, (req, res) => {
   });
 
   // 2. Procesar KPIs y Lógicas de Mes / Año
+  const now = new Date();
+  const today = new Date();
+  const nowYear = now.getFullYear();
+  const nowMonth = now.getMonth() + 1;
+
   clientsData.forEach(c => {
     if (c.status === 'Anulada') return;
     const prod = String(c.product || 'Vida').trim().toLowerCase();
@@ -1901,22 +1906,19 @@ app.get('/api/analytics', authMiddleware, (req, res) => {
       const isNewSale = (eYear === currentYear && parseInt(eMonth) === parseInt(month));
 
       if (scheduled) {
+        const tYear = parseInt(currentYear);
+        const tMonth = parseInt(month);
         let isPaidThisMonth = false;
-        if (c.status === 'Pagada') {
-          if (c.paymentDate && c.paymentDate.startsWith(`${currentYear}-${month}`)) {
-            isPaidThisMonth = true;
-          } else if (isNewSale) {
+
+        if (c.status !== 'Anulada') {
+          if (c.status === 'Atrasada') {
+            isPaidThisMonth = false;
+          } else if (tYear < nowYear || (tYear === nowYear && tMonth <= nowMonth)) {
+            // Todos los cobros pasados y del mes actual de pólizas vigentes/activas se consideran 100% Pagados
             isPaidThisMonth = true;
           } else {
-            if (!c.paymentDate || c.paymentDate.startsWith(`${currentYear}-${month}`)) {
-              isPaidThisMonth = true;
-            } else {
-              const pDate = new Date(c.paymentDate);
-              const targetEnd = new Date(parseInt(currentYear), parseInt(month) - 1, 31);
-              if (!isNaN(pDate.getTime()) && pDate <= targetEnd) {
-                isPaidThisMonth = true;
-              }
-            }
+            // Meses futuros
+            isPaidThisMonth = (c.status === 'Pagada' && c.paymentDate && c.paymentDate.startsWith(`${currentYear}-${month}`));
           }
         }
 
@@ -1966,7 +1968,6 @@ app.get('/api/analytics', authMiddleware, (req, res) => {
 
           if (c.collectionDate) {
             const dueDate = new Date(c.collectionDate + 'T00:00:00');
-            const today = new Date();
             if (today > dueDate) {
               kpiLateCount++;
               kpiLateMXN += mxnVal;
@@ -2016,23 +2017,16 @@ app.get('/api/analytics', authMiddleware, (req, res) => {
           const scheduled = isPaymentScheduledIn(c, currentYear, m);
           if (scheduled) {
             const mStr = String(m).padStart(2, '0');
-            const isNewSaleInM = (eYear === currentYear && parseInt(eMonth) === m);
+            const tYear = parseInt(currentYear);
             let isPaidThisMonth = false;
-            if (c.status === 'Pagada') {
-              if (c.paymentDate && c.paymentDate.startsWith(`${currentYear}-${mStr}`)) {
-                isPaidThisMonth = true;
-              } else if (isNewSaleInM) {
+
+            if (c.status !== 'Anulada') {
+              if (c.status === 'Atrasada') {
+                isPaidThisMonth = false;
+              } else if (tYear < nowYear || (tYear === nowYear && m <= nowMonth)) {
                 isPaidThisMonth = true;
               } else {
-                if (!c.paymentDate || c.paymentDate.startsWith(`${currentYear}-${mStr}`)) {
-                  isPaidThisMonth = true;
-                } else {
-                  const pDate = new Date(c.paymentDate);
-                  const targetEnd = new Date(parseInt(currentYear), m - 1, 31);
-                  if (!isNaN(pDate.getTime()) && pDate <= targetEnd) {
-                    isPaidThisMonth = true;
-                  }
-                }
+                isPaidThisMonth = (c.status === 'Pagada' && c.paymentDate && c.paymentDate.startsWith(`${currentYear}-${mStr}`));
               }
             }
 
@@ -2065,7 +2059,6 @@ app.get('/api/analytics', authMiddleware, (req, res) => {
 
               if (c.collectionDate) {
                 const dueDate = new Date(c.collectionDate + 'T00:00:00');
-                const today = new Date();
                 if (today > dueDate) {
                   kpiLateCount++;
                   kpiLateMXN += mxnVal;
@@ -2112,22 +2105,16 @@ app.get('/api/analytics', authMiddleware, (req, res) => {
       if (scheduled) {
         const mStr = String(mIndex + 1).padStart(2, '0');
         const isNewSaleInM = (eYear === currentYear && parseInt(eMonth) === (mIndex + 1));
+        const tYear = parseInt(currentYear);
         let isPaidThisMonth = false;
-        if (c.status === 'Pagada') {
-          if (c.paymentDate && c.paymentDate.startsWith(`${currentYear}-${mStr}`)) {
-            isPaidThisMonth = true;
-          } else if (isNewSaleInM) {
+
+        if (c.status !== 'Anulada') {
+          if (c.status === 'Atrasada') {
+            isPaidThisMonth = false;
+          } else if (tYear < nowYear || (tYear === nowYear && (mIndex + 1) <= nowMonth)) {
             isPaidThisMonth = true;
           } else {
-            if (!c.paymentDate || c.paymentDate.startsWith(`${currentYear}-${mStr}`)) {
-              isPaidThisMonth = true;
-            } else {
-              const pDate = new Date(c.paymentDate);
-              const targetEnd = new Date(parseInt(currentYear), mIndex, 31);
-              if (!isNaN(pDate.getTime()) && pDate <= targetEnd) {
-                isPaidThisMonth = true;
-              }
-            }
+            isPaidThisMonth = (c.status === 'Pagada' && c.paymentDate && c.paymentDate.startsWith(`${currentYear}-${mStr}`));
           }
         }
 
