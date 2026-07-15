@@ -1878,6 +1878,12 @@ app.get('/api/analytics', authMiddleware, (req, res) => {
 
     portfolio.totalMXN += convertToMXN(annualized, cur);
     lists.allActive.push(c);
+
+    const productKey = isGMM ? 'GMM' : 'Vida';
+    productDist[productKey] = (productDist[productKey] || 0) + 1;
+
+    const plan = c.planType || c.product || 'Otros';
+    planDist[plan] = (planDist[plan] || 0) + 1;
   });
 
   // 2. Procesar KPIs y Lógicas de Mes / Año
@@ -1995,12 +2001,6 @@ app.get('/api/analytics', authMiddleware, (req, res) => {
             }
           }
         }
-
-        const productKey = isGMM ? 'GMM' : 'Vida';
-        productDist[productKey] = (productDist[productKey] || 0) + 1;
-
-        const plan = c.planType || c.product || 'Otros';
-        planDist[plan] = (planDist[plan] || 0) + 1;
       }
     } else {
       // Vista Anual
@@ -2090,12 +2090,6 @@ app.get('/api/analytics', authMiddleware, (req, res) => {
             }
           }
         }
-
-        const productKey = isGMM ? 'GMM' : 'Vida';
-        productDist[productKey] = (productDist[productKey] || 0) + 1;
-
-        const plan = c.planType || c.product || 'Otros';
-        planDist[plan] = (planDist[plan] || 0) + 1;
       }
     }
 
