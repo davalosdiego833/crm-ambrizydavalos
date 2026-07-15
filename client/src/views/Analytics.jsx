@@ -314,7 +314,7 @@ const Analytics = () => {
       else if (freq.includes('TRIM')) divisor = 4;
       else if (freq.includes('SEME')) divisor = 2;
       
-      const annualized = (c.premium || 0) * divisor;
+      const annualized = (c.annualPremium && c.annualPremium > 0) ? c.annualPremium : ((c.premium || 0) * divisor);
       const mxnVal = convertAmount(annualized, c.currency);
       
       if (age <= 13) {
@@ -1311,6 +1311,18 @@ const Analytics = () => {
                     </tr>
                   ) : drillDown.list.map((c, i) => {
                     const isAnnulled = c.status === 'Anulada';
+                    const isPortfolioModal = drillDown.title.includes('Cartera') || drillDown.title.includes('Valor Total');
+                    
+                    let displayVal = c.premium || 0;
+                    if (isPortfolioModal) {
+                      let divisor = 1;
+                      const freq = String(c.paymentFrequency || 'ANUAL').toUpperCase().trim();
+                      if (freq.includes('MENS')) divisor = 12;
+                      else if (freq.includes('TRIM')) divisor = 4;
+                      else if (freq.includes('SEME')) divisor = 2;
+                      displayVal = (c.annualPremium && c.annualPremium > 0) ? c.annualPremium : ((c.premium || 0) * divisor);
+                    }
+
                     return (
                       <tr key={i} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', transition: 'background 0.2s', opacity: isAnnulled ? 0.4 : 1 }}>
                         <td style={{ padding: '14px 8px', fontWeight: '600', textDecoration: isAnnulled ? 'line-through' : 'none' }}>{c.contractor}</td>
@@ -1378,10 +1390,10 @@ const Analytics = () => {
                           )}
                         </td>
                         <td style={{ padding: '14px 8px', fontWeight: '600', color: 'var(--text-main)', textDecoration: isAnnulled ? 'line-through' : 'none' }}>
-                          {formatRawValue(c.premium || 0, c.currency)}
+                          {formatRawValue(displayVal, c.currency)}
                         </td>
                         <td style={{ padding: '14px 8px', fontWeight: 'bold', color: 'var(--accent-gold)', textAlign: 'right', textDecoration: isAnnulled ? 'line-through' : 'none' }}>
-                          {fmtPesos(convertAmount(c.premium || 0, c.currency))}
+                          {fmtPesos(convertAmount(displayVal, c.currency))}
                         </td>
                       </tr>
                     );

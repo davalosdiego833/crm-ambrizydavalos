@@ -1866,7 +1866,7 @@ app.get('/api/analytics', authMiddleware, (req, res) => {
     else if (freq.includes('TRIM')) divisor = 4;
     else if (freq.includes('SEME')) divisor = 2;
 
-    const annualized = premiumVal * divisor;
+    const annualized = (c.annualPremium && c.annualPremium > 0) ? c.annualPremium : (premiumVal * divisor);
     
     if (isGMM) {
       portfolio.GMM += convertToMXN(annualized, cur);
