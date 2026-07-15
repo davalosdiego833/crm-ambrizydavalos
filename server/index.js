@@ -1830,7 +1830,7 @@ app.get('/api/analytics', authMiddleware, (req, res) => {
   const planDist = {};
 
   const isPaymentScheduledIn = (client, targetYearStr, targetMonthStr) => {
-    const emissionStr = client.paymentDate || client.collectionDate || client.emissionDate || '';
+    const emissionStr = client.emissionDate || client.collectionDate || client.paymentDate || '';
     if (!emissionStr) return false;
 
     const [eYearStr, eMonthStr] = emissionStr.split('-');
@@ -1889,7 +1889,7 @@ app.get('/api/analytics', authMiddleware, (req, res) => {
     const premiumVal = c.premium || 0;
     const mxnVal = convertToMXN(premiumVal, c.currency);
 
-    const emissionStr = c.emissionDate || c.paymentDate || c.collectionDate || '';
+    const emissionStr = c.emissionDate || c.collectionDate || c.paymentDate || '';
     let eYear = '', eMonth = '';
     if (emissionStr) {
       [eYear, eMonth] = emissionStr.split('-');
@@ -1901,7 +1901,25 @@ app.get('/api/analytics', authMiddleware, (req, res) => {
       const isNewSale = (eYear === currentYear && parseInt(eMonth) === parseInt(month));
 
       if (scheduled) {
-        const isPaidThisMonth = c.status === 'Pagada' && c.paymentDate && c.paymentDate.startsWith(`${currentYear}-${month}`);
+        let isPaidThisMonth = false;
+        if (c.status === 'Pagada') {
+          if (c.paymentDate && c.paymentDate.startsWith(`${currentYear}-${month}`)) {
+            isPaidThisMonth = true;
+          } else if (isNewSale) {
+            isPaidThisMonth = true;
+          } else {
+            if (!c.paymentDate || c.paymentDate.startsWith(`${currentYear}-${month}`)) {
+              isPaidThisMonth = true;
+            } else {
+              const pDate = new Date(c.paymentDate);
+              const targetEnd = new Date(parseInt(currentYear), parseInt(month) - 1, 31);
+              if (!isNaN(pDate.getTime()) && pDate <= targetEnd) {
+                isPaidThisMonth = true;
+              }
+            }
+          }
+        }
+
         const cCopy = { ...c, status: isPaidThisMonth ? 'Pagada' : 'Pendiente' };
 
         lists.active.push(cCopy);
@@ -1998,7 +2016,25 @@ app.get('/api/analytics', authMiddleware, (req, res) => {
           const scheduled = isPaymentScheduledIn(c, currentYear, m);
           if (scheduled) {
             const mStr = String(m).padStart(2, '0');
-            const isPaidThisMonth = c.status === 'Pagada' && c.paymentDate && c.paymentDate.startsWith(`${currentYear}-${mStr}`);
+            const isNewSaleInM = (eYear === currentYear && parseInt(eMonth) === m);
+            let isPaidThisMonth = false;
+            if (c.status === 'Pagada') {
+              if (c.paymentDate && c.paymentDate.startsWith(`${currentYear}-${mStr}`)) {
+                isPaidThisMonth = true;
+              } else if (isNewSaleInM) {
+                isPaidThisMonth = true;
+              } else {
+                if (!c.paymentDate || c.paymentDate.startsWith(`${currentYear}-${mStr}`)) {
+                  isPaidThisMonth = true;
+                } else {
+                  const pDate = new Date(c.paymentDate);
+                  const targetEnd = new Date(parseInt(currentYear), m - 1, 31);
+                  if (!isNaN(pDate.getTime()) && pDate <= targetEnd) {
+                    isPaidThisMonth = true;
+                  }
+                }
+              }
+            }
 
             if (isPaidThisMonth) {
               kpiCollected += premiumVal;
@@ -2075,14 +2111,31 @@ app.get('/api/analytics', authMiddleware, (req, res) => {
       const scheduled = isPaymentScheduledIn(c, currentYear, mIndex + 1);
       if (scheduled) {
         const mStr = String(mIndex + 1).padStart(2, '0');
-        const isPaidThisMonth = c.status === 'Pagada' && c.paymentDate && c.paymentDate.startsWith(`${currentYear}-${mStr}`);
+        const isNewSaleInM = (eYear === currentYear && parseInt(eMonth) === (mIndex + 1));
+        let isPaidThisMonth = false;
+        if (c.status === 'Pagada') {
+          if (c.paymentDate && c.paymentDate.startsWith(`${currentYear}-${mStr}`)) {
+            isPaidThisMonth = true;
+          } else if (isNewSaleInM) {
+            isPaidThisMonth = true;
+          } else {
+            if (!c.paymentDate || c.paymentDate.startsWith(`${currentYear}-${mStr}`)) {
+              isPaidThisMonth = true;
+            } else {
+              const pDate = new Date(c.paymentDate);
+              const targetEnd = new Date(parseInt(currentYear), mIndex, 31);
+              if (!isNaN(pDate.getTime()) && pDate <= targetEnd) {
+                isPaidThisMonth = true;
+              }
+            }
+          }
+        }
 
         if (isPaidThisMonth) {
           monthlyFlow[mIndex].cobrado += premiumVal;
           monthlyFlow[mIndex].cobradoMXN += mxnVal;
           
-          const isNewSale = c.emissionDate && c.emissionDate.startsWith(`${currentYear}-${mStr}`);
-          if (isNewSale) {
+          if (isNewSaleInM) {
             monthlyFlow[mIndex].ventas += 1;
           }
         } else {

@@ -164,7 +164,7 @@ const Analytics = () => {
       const cur = String(c.currency || 'MXN').toUpperCase().trim();
       const val = c.premium || 0;
 
-      const emissionStr = c.paymentDate || c.collectionDate || c.emissionDate || '';
+      const emissionStr = c.emissionDate || c.collectionDate || c.paymentDate || '';
       if (!emissionStr) return;
       const [eYearStr, eMonthStr] = emissionStr.split('-');
       const eYear = parseInt(eYearStr);
@@ -351,7 +351,7 @@ const Analytics = () => {
     const clients = getSubTabAllActiveClients(subTab);
 
     clients.forEach(c => {
-      const emissionStr = c.paymentDate || c.collectionDate || c.emissionDate || '';
+      const emissionStr = c.emissionDate || c.collectionDate || c.paymentDate || '';
       if (!emissionStr) return;
 
       const [eYearStr, eMonthStr] = emissionStr.split('-');
