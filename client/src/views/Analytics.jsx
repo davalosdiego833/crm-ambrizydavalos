@@ -350,6 +350,11 @@ const Analytics = () => {
 
     const clients = getSubTabAllActiveClients(subTab);
 
+    const now = new Date();
+    const nowYear = now.getFullYear();
+    const nowMonth = now.getMonth() + 1;
+    const tYear = parseInt(year);
+
     clients.forEach(c => {
       const emissionStr = c.emissionDate || c.collectionDate || c.paymentDate || '';
       if (!emissionStr) return;
@@ -363,7 +368,7 @@ const Analytics = () => {
 
       for (let m = 1; m <= 12; m++) {
         // Ignorar cobros programados de meses anteriores al mes de emisión de la póliza sólo en el año de emisión
-        if (eYear === parseInt(year) && m < eMonth) continue;
+        if (eYear === tYear && m < eMonth) continue;
 
         let isScheduled = false;
         if (freq === 'MENSUAL' || freq === 'MENSUALES') isScheduled = true;
@@ -377,18 +382,27 @@ const Analytics = () => {
       activeMonths.forEach(m => {
         const mIndex = m - 1;
         const val = subTab === 'consolidado' ? convertAmount(c.premium || 0, c.currency) : (c.premium || 0);
-
         const mStr = String(m).padStart(2, '0');
-        const isPaidThisMonth = c.status === 'Pagada' && c.paymentDate && c.paymentDate.startsWith(`${year}-${mStr}`);
+
+        let isPaidThisMonth = false;
+        if (c.status !== 'Anulada') {
+          if (c.status === 'Atrasada') {
+            isPaidThisMonth = false;
+          } else if (tYear < nowYear || (tYear === nowYear && m <= nowMonth)) {
+            isPaidThisMonth = true;
+          } else {
+            isPaidThisMonth = (c.status === 'Pagada' && c.paymentDate && c.paymentDate.startsWith(`${year}-${mStr}`));
+          }
+        }
 
         if (isPaidThisMonth) {
           flow[mIndex].cobrado += val;
-          const isNewSale = c.emissionDate && c.emissionDate.startsWith(`${year}-${mStr}`);
-          if (isNewSale) {
-            flow[mIndex].ventas += 1;
-          }
         } else {
           flow[mIndex].pendiente += val;
+        }
+
+        if (eYear === tYear && eMonth === m) {
+          flow[mIndex].ventas += 1;
         }
       });
     });
