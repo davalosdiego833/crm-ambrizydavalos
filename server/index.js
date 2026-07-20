@@ -260,8 +260,50 @@ const checkAndRolloverPaidClients = (user) => {
   }
 };
 
+const cleanPersonName = (name) => {
+  if (!name || typeof name !== 'string') return '';
+  let cleaned = name.trim();
+  cleaned = cleaned
+    .replace(/(?:\s+TIPO(?:\s+DE)?(?:\s+PERSONA|\s+CONDUCTOR|\s+ATENCION|\s+CLIENTE|\s+AGENTE)?.*)$/i, '')
+    .replace(/\b(TIPO DE|PERSONA FISICA|PERSONA MORAL|CONDUCTOR|SUBGRUPO|CLIENTE|AGENTE|RFC|DOMICILIO|C\.P\.).*/i, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return cleaned;
+};
+
+const sanitizeClientNames = (user) => {
+  if (!user || !user.clients || !Array.isArray(user.clients)) return;
+  let modified = false;
+
+  user.clients.forEach(c => {
+    if (c.contractor) {
+      const cleaned = cleanPersonName(c.contractor);
+      if (cleaned !== c.contractor) {
+        c.contractor = cleaned;
+        modified = true;
+      }
+    }
+    if (c.insureds && Array.isArray(c.insureds)) {
+      c.insureds.forEach(ins => {
+        if (ins.name) {
+          const cleaned = cleanPersonName(ins.name);
+          if (cleaned !== ins.name) {
+            ins.name = cleaned;
+            modified = true;
+          }
+        }
+      });
+    }
+  });
+
+  if (modified) {
+    saveDB(users);
+  }
+};
+
 const runDatabaseMaintenance = (user) => {
   if (!user) return;
+  sanitizeClientNames(user);
   checkAndRolloverPaidClients(user);
   checkAndUpdateLateAndAnnulledClients(user);
 };
@@ -955,37 +997,46 @@ app.post('/api/clients', authMiddleware, (req, res) => {
     ? new Date(parseDate(data.collectionDate) + 'T00:00:00').getDate() 
     : (emDate ? new Date(emDate + 'T00:00:00').getDate() : "");
 
+  const contractorName = cleanPersonName(data.contractor || '');
+  const rawInsureds = data.insureds || [{ name: contractorName, birthDate: data.contractorBirthDate || '' }];
+  const insuredsList = rawInsureds.map(ins => ({
+    ...ins,
+    name: cleanPersonName(ins.name || '')
+  }));
+
   const newClient = {
     id: maxId + 1,
-    contractor: data.contractor || '',
+    contractor: contractorName,
     contractorBirthDate: data.contractorBirthDate || '',
     email: data.email || '',
-    insureds: data.insureds || [{ name: data.contractor, birthDate: data.contractorBirthDate || '' }],
+    insureds: insuredsList,
     policyNumber: data.policyNumber || '',
     emissionDate: emDate,
     collectionDate: colDate,
     collectionDay: collectionDay,
     paymentFrequency: data.paymentFrequency || 'MENSUAL',
     paymentMethod: data.paymentMethod || 'TC',
-    planType: data.planType || '',
+    planType: data.planType || 'PRACTICO',
     product: data.product || 'Vida',
-    annualPremium: parseFloat(data.annualPremium) || 0,
-    premium: parseFloat(data.premium) || 0, // Calculated installment
+    annualPremium: data.annualPremium !== undefined ? parseFloat(data.annualPremium) : parseFloat(data.premium || 0),
+    premium: parseFloat(data.premium || 0),
     currency: data.currency || 'UDI',
     phone: data.phone || '',
     status: initialStatus,
     paymentDate: payDate,
-    highlighted: data.highlighted !== undefined ? !!data.highlighted : false,
+    highlighted: false,
     documents: []
   };
 
-  req.user.clients.push(newClient);
-  
-  // Correr mantenimiento de forma inmediata para procesar posibles rollover de fechas pasadas
-  runDatabaseMaintenance(req.user);
+  const existingIndex = req.user.clients.findIndex(c => c.policyNumber && c.policyNumber === newClient.policyNumber);
+  if (existingIndex !== -1) {
+    req.user.clients[existingIndex] = { ...req.user.clients[existingIndex], ...newClient, id: req.user.clients[existingIndex].id };
+  } else {
+    req.user.clients.push(newClient);
+  }
+
   saveDB();
-  
-  // Buscar y retornar el cliente modificado o insertado final
+
   const savedClient = req.user.clients.find(c => c.policyNumber === newClient.policyNumber) || newClient;
   res.json({ success: true, client: savedClient });
 });
@@ -996,11 +1047,15 @@ app.put('/api/clients/:clientId', authMiddleware, (req, res) => {
   if (index === -1) return res.status(404).json({ error: 'Cliente no encontrado' });
 
   const data = req.body;
+  const rawContractor = data.contractor !== undefined ? data.contractor : req.user.clients[index].contractor;
+  const rawInsureds = data.insureds !== undefined ? data.insureds : req.user.clients[index].insureds;
+  const cleanInsureds = Array.isArray(rawInsureds) ? rawInsureds.map(ins => ({ ...ins, name: cleanPersonName(ins.name || '') })) : rawInsureds;
+
   req.user.clients[index] = {
     ...req.user.clients[index],
-    contractor: data.contractor !== undefined ? data.contractor : req.user.clients[index].contractor,
+    contractor: cleanPersonName(rawContractor),
     contractorBirthDate: data.contractorBirthDate !== undefined ? data.contractorBirthDate : req.user.clients[index].contractorBirthDate,
-    insureds: data.insureds !== undefined ? data.insureds : req.user.clients[index].insureds,
+    insureds: cleanInsureds,
     email: data.email !== undefined ? data.email : req.user.clients[index].email,
     policyNumber: data.policyNumber !== undefined ? data.policyNumber : req.user.clients[index].policyNumber,
     emissionDate: data.emissionDate !== undefined ? data.emissionDate : req.user.clients[index].emissionDate,
@@ -1569,6 +1624,15 @@ app.post('/api/policies/parse', authMiddleware, upload.single('policy'), async (
       }
     }
 
+    if (result.contractor) {
+      result.contractor = cleanPersonName(result.contractor);
+    }
+    if (result.insureds && Array.isArray(result.insureds)) {
+      result.insureds.forEach(ins => {
+        if (ins.name) ins.name = cleanPersonName(ins.name);
+      });
+    }
+
     res.json({ success: true, data: result });
   } catch (error) {
     console.error('Error al parsear carátula:', error);
@@ -1692,6 +1756,8 @@ app.get('/api/dashboard', authMiddleware, (req, res) => {
 
   clientsData.forEach(c => {
     if (c.status === 'Anulada') return; // Omitir pólizas anuladas
+    const cleanContractorName = cleanPersonName(c.contractor);
+
     // Revisar Cumpleaños del Contratante
     if (c.contractorBirthDate) {
       const parts = c.contractorBirthDate.split('-');
@@ -1700,7 +1766,7 @@ app.get('/api/dashboard', authMiddleware, (req, res) => {
 
       if (bMonth === currentMonth) {
         birthdays.push({ 
-          name: c.contractor, 
+          name: cleanContractorName, 
           type: `Contratante (Día ${bDay})`,
           policy: c.policyNumber,
           day: parseInt(bDay)
@@ -1709,10 +1775,14 @@ app.get('/api/dashboard', authMiddleware, (req, res) => {
     }
 
     // Revisar Cumpleaños de los Asegurados
-    c.insureds.forEach(ins => {
+    (c.insureds || []).forEach(ins => {
       if (ins.birthDate) {
-        // Evitar duplicados si el asegurado es el mismo contratante y tienen la misma fecha
-        if (ins.name === c.contractor && ins.birthDate === c.contractorBirthDate) return; 
+        const cleanInsuredName = cleanPersonName(ins.name);
+        // Evitar duplicados si el asegurado es la misma persona que el contratante en la misma póliza
+        const isSamePerson = (cleanInsuredName.toUpperCase() === cleanContractorName.toUpperCase()) || 
+                             (ins.birthDate === c.contractorBirthDate);
+
+        if (isSamePerson) return; 
 
         const parts = ins.birthDate.split('-');
         const bMonth = parts.length === 3 ? parts[1] : (parts.length === 2 ? parts[0] : '');
@@ -1720,7 +1790,7 @@ app.get('/api/dashboard', authMiddleware, (req, res) => {
 
         if (bMonth === currentMonth) {
           birthdays.push({ 
-            name: ins.name, 
+            name: cleanInsuredName, 
             type: `Asegurado (Día ${bDay})`,
             policy: c.policyNumber,
             day: parseInt(bDay)
