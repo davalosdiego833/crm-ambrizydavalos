@@ -16,8 +16,9 @@ git push -u origin main
 
 # 3. Conectar a Hostinger vía SSH y descargar código
 echo "🌐 Conectando a Hostinger para actualizar servidor..."
-ssh -tt -i ~/.ssh/id_rsa_panel -p 65002 u211138134@195.35.10.40 "export PATH=/opt/alt/alt-nodejs20/root/usr/bin:\$PATH; cd domains/crm.ambrizydavalos.com/nodejs && git fetch --all && git reset --hard origin/main && cd server && npm install --omit=dev && cd .. && mkdir -p tmp && touch tmp/restart.txt"
+ssh -t -p 65002 u211138134@195.35.10.40 "export PATH=/opt/alt/alt-nodejs20/root/usr/bin:\$PATH; cd domains/crm.ambrizydavalos.com/nodejs && git fetch --all && git reset --hard origin/main && touch tmp/restart.txt"
 
 echo "✅ ¡Despliegue Finalizado Exitosamente!"
 echo "Puedes revisar tu aplicación en: https://crm.ambrizydavalos.com"
+
 
