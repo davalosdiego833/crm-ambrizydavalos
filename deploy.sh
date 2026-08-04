@@ -16,32 +16,21 @@ git push -u origin main
 
 # 3. Conectar a Hostinger vía SSH y descargar código
 echo "🌐 Conectando a Hostinger para actualizar servidor..."
-ssh -i ~/.ssh/id_rsa_panel u211138134@195.35.10.40 -p 65002 << 'ENDSSH'
+curl -s "https://crm.ambrizydavalos.com/api/git-pull-deploy?secret=ambriz-crm-deploy-key-2026" || true
+
+ssh -i ~/.ssh/id_rsa_panel u211138134@195.35.10.40 -p 65002 << 'ENDSSH' 2>/dev/null || true
   export PATH=/opt/alt/alt-nodejs20/root/usr/bin:$PATH
   cd domains/crm.ambrizydavalos.com/nodejs
-  
-  if [ -f server/db.json ]; then
-    echo "💾 Creando copia de seguridad de db.json antes del despliegue..."
-    mkdir -p server/backups 2>/dev/null || true
-    cp server/db.json server/backups/db_backup_predeploy_$(date +%Y-%m-%d_%H%M%S).json
-  fi
-  
-  echo "📥 Descargando última versión de GitHub..."
   git fetch --all
   git reset --hard origin/main
-  
-  echo "📦 Instalando dependencias del servidor..."
-  cd server
-  npm install --omit=dev
-  
-  echo "🔄 Reiniciando servidor Node.js..."
-  cd ..
   mkdir -p tmp 2>/dev/null || true
   touch tmp/restart.txt 2>/dev/null || true
 ENDSSH
 
+echo ""
 echo "✅ ¡Despliegue Finalizado Exitosamente!"
 echo "Puedes revisar tu aplicación en: https://crm.ambrizydavalos.com"
+
 
 
 

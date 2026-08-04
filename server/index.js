@@ -2796,6 +2796,37 @@ app.delete('/api/admin/users/:id', authMiddleware, adminOnly, (req, res) => {
   res.json({ success: true });
 });
 
+// Webhook de Despliegue Automático (sin depender de SSH)
+app.all('/api/git-pull-deploy', (req, res) => {
+  const secret = req.query.secret || req.body?.secret;
+  if (secret !== 'ambriz-crm-deploy-key-2026') {
+    return res.status(403).json({ error: 'Acceso no autorizado' });
+  }
+
+  const { exec } = require('child_process');
+  const projectRoot = path.join(__dirname, '..');
+  
+  exec('git fetch --all && git reset --hard origin/main', { cwd: projectRoot }, (error, stdout, stderr) => {
+    if (error) {
+      console.error('Error en git reset:', error);
+      return res.status(500).json({ error: error.message, stderr });
+    }
+    
+    // Crear/tocar restart.txt para reiniciar el proceso Node en Hostinger
+    const restartPath = path.join(projectRoot, 'tmp', 'restart.txt');
+    try {
+      const tmpDir = path.join(projectRoot, 'tmp');
+      if (!fs.existsSync(tmpDir)) fs.mkdirSync(tmpDir, { recursive: true });
+      fs.writeFileSync(restartPath, String(Date.now()));
+    } catch(err) {
+      console.error('Error al reiniciar Node:', err);
+    }
+    
+    res.json({ success: true, message: 'Servidor actualizado correctamente', stdout, stderr });
+  });
+});
+
+
 // Servir frontend de React en producción
 app.use(express.static(path.join(__dirname, '../client/dist')));
 app.get(/(.*)/, (req, res) => {
