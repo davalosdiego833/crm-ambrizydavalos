@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { useAuth } from '../App';
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
@@ -1275,7 +1276,7 @@ const Analytics = () => {
       </div>
 
       {/* MODAL DE DESGLOSE DRILL-DOWN */}
-      {drillDown && (
+      {drillDown && createPortal(
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(10px)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 2000, padding: '40px' }}>
           <div className="glass-card animate-up" style={{ width: '100%', maxWidth: '1050px', maxHeight: '85vh', display: 'flex', flexDirection: 'column', padding: '32px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '16px' }}>
@@ -1402,7 +1403,8 @@ const Analytics = () => {
               </table>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

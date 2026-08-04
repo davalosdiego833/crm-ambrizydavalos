@@ -1,4 +1,5 @@
 import React, { useState, useEffect, createContext, useContext } from 'react';
+import { createPortal } from 'react-dom';
 import Clients from './views/Clients';
 import Analytics from './views/Analytics';
 import TemplatesPanel from './views/TemplatesPanel';
@@ -902,7 +903,7 @@ const Dashboard = () => {
       </div>
       
       {/* MODAL DE PAGO */}
-      {payModalData && (
+      {payModalData && createPortal(
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.8)', backdropFilter: 'blur(5px)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000 }}>
           <div className="glass-card animate-up" style={{ width: '400px', padding: '32px' }}>
             <h2 style={{ fontSize: '1.5rem', marginBottom: '8px' }}>Confirmar Pago</h2>
@@ -926,11 +927,12 @@ const Dashboard = () => {
               </div>
             </form>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* MODAL REPORTE COMPLETO (TABLAS PARA CAPTURAS) */}
-      {fullReportModal && (
+      {fullReportModal && createPortal(
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(10,12,18,0.95)', backdropFilter: 'blur(10px)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000, padding: '40px' }}>
           <div className="glass-card animate-up" style={{ width: '90%', maxWidth: '1000px', maxHeight: '85vh', display: 'flex', flexDirection: 'column', padding: '32px', border: '1px solid rgba(255,255,255,0.1)', boxShadow: '0 20px 40px rgba(0,0,0,0.5)' }}>
             
@@ -1122,7 +1124,8 @@ const Dashboard = () => {
             </div>
 
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </>
   );
@@ -1609,7 +1612,7 @@ const AppContent = () => {
       </main>
 
       {/* MODAL DE PERFIL DE USUARIO */}
-      {showProfileModal && (
+      {showProfileModal && createPortal(
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(12px)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 3000, padding: '20px' }}>
           <div className="glass-card animate-up" style={{ width: '100%', maxWidth: '420px', padding: '36px', position: 'relative', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '24px', border: '1px solid var(--accent-gold)', boxShadow: '0 20px 40px rgba(0,0,0,0.5)' }}>
             
@@ -1765,7 +1768,8 @@ const AppContent = () => {
 
 
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

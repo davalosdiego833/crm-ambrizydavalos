@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 
 // Hook para acceder al contexto de auth
 const useAuth = () => {
@@ -418,7 +419,7 @@ const Prospects = () => {
       </div>
 
       {/* MODAL DE PROSPECTO (AÑADIR / EDITAR) */}
-      {showModal && (
+      {showModal && createPortal(
         <div style={{ 
           position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, 
           background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(12px)', 
@@ -556,7 +557,8 @@ const Prospects = () => {
 
             </form>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
     </div>

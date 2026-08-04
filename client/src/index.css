@@ -235,3 +235,19 @@ body.light-theme ::-webkit-scrollbar-thumb {
   background: rgba(15, 23, 42, 0.1);
 }
 
+/* Resaltado de filas al pasar el cursor (hover) en las tablas */
+table tbody tr {
+  transition: background-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+table tbody tr:hover {
+  background-color: rgba(226, 176, 66, 0.14) !important;
+  box-shadow: inset 4px 0 0 var(--accent-gold);
+}
+
+body.light-theme table tbody tr:hover {
+  background-color: rgba(197, 147, 36, 0.18) !important;
+  box-shadow: inset 4px 0 0 var(--accent-gold);
+}
+
+

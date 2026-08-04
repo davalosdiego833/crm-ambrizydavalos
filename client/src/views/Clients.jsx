@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 
 // Hook para acceder al contexto de auth (importamos del mismo contexto)
 const useAuth = () => {
@@ -604,7 +605,7 @@ const Clients = () => {
       </div>
 
       {/* Modal Crear/Editar Cliente */}
-      {showClientModal && (
+      {showClientModal && createPortal(
         <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', background: 'rgba(0,0,0,0.85)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000 }}>
           <div className="glass-card animate-up" style={{ width: '550px', padding: '32px', maxHeight: '90vh', overflowY: 'auto' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '24px' }}>
@@ -838,10 +839,11 @@ const Clients = () => {
               <button type="submit" className="btn-primary" style={{ marginTop: '12px' }}>{editingClientId ? 'Guardar Cambios' : 'Guardar Cliente'}</button>
             </form>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
-      {selectedClient && (
+      {selectedClient && createPortal(
         <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', background: 'rgba(0,0,0,0.85)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000 }}>
           <div className="glass-card animate-up" style={{ width: '600px', padding: '32px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '24px' }}>
@@ -899,7 +901,8 @@ const Clients = () => {
             </div>
             <button onClick={() => setSelectedClient(null)} className="btn-primary">Cerrar</button>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );
