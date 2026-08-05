@@ -1987,14 +1987,31 @@ app.get('/api/analytics', authMiddleware, (req, res) => {
         let isPaidThisMonth = false;
 
         if (c.status !== 'Anulada') {
+          // Obtener día de cobro de la póliza
+          let scheduledDay = c.collectionDay;
+          if (!scheduledDay && c.collectionDate) {
+            scheduledDay = new Date(c.collectionDate + 'T00:00:00').getDate();
+          }
+          if (!scheduledDay && c.emissionDate) {
+            scheduledDay = new Date(c.emissionDate + 'T00:00:00').getDate();
+          }
+          if (!scheduledDay) scheduledDay = 1;
+
+          const tYearNum = parseInt(currentYear);
+          const tMonthNum = parseInt(month);
+          const daysInMonth = new Date(tYearNum, tMonthNum, 0).getDate();
+          const safeDay = Math.min(scheduledDay, daysInMonth);
+          const scheduledDateStr = `${tYearNum}-${String(tMonthNum).padStart(2, '0')}-${String(safeDay).padStart(2, '0')}`;
+          const todayStr = new Date().toISOString().slice(0, 10);
+
           if (c.status === 'Atrasada') {
             isPaidThisMonth = false;
-          } else if (tYear < nowYear || (tYear === nowYear && tMonth <= nowMonth)) {
-            // Todos los cobros pasados y del mes actual de pólizas vigentes/activas se consideran 100% Pagados
+          } else if (scheduledDateStr < todayStr) {
+            // Si la fecha de cobro de este mes o mes anterior ya ocurrió antes de hoy, se presupone PAGADA
             isPaidThisMonth = true;
           } else {
-            // Meses futuros
-            isPaidThisMonth = (c.status === 'Pagada' && c.paymentDate && c.paymentDate.startsWith(`${currentYear}-${month}`));
+            // Si la fecha de cobro es hoy o en el futuro, es PENDIENTE salvo que el asesor manualmente la haya marcado como Pagada
+            isPaidThisMonth = (c.status === 'Pagada');
           }
         }
 

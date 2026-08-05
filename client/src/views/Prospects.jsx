@@ -227,15 +227,8 @@ const Prospects = () => {
           </p>
         </div>
         <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
-          <label className="glass-card" style={{ padding: '12px 24px', cursor: 'pointer', border: '1px solid var(--accent-gold)', color: 'var(--accent-gold)', borderRadius: 'var(--radius-md)', display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.85rem', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.5px', boxShadow: '0 4px 15px rgba(0, 0, 0, 0.2)', transition: 'all 0.3s' }}
-            onMouseEnter={(e) => { e.currentTarget.style.background = 'linear-gradient(135deg, rgba(226, 176, 66, 0.1) 0%, rgba(226, 176, 66, 0.02) 100%)'; e.currentTarget.style.transform = 'translateY(-2px)'; }}
-            onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.transform = 'translateY(0)'; }}
-          >
-            📊 Migrar Excel
-            <input type="file" accept=".xlsx, .xls" hidden onChange={(e) => handleMigration(e.target.files[0])} />
-          </label>
           <button onClick={openAddModal} className="btn-primary">
-            ➕ Añadir Prospecto
+            + Añadir Prospecto
           </button>
         </div>
       </header>
@@ -255,7 +248,6 @@ const Prospects = () => {
                 alignItems: 'center',
                 gap: '12px'
               }}>
-                <span style={{ fontSize: '1.5rem' }}>🚨</span>
                 <div>
                   <p style={{ fontWeight: 'bold', fontSize: '0.95rem' }}>
                     Compromiso para HOY: Buscar a <span style={{ color: 'var(--accent-gold)' }}>{p.name}</span>
@@ -276,7 +268,6 @@ const Prospects = () => {
                 alignItems: 'center',
                 gap: '12px'
               }}>
-                <span style={{ fontSize: '1.5rem' }}>⏳</span>
                 <div>
                   <p style={{ fontWeight: 'bold', fontSize: '0.95rem' }}>
                     Compromiso en 3 DÍAS: Buscar a <span style={{ color: '#ffaa00' }}>{p.name}</span> ({formatReadableDate(p.searchCommitmentDate)})
@@ -290,7 +281,7 @@ const Prospects = () => {
           </div>
         ) : (
           <div className="glass-card" style={{ padding: '20px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
-            ✨ Todo al día: No tienes compromisos de búsqueda programados para hoy ni para dentro de 3 días.
+            Todo al día: No tienes compromisos de búsqueda programados para hoy ni para dentro de 3 días.
           </div>
         )}
       </section>
@@ -302,15 +293,15 @@ const Prospects = () => {
             type="text"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="🔍 Buscar por nombre, fuente o comentarios..."
+            placeholder="Buscar por nombre, fuente o comentarios..."
             style={{
-              ...inputStyle,
-              padding: '10px 14px 10px 38px',
+              padding: '10px 14px',
               borderRadius: '8px',
-              background: 'rgba(255,255,255,0.03)',
-              border: '1px solid var(--glass-border)',
-              color: 'var(--text-main)',
-              width: '100%'
+              background: '#ffffff',
+              border: '1px solid #cbd5e1',
+              color: '#0f172a',
+              width: '100%',
+              outline: 'none'
             }}
           />
         </div>
@@ -349,7 +340,6 @@ const Prospects = () => {
                 </tr>
               ) : (
                 filteredProspects.map(p => {
-                  // Determinar si el compromiso de búsqueda está cerca para dar estilo visual
                   let commitmentBadge = null;
                   if (p.searchCommitmentDate) {
                     const todayStr = new Date().toISOString().slice(0, 10);
@@ -422,14 +412,15 @@ const Prospects = () => {
       {showModal && createPortal(
         <div style={{ 
           position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, 
-          background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(12px)', 
+          background: 'rgba(15,23,42,0.6)', backdropFilter: 'blur(6px)', 
           display: 'flex', justifyContent: 'center', alignItems: 'center', 
           zIndex: 3000, padding: '20px' 
         }}>
           <div className="glass-card animate-up" style={{ 
             width: '100%', maxWidth: '580px', padding: '36px', 
-            position: 'relative', border: '1px solid var(--accent-gold)', 
-            boxShadow: '0 20px 40px rgba(0,0,0,0.5)',
+            position: 'relative', border: '1px solid #cbd5e1', 
+            background: '#ffffff', color: '#0f172a',
+            boxShadow: '0 20px 40px rgba(15,23,42,0.2)',
             maxHeight: '90vh', overflowY: 'auto'
           }}>
             {/* Botón cerrar */}
@@ -437,13 +428,14 @@ const Prospects = () => {
               onClick={() => setShowModal(false)}
               style={{ 
                 position: 'absolute', top: '16px', right: '16px', 
-                background: 'rgba(255,255,255,0.03)', border: 'none', 
-                color: 'var(--text-dim)', fontSize: '1.2rem', cursor: 'pointer', 
-                width: '32px', height: '32px', borderRadius: '50%', 
-                display: 'flex', alignItems: 'center', justifyContent: 'center' 
+                background: '#f1f5f9', border: '1px solid #cbd5e1', 
+                color: '#0f172a', fontSize: '1.2rem', cursor: 'pointer', 
+                width: '36px', height: '36px', borderRadius: '50%', 
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontWeight: 'bold'
               }}
             >
-              ✖
+              ✕
             </button>
 
             <h2 className="text-gradient-gold" style={{ fontSize: '1.8rem', marginBottom: '24px' }}>

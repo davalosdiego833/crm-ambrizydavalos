@@ -9,11 +9,11 @@ const DEFAULT_TEMPLATES = {
 };
 
 const CATEGORIES = [
-  { id: 'atraso', label: '⏳ Pago Atrasado', color: '#ff4444' },
-  { id: 'hoy', label: '🚨 Cobranza Hoy', color: 'var(--accent-mint)' },
-  { id: 'cincoDias', label: '🗓️ En 5 Días', color: '#e2b042' },
-  { id: 'quinceDias', label: '📅 En 15 Días', color: 'var(--accent-gold)' },
-  { id: 'mes', label: '📆 En 1 Mes', color: 'var(--text-main)' }
+  { id: 'atraso', label: 'Pago Atrasado', color: '#dc2626' },
+  { id: 'hoy', label: 'Cobranza Hoy', color: 'var(--accent-mint)' },
+  { id: 'cincoDias', label: 'En 5 Días', color: '#e2b042' },
+  { id: 'quinceDias', label: 'En 15 Días', color: 'var(--accent-gold)' },
+  { id: 'mes', label: 'En 1 Mes', color: 'var(--text-main)' }
 ];
 
 const VARIABLES = [
@@ -165,7 +165,7 @@ const TemplatesPanel = () => {
                   onClick={() => {
                     // Copiar etiqueta al portapapeles de manera amistosa
                     navigator.clipboard.writeText(v.tag);
-                    alert(`📋 Comodín ${v.tag} copiado. ¡Pégalo en tu plantilla!`);
+                    alert(`Comodín ${v.tag} copiado. ¡Pégalo en tu plantilla!`);
                   }}
                   style={{ 
                     padding: '8px 12px', 
@@ -264,7 +264,7 @@ const TemplatesPanel = () => {
           {/* Vista Previa Viva */}
           <div className="glass-card" style={{ padding: '24px', borderLeft: '3px solid var(--accent-gold)' }}>
             <h3 style={{ fontSize: '1rem', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-              👁️ Vista Previa de Envío (WhatsApp)
+              Vista Previa de Envío (WhatsApp)
             </h3>
             <p style={{ fontSize: '0.75rem', color: 'var(--text-dim)', marginBottom: '20px' }}>
               Así se verá el mensaje real enviado al cliente en WhatsApp, con formato de negritas (`*texto*`) aplicado.
@@ -306,7 +306,7 @@ const TemplatesPanel = () => {
             animation: 'fadeIn 0.3s ease-out'
           }}
         >
-          ✅ Plantilla guardada con éxito
+          Plantilla guardada con éxito
         </div>
       )}
     </div>

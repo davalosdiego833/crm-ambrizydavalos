@@ -387,12 +387,26 @@ const Analytics = () => {
 
         let isPaidThisMonth = false;
         if (c.status !== 'Anulada') {
+          let scheduledDay = c.collectionDay;
+          if (!scheduledDay && c.collectionDate) {
+            scheduledDay = new Date(c.collectionDate + 'T00:00:00').getDate();
+          }
+          if (!scheduledDay && c.emissionDate) {
+            scheduledDay = new Date(c.emissionDate + 'T00:00:00').getDate();
+          }
+          if (!scheduledDay) scheduledDay = 1;
+
+          const daysInMonth = new Date(tYear, m, 0).getDate();
+          const safeDay = Math.min(scheduledDay, daysInMonth);
+          const scheduledDateStr = `${tYear}-${String(m).padStart(2, '0')}-${String(safeDay).padStart(2, '0')}`;
+          const todayStr = new Date().toISOString().slice(0, 10);
+
           if (c.status === 'Atrasada') {
             isPaidThisMonth = false;
-          } else if (tYear < nowYear || (tYear === nowYear && m <= nowMonth)) {
+          } else if (scheduledDateStr < todayStr) {
             isPaidThisMonth = true;
           } else {
-            isPaidThisMonth = (c.status === 'Pagada' && c.paymentDate && c.paymentDate.startsWith(`${year}-${mStr}`));
+            isPaidThisMonth = (c.status === 'Pagada');
           }
         }
 
@@ -457,7 +471,7 @@ const Analytics = () => {
             grid-template-columns: 1fr 1fr 1.2fr;
           }
           .analytics-grid-row-3 {
-            grid-template-columns: 2fr 1fr;
+            grid-template-columns: 1fr;
           }
         }
         .sparkline-glow-ventas {
@@ -511,24 +525,11 @@ const Analytics = () => {
       `}</style>
       <div className="animate-up">
       
-      {/* CABECERA Y ROBOT FINANCIERO */}
+      {/* CABECERA Y FILTROS */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '32px', flexWrap: 'wrap', gap: '20px' }}>
         <div>
-          <h1 style={{ fontSize: '2.2rem', margin: 0, fontWeight: '700' }}>Estadísticas <span className="text-gradient-gold">Financieras</span></h1>
-          <p style={{ color: 'var(--text-dim)', marginTop: '4px', fontSize: '0.95rem' }}>Análisis por divisas, salud de cartera y consolidado nacional</p>
-        </div>
-        
-        {/* Robot de Divisas */}
-        <div className="glass-card" style={{ padding: '12px 20px', display: 'flex', gap: '16px', alignItems: 'center', border: '1px solid rgba(226,176,66,0.3)', boxShadow: '0 0 15px rgba(226,176,66,0.1)' }}>
-          <div style={{ fontSize: '1.5rem' }}>🤖</div>
-          <div>
-            <p style={{ fontSize: '0.65rem', textTransform: 'uppercase', letterSpacing: '1px', color: 'var(--accent-gold)', fontWeight: 'bold', margin: 0 }}>Robot Financiero</p>
-            <p style={{ fontSize: '0.85rem', margin: '2px 0 0 0', fontWeight: '600' }}>
-              1 USD = <span style={{ color: 'var(--text-main)' }}>${data.exchangeRates?.USD?.toFixed(2)} MXN</span>
-              <span style={{ margin: '0 10px', color: 'rgba(255,255,255,0.2)' }}>|</span>
-              1 UDI = <span style={{ color: 'var(--text-main)' }}>${data.exchangeRates?.UDI?.toFixed(2)} MXN</span>
-            </p>
-          </div>
+          <h1 style={{ fontSize: '2.2rem', margin: 0, fontWeight: '700', color: 'var(--text-main)' }}>Estadísticas <span className="text-gradient-gold">Automotrices</span></h1>
+          <p style={{ color: 'var(--text-dim)', marginTop: '4px', fontSize: '0.95rem' }}>Análisis integral de cartera, ventas y salud financiera en Pesos (MXN)</p>
         </div>
 
         {/* Filtros Globales */}
@@ -536,7 +537,7 @@ const Analytics = () => {
           <select 
             value={year} 
             onChange={(e) => setYear(e.target.value)}
-            style={{ padding: '10px 16px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--accent-gold)', borderRadius: '8px', color: 'var(--accent-gold)', outline: 'none', cursor: 'pointer', fontWeight: 'bold' }}
+            style={{ padding: '10px 16px', background: 'var(--bg-surface)', border: '1px solid var(--accent-gold)', borderRadius: '8px', color: 'var(--accent-gold)', outline: 'none', cursor: 'pointer', fontWeight: 'bold' }}
           >
             <option value="2023">2023</option>
             <option value="2024">2024</option>
@@ -548,7 +549,7 @@ const Analytics = () => {
           <select 
             value={month} 
             onChange={(e) => setMonth(e.target.value)}
-            style={{ padding: '10px 16px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--glass-border)', borderRadius: '8px', color: 'var(--text-main)', outline: 'none', cursor: 'pointer' }}
+            style={{ padding: '10px 16px', background: 'var(--bg-surface)', border: '1px solid var(--glass-border)', borderRadius: '8px', color: 'var(--text-main)', outline: 'none', cursor: 'pointer' }}
           >
             <option value="01">Enero</option>
             <option value="02">Febrero</option>
@@ -570,111 +571,29 @@ const Analytics = () => {
               className="btn-primary"
               style={{ padding: '10px 20px', fontSize: '0.8rem' }}
             >
-              🔒 Cerrar Mes
+              Cerrar Mes
             </button>
           )}
 
           {data.isSnapshot && (
             <button 
               onClick={fetchAnalytics}
-              style={{ padding: '10px 20px', background: 'rgba(255,255,255,0.1)', border: '1px solid var(--glass-border)', borderRadius: '8px', color: 'var(--text-main)', cursor: 'pointer', fontSize: '0.8rem', fontWeight: '600' }}
+              style={{ padding: '10px 20px', background: 'var(--bg-surface)', border: '1px solid var(--glass-border)', borderRadius: '8px', color: 'var(--text-main)', cursor: 'pointer', fontSize: '0.8rem', fontWeight: '600' }}
             >
-              🔓 Ver Datos Vivos
+              Ver Datos Vivos
             </button>
           )}
         </div>
       </div>
 
       {data.isSnapshot && (
-        <div style={{ background: 'rgba(226, 176, 66, 0.1)', padding: '16px', borderRadius: '12px', marginBottom: '24px', border: '1px solid var(--accent-gold)', textAlign: 'center' }}>
+        <div style={{ background: 'rgba(37, 99, 235, 0.08)', padding: '16px', borderRadius: '12px', marginBottom: '24px', border: '1px solid var(--accent-gold)', textAlign: 'center' }}>
           <p style={{ color: 'var(--accent-gold)', fontWeight: 'bold', fontSize: '0.95rem', margin: 0 }}>
-            📜 REPORTE CERRADO Y ARCHIVADO ({data.month}/{data.year})
+            REPORTE CERRADO Y ARCHIVADO ({data.month}/{data.year})
           </p>
           <p style={{ fontSize: '0.75rem', color: 'var(--text-dim)', margin: '4px 0 0 0' }}>Cierre realizado el {new Date(data.date).toLocaleString()}</p>
         </div>
       )}
-
-      {/* 🧭 NAVEGACIÓN DE SUBPESTAÑAS */}
-      <div style={{ 
-        display: 'flex', 
-        gap: '8px', 
-        marginBottom: '32px', 
-        padding: '6px', 
-        background: 'rgba(255,255,255,0.02)', 
-        border: '1px solid var(--glass-border)', 
-        borderRadius: '14px', 
-        width: 'fit-content',
-        flexWrap: 'wrap'
-      }}>
-        <button 
-          onClick={() => setActiveSubTab('consolidado')}
-          style={{
-            padding: '12px 24px',
-            background: activeSubTab === 'consolidado' ? 'var(--accent-gold)' : 'transparent',
-            color: activeSubTab === 'consolidado' ? 'var(--bg-deep)' : 'var(--text-main)',
-            border: 'none',
-            borderRadius: '10px',
-            cursor: 'pointer',
-            fontWeight: '700',
-            transition: 'all 0.3s',
-            fontSize: '0.85rem',
-            boxShadow: activeSubTab === 'consolidado' ? '0 4px 15px rgba(226,176,66,0.3)' : 'none'
-          }}
-        >
-          🏆 Consolidado Pesos (MXN)
-        </button>
-        <button 
-          onClick={() => setActiveSubTab('udi')}
-          style={{
-            padding: '12px 24px',
-            background: activeSubTab === 'udi' ? 'var(--accent-gold)' : 'transparent',
-            color: activeSubTab === 'udi' ? 'var(--bg-deep)' : 'var(--text-main)',
-            border: 'none',
-            borderRadius: '10px',
-            cursor: 'pointer',
-            fontWeight: '700',
-            transition: 'all 0.3s',
-            fontSize: '0.85rem',
-            boxShadow: activeSubTab === 'udi' ? '0 4px 15px rgba(226,176,66,0.3)' : 'none'
-          }}
-        >
-          🧬 Cartera UDI
-        </button>
-        <button 
-          onClick={() => setActiveSubTab('usd')}
-          style={{
-            padding: '12px 24px',
-            background: activeSubTab === 'usd' ? 'var(--accent-gold)' : 'transparent',
-            color: activeSubTab === 'usd' ? 'var(--bg-deep)' : 'var(--text-main)',
-            border: 'none',
-            borderRadius: '10px',
-            cursor: 'pointer',
-            fontWeight: '700',
-            transition: 'all 0.3s',
-            fontSize: '0.85rem',
-            boxShadow: activeSubTab === 'usd' ? '0 4px 15px rgba(226,176,66,0.3)' : 'none'
-          }}
-        >
-          💵 Cartera Dólares (USD)
-        </button>
-        <button 
-          onClick={() => setActiveSubTab('gmm')}
-          style={{
-            padding: '12px 24px',
-            background: activeSubTab === 'gmm' ? '#ffaa00' : 'transparent',
-            color: activeSubTab === 'gmm' ? 'var(--bg-deep)' : 'var(--text-main)',
-            border: 'none',
-            borderRadius: '10px',
-            cursor: 'pointer',
-            fontWeight: '700',
-            transition: 'all 0.3s',
-            fontSize: '0.85rem',
-            boxShadow: activeSubTab === 'gmm' ? '0 4px 15px rgba(255,170,0,0.3)' : 'none'
-          }}
-        >
-          🏥 Cartera GMM (Pesos)
-        </button>
-      </div>
 
       {/* CONTENIDO DINÁMICO DE LA SUBPESTAÑA SELECCIONADA */}
       <div className="animate-up" key={activeSubTab}>
@@ -682,26 +601,28 @@ const Analytics = () => {
         {/* FILA 1: EL TABLERO DE CONTROL MENSUAL (Dona y Metas de Cobro) */}
         <div className="analytics-grid-row-1">
           
-          {/* COLUMNA 1: DISTRIBUCIÓN DE CARTERA POR RAMOS / PLANES (DONA) */}
+          {/* COLUMNA 1: DISTRIBUCIÓN DE PLANES DE SEGUROS DE AUTO (DONA) */}
           <div 
             className="glass-card" 
             style={{ padding: '24px', display: 'flex', flexDirection: 'column', height: '380px', cursor: 'pointer', border: '1px solid var(--glass-border)' }}
             onClick={() => setDrillDown({ 
-              title: `Distribución de Cartera - ${activeSubTab.toUpperCase()}`, 
+              title: `Distribución de Planes - ${activeSubTab.toUpperCase()}`, 
               list: getSubTabClients(activeSubTab) 
             })}
           >
             <h3 style={{ margin: '0 0 16px 0', color: 'var(--text-main)', fontSize: '0.95rem', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-              {activeSubTab === 'consolidado' ? 'Distribución de Cartera por Ramos' : `Planes Vendidos (${activeSubTab.toUpperCase()})`}
+              Distribución de Planes (Seguros de Auto)
             </h3>
             <div style={{ flex: 1, display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: '16px', minHeight: '180px' }}>
-              {activeSubTab === 'consolidado' ? (
+              {subTabPlans.length === 0 ? (
+                <p style={{ color: 'var(--text-dim)', fontSize: '0.85rem' }}>No hay registros de planes para este periodo.</p>
+              ) : (
                 <>
                   <div style={{ width: '55%', height: '100%', minHeight: '180px' }}>
                     <ResponsiveContainer width="100%" height="100%">
                       <PieChart>
                         <Pie 
-                          data={data.pieProducts} 
+                          data={subTabPlans} 
                           cx="50%" 
                           cy="50%" 
                           innerRadius={50} 
@@ -709,67 +630,28 @@ const Analytics = () => {
                           paddingAngle={5} 
                           dataKey="value"
                         >
-                          {data.pieProducts.map((entry, index) => (
-                            <Cell key={`cell-${index}`} fill={PIE_COLORS[index % PIE_COLORS.length]} stroke="rgba(0,0,0,0.5)" strokeWidth={2} />
+                          {subTabPlans.map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} stroke="rgba(0,0,0,0.5)" strokeWidth={2} />
                           ))}
                         </Pie>
                         <Tooltip contentStyle={{ backgroundColor: 'rgba(0,0,0,0.9)', border: 'none', borderRadius: '8px' }} />
                       </PieChart>
                     </ResponsiveContainer>
                   </div>
-                  <div style={{ width: '45%', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                    {data.pieProducts.map((entry, index) => (
+                  <div style={{ width: '45%', display: 'flex', flexDirection: 'column', gap: '10px', maxHeight: '200px', overflowY: 'auto' }}>
+                    {subTabPlans.map((entry, index) => (
                       <div key={index} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <div style={{ width: '10px', height: '10px', borderRadius: '50%', backgroundColor: PIE_COLORS[index % PIE_COLORS.length], flexShrink: 0 }}></div>
+                        <div style={{ width: '10px', height: '10px', borderRadius: '50%', backgroundColor: COLORS[index % COLORS.length], flexShrink: 0 }}></div>
                         <div style={{ display: 'flex', flexDirection: 'column' }}>
                           <span style={{ fontSize: '0.78rem', fontWeight: 'bold', color: 'var(--text-main)' }}>{entry.name}</span>
-                          <span style={{ fontSize: '0.72rem', color: 'var(--text-dim)' }}>{entry.value} pólizas</span>
+                          <span style={{ fontSize: '0.72rem', color: 'var(--text-dim)' }}>{entry.value} {entry.value === 1 ? 'póliza' : 'pólizas'}</span>
                         </div>
                       </div>
                     ))}
                   </div>
                 </>
-              ) : (
-                subTabPlans.length === 0 ? (
-                  <p style={{ color: 'var(--text-dim)', fontSize: '0.85rem' }}>No hay registros de planes para este periodo.</p>
-                ) : (
-                  <>
-                    <div style={{ width: '55%', height: '100%', minHeight: '180px' }}>
-                      <ResponsiveContainer width="100%" height="100%">
-                        <PieChart>
-                          <Pie 
-                            data={subTabPlans} 
-                            cx="50%" 
-                            cy="50%" 
-                            innerRadius={50} 
-                            outerRadius={75} 
-                            paddingAngle={5} 
-                            dataKey="value"
-                          >
-                            {subTabPlans.map((entry, index) => (
-                              <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} stroke="rgba(0,0,0,0.5)" strokeWidth={2} />
-                            ))}
-                          </Pie>
-                          <Tooltip contentStyle={{ backgroundColor: 'rgba(0,0,0,0.9)', border: 'none', borderRadius: '8px' }} />
-                        </PieChart>
-                      </ResponsiveContainer>
-                    </div>
-                    <div style={{ width: '45%', display: 'flex', flexDirection: 'column', gap: '10px', maxHeight: '200px', overflowY: 'auto' }}>
-                      {subTabPlans.map((entry, index) => (
-                        <div key={index} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: COLORS[index % COLORS.length], flexShrink: 0 }}></div>
-                          <div style={{ display: 'flex', flexDirection: 'column' }}>
-                            <span style={{ fontSize: '0.74rem', fontWeight: 'bold', color: 'var(--text-main)' }}>{entry.name}</span>
-                            <span style={{ fontSize: '0.68rem', color: 'var(--text-dim)' }}>{entry.value} pólizas</span>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </>
-                )
               )}
             </div>
-            <p style={{ fontSize: '0.7rem', color: 'var(--accent-gold)', marginTop: '8px', margin: '14px 0 0 0', textAlign: 'right' }}>🔎 Ver cartera completa</p>
           </div>
 
           {/* COLUMNA 2: EL CUADRO DE BARRAS DE PROGRESO DE COBRANZA */}
@@ -1058,78 +940,6 @@ const Analytics = () => {
               </ResponsiveContainer>
             </div>
           </div>
-
-          {/* Gráfica de Distribución de Planes Específicos/Totales */}
-          <div className="glass-card" style={{ padding: '24px', display: 'flex', flexDirection: 'column' }}>
-            <h3 style={{ margin: '0 0 16px 0', color: 'var(--text-main)', fontSize: '1.1rem', fontWeight: '700', textAlign: 'center' }}>
-              {activeSubTab === 'consolidado' ? 'Planes Totales' : `Distribución de Planes`}
-            </h3>
-            <div style={{ flex: 1, display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: '16px', minHeight: '180px' }}>
-              {activeSubTab === 'consolidado' ? (
-                <>
-                  <div style={{ width: '55%', height: '100%', minHeight: '180px' }}>
-                    <ResponsiveContainer width="100%" height="100%">
-                      <PieChart>
-                        <Pie data={data.piePlans} cx="50%" cy="50%" outerRadius={70} dataKey="value">
-                          {data.piePlans.map((entry, index) => (
-                            <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} stroke="rgba(0,0,0,0.5)" strokeWidth={1} />
-                          ))}
-                        </Pie>
-                        <Tooltip contentStyle={{ backgroundColor: 'rgba(0,0,0,0.9)', border: 'none', borderRadius: '8px' }} />
-                      </PieChart>
-                    </ResponsiveContainer>
-                  </div>
-                  <div style={{ width: '45%', display: 'flex', flexDirection: 'column', gap: '10px', maxHeight: '180px', overflowY: 'auto' }}>
-                    {data.piePlans.map((entry, index) => (
-                      <div key={index} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: COLORS[index % COLORS.length], flexShrink: 0 }}></div>
-                        <div style={{ display: 'flex', flexDirection: 'column' }}>
-                          <span style={{ fontSize: '0.74rem', fontWeight: 'bold', color: 'var(--text-main)' }}>{entry.name}</span>
-                          <span style={{ fontSize: '0.68rem', color: 'var(--text-dim)' }}>{entry.value} pólizas</span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </>
-              ) : (
-                subTabPlans.length === 0 ? (
-                  <p style={{ color: 'var(--text-dim)', fontSize: '0.85rem' }}>No hay registros de planes para este periodo.</p>
-                ) : (
-                  <>
-                    <div style={{ width: '55%', height: '100%', minHeight: '180px' }}>
-                      <ResponsiveContainer width="100%" height="100%">
-                        <PieChart>
-                          <Pie 
-                            data={subTabPlans} 
-                            cx="50%" 
-                            cy="50%" 
-                            outerRadius={70} 
-                            dataKey="value"
-                          >
-                            {subTabPlans.map((entry, index) => (
-                              <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} stroke="rgba(0,0,0,0.5)" strokeWidth={1} />
-                            ))}
-                          </Pie>
-                          <Tooltip contentStyle={{ backgroundColor: 'rgba(0,0,0,0.9)', border: 'none', borderRadius: '8px' }} />
-                        </PieChart>
-                      </ResponsiveContainer>
-                    </div>
-                    <div style={{ width: '45%', display: 'flex', flexDirection: 'column', gap: '10px', maxHeight: '180px', overflowY: 'auto' }}>
-                      {subTabPlans.map((entry, index) => (
-                        <div key={index} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: COLORS[index % COLORS.length], flexShrink: 0 }}></div>
-                          <div style={{ display: 'flex', flexDirection: 'column' }}>
-                            <span style={{ fontSize: '0.74rem', fontWeight: 'bold', color: 'var(--text-main)' }}>{entry.name}</span>
-                            <span style={{ fontSize: '0.68rem', color: 'var(--text-dim)' }}>{entry.value} pólizas</span>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </>
-                )
-              )}
-            </div>
-          </div>
         </div>
 
 
@@ -1137,7 +947,7 @@ const Analytics = () => {
         <div className="glass-card" style={{ padding: '28px', marginTop: '32px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '16px' }}>
             <h3 style={{ margin: 0, color: 'var(--text-main)', fontSize: '1.2rem', fontWeight: '700' }}>
-              📊 Control de Persistencia y Antigüedad de Cartera ({activeSubTab.toUpperCase()})
+              Control de Persistencia y Antigüedad de Cartera ({activeSubTab.toUpperCase()})
             </h3>
             <span style={{ fontSize: '0.8rem', color: 'var(--text-dim)' }}>Medido a partir de la Fecha de Emisión</span>
           </div>
@@ -1154,52 +964,52 @@ const Analytics = () => {
                 <div 
                   className="glass-card stat-widget" 
                   onClick={() => setDrillDown({ title: `Cartera Nueva (≤ 13 Meses) - ${activeSubTab.toUpperCase()}`, list: listNew })}
-                  style={{ padding: '24px', border: '1px solid rgba(0, 200, 83, 0.2)', cursor: 'pointer', position: 'relative', overflow: 'hidden' }}
+                  style={{ padding: '24px', border: '1px solid rgba(5, 150, 105, 0.2)', cursor: 'pointer', position: 'relative', overflow: 'hidden' }}
                 >
-                  <div style={{ position: 'absolute', top: 0, left: 0, width: '4px', height: '100%', background: '#00c853' }}></div>
+                  <div style={{ position: 'absolute', top: 0, left: 0, width: '4px', height: '100%', background: '#059669' }}></div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                     <div>
                       <p style={{ color: 'var(--text-dim)', fontSize: '0.85rem', textTransform: 'uppercase', fontWeight: '600', margin: '0 0 8px 0' }}>
-                        Pólizas Nuevas (Primeros 13 Meses) 🟢
+                        Pólizas Nuevas (Primeros 13 Meses)
                       </p>
-                      <p style={{ fontSize: '1.8rem', fontWeight: 'bold', color: '#00c853', margin: 0 }}>
+                      <p style={{ fontSize: '1.8rem', fontWeight: 'bold', color: '#059669', margin: 0 }}>
                         {activeSubTab === 'consolidado' || activeSubTab === 'gmm' ? fmtPesos(valueNew) : formatRawValue(valueNew, activeSubTab)}
                       </p>
                     </div>
-                    <span style={{ fontSize: '1.2rem', fontWeight: 'bold', color: '#00c853', background: 'rgba(0, 200, 83, 0.1)', padding: '6px 12px', borderRadius: '20px' }}>
+                    <span style={{ fontSize: '1.2rem', fontWeight: 'bold', color: '#059669', background: 'rgba(5, 150, 105, 0.1)', padding: '6px 12px', borderRadius: '20px' }}>
                       {countNew} ({Math.round(pctNew)}%)
                     </span>
                   </div>
                   <p style={{ fontSize: '0.75rem', color: 'var(--text-dim)', marginTop: '12px', lineHeight: '1.4', whiteSpace: 'normal' }}>
                     Negocios en periodo crítico de primer año. Requieren alta atención para garantizar su persistencia.
                   </p>
-                  <p style={{ fontSize: '0.7rem', color: '#00c853', marginTop: '14px', margin: '14px 0 0 0', textAlign: 'right' }}>🔎 Ver desglose</p>
+                  <p style={{ fontSize: '0.7rem', color: '#059669', marginTop: '14px', margin: '14px 0 0 0', textAlign: 'right' }}>Ver desglose</p>
                 </div>
 
                 {/* 14 Meses o Más */}
                 <div 
                   className="glass-card stat-widget" 
                   onClick={() => setDrillDown({ title: `Cartera Consolidada (≥ 14 Meses) - ${activeSubTab.toUpperCase()}`, list: listOld })}
-                  style={{ padding: '24px', border: '1px solid rgba(0, 145, 234, 0.2)', cursor: 'pointer', position: 'relative', overflow: 'hidden' }}
+                  style={{ padding: '24px', border: '1px solid rgba(37, 99, 235, 0.2)', cursor: 'pointer', position: 'relative', overflow: 'hidden' }}
                 >
-                  <div style={{ position: 'absolute', top: 0, left: 0, width: '4px', height: '100%', background: '#0091ea' }}></div>
+                  <div style={{ position: 'absolute', top: 0, left: 0, width: '4px', height: '100%', background: '#1e40af' }}></div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                     <div>
                       <p style={{ color: 'var(--text-dim)', fontSize: '0.85rem', textTransform: 'uppercase', fontWeight: '600', margin: '0 0 8px 0' }}>
-                        Cartera Conservada (14+ Meses) 🔵
+                        Cartera Conservada (14+ Meses)
                       </p>
-                      <p style={{ fontSize: '1.8rem', fontWeight: 'bold', color: '#0091ea', margin: 0 }}>
+                      <p style={{ fontSize: '1.8rem', fontWeight: 'bold', color: '#1e40af', margin: 0 }}>
                         {activeSubTab === 'consolidado' || activeSubTab === 'gmm' ? fmtPesos(valueOld) : formatRawValue(valueOld, activeSubTab)}
                       </p>
                     </div>
-                    <span style={{ fontSize: '1.2rem', fontWeight: 'bold', color: '#0091ea', background: 'rgba(0, 145, 234, 0.1)', padding: '6px 12px', borderRadius: '20px' }}>
+                    <span style={{ fontSize: '1.2rem', fontWeight: 'bold', color: '#1e40af', background: 'rgba(37, 99, 235, 0.1)', padding: '6px 12px', borderRadius: '20px' }}>
                       {countOld} ({Math.round(pctOld)}%)
                     </span>
                   </div>
                   <p style={{ fontSize: '0.75rem', color: 'var(--text-dim)', marginTop: '12px', lineHeight: '1.4', whiteSpace: 'normal' }}>
                     Pólizas consolidadas y recurrentes. Representan la base sólida e ingresos recurrentes del negocio.
                   </p>
-                  <p style={{ fontSize: '0.7rem', color: '#0091ea', marginTop: '14px', margin: '14px 0 0 0', textAlign: 'right' }}>🔎 Ver desglose</p>
+                  <p style={{ fontSize: '0.7rem', color: '#1e40af', marginTop: '14px', margin: '14px 0 0 0', textAlign: 'right' }}>Ver desglose</p>
                 </div>
               </div>
             );
@@ -1211,7 +1021,7 @@ const Analytics = () => {
       {/* HISTORIAL DE CIERRES */}
       {!data.isSnapshot && data.snapshots?.length > 0 && (
         <div className="glass-card" style={{ marginTop: '40px', padding: '24px' }}>
-          <h3 style={{ marginBottom: '20px', color: 'var(--accent-gold)', fontWeight: '700' }}>📦 Historial de Cierres (Fotos Archivadas)</h3>
+          <h3 style={{ marginBottom: '20px', color: 'var(--accent-gold)', fontWeight: '700' }}>Historial de Cierres (Fotos Archivadas)</h3>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '16px' }}>
             {data.snapshots.map((s) => (
               <div 
@@ -1240,10 +1050,10 @@ const Analytics = () => {
                     position: 'absolute',
                     top: '12px',
                     right: '12px',
-                    background: 'rgba(255, 68, 68, 0.1)',
+                    background: 'rgba(239, 68, 68, 0.1)',
                     border: 'none',
                     borderRadius: '6px',
-                    color: '#ff4444',
+                    color: '#dc2626',
                     cursor: 'pointer',
                     fontSize: '0.8rem',
                     padding: '4px 6px',
@@ -1254,16 +1064,16 @@ const Analytics = () => {
                     zIndex: 10
                   }}
                   onMouseEnter={(e) => {
-                    e.currentTarget.style.background = '#ff4444';
-                    e.currentTarget.style.color = 'black';
+                    e.currentTarget.style.background = '#dc2626';
+                    e.currentTarget.style.color = 'white';
                   }}
                   onMouseLeave={(e) => {
-                    e.currentTarget.style.background = 'rgba(255, 68, 68, 0.1)';
-                    e.currentTarget.style.color = '#ff4444';
+                    e.currentTarget.style.background = 'rgba(239, 68, 68, 0.1)';
+                    e.currentTarget.style.color = '#dc2626';
                   }}
                   title="Eliminar Cierre"
                 >
-                  🗑️
+                  Eliminar
                 </button>
                 <p style={{ fontWeight: 'bold', color: 'var(--accent-gold)', margin: 0, paddingRight: '24px' }}>{s.month}/{s.year}</p>
                 <p style={{ fontSize: '0.7rem', color: 'var(--text-dim)', margin: '4px 0 0 0' }}>Cerrado: {new Date(s.date).toLocaleDateString()}</p>
@@ -1277,38 +1087,38 @@ const Analytics = () => {
 
       {/* MODAL DE DESGLOSE DRILL-DOWN */}
       {drillDown && createPortal(
-        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(10px)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 2000, padding: '40px' }}>
-          <div className="glass-card animate-up" style={{ width: '100%', maxWidth: '1050px', maxHeight: '85vh', display: 'flex', flexDirection: 'column', padding: '32px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '16px' }}>
-              <h2 style={{ fontSize: '1.8rem', margin: 0 }}>
-                {drillDown.title} <span style={{ fontSize: '1rem', color: 'var(--text-dim)', fontWeight: 'normal' }}>({drillDown.list.length} registros)</span>
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(15,23,42,0.6)', backdropFilter: 'blur(6px)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 2000, padding: '40px' }}>
+          <div className="glass-card animate-up" style={{ width: '100%', maxWidth: '1050px', maxHeight: '85vh', display: 'flex', flexDirection: 'column', padding: '32px', background: '#ffffff', color: '#0f172a', border: '1px solid #cbd5e1', boxShadow: '0 20px 40px rgba(15,23,42,0.2)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', borderBottom: '1px solid #e2e8f0', paddingBottom: '16px' }}>
+              <h2 style={{ fontSize: '1.5rem', margin: 0, color: '#0f172a', fontWeight: '700' }}>
+                {drillDown.title} <span style={{ fontSize: '1rem', color: '#64748b', fontWeight: 'normal' }}>({drillDown.list.length} registros)</span>
               </h2>
               <button 
                 onClick={() => setDrillDown(null)}
-                style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid var(--glass-border)', color: 'var(--text-main)', padding: '10px 20px', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}
+                style={{ background: '#f1f5f9', border: '1px solid #cbd5e1', color: '#0f172a', padding: '10px 20px', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}
               >
-                ✖ Cerrar
+                ✕ Cerrar
               </button>
             </div>
 
             <div style={{ flex: 1, overflowY: 'auto' }}>
               <table style={{ width: '100%', textAlign: 'left', borderCollapse: 'collapse' }}>
-                <thead style={{ position: 'sticky', top: 0, background: 'var(--bg-surface)', zIndex: 10 }}>
-                  <tr style={{ borderBottom: '2px solid var(--glass-border)' }}>
-                    <th style={{ padding: '12px 8px', color: 'var(--text-muted)', fontSize: '0.85rem', textTransform: 'uppercase' }}>Contratante</th>
-                    <th style={{ padding: '12px 8px', color: 'var(--text-muted)', fontSize: '0.85rem', textTransform: 'uppercase' }}>Póliza</th>
-                    <th style={{ padding: '12px 8px', color: 'var(--text-muted)', fontSize: '0.85rem', textTransform: 'uppercase' }}>Ramo / Plan</th>
-                    <th style={{ padding: '12px 8px', color: 'var(--text-muted)', fontSize: '0.85rem', textTransform: 'uppercase' }}>Emisión</th>
-                    <th style={{ padding: '12px 8px', color: 'var(--text-muted)', fontSize: '0.85rem', textTransform: 'uppercase' }}>Antigüedad</th>
-                    <th style={{ padding: '12px 8px', color: 'var(--text-muted)', fontSize: '0.85rem', textTransform: 'uppercase' }}>Pago / Frecuencia</th>
-                    <th style={{ padding: '12px 8px', color: 'var(--text-muted)', fontSize: '0.85rem', textTransform: 'uppercase' }}>Monto Original</th>
-                    <th style={{ padding: '12px 8px', color: 'var(--text-muted)', fontSize: '0.85rem', textTransform: 'uppercase', textAlign: 'right' }}>Equiv. Pesos MXN</th>
+                <thead style={{ position: 'sticky', top: 0, background: '#f8fafc', zIndex: 10 }}>
+                  <tr style={{ borderBottom: '2px solid #cbd5e1' }}>
+                    <th style={{ padding: '12px 8px', color: '#334155', fontSize: '0.85rem', textTransform: 'uppercase' }}>Contratante</th>
+                    <th style={{ padding: '12px 8px', color: '#334155', fontSize: '0.85rem', textTransform: 'uppercase' }}>Póliza</th>
+                    <th style={{ padding: '12px 8px', color: '#334155', fontSize: '0.85rem', textTransform: 'uppercase' }}>Ramo / Plan</th>
+                    <th style={{ padding: '12px 8px', color: '#334155', fontSize: '0.85rem', textTransform: 'uppercase' }}>Emisión</th>
+                    <th style={{ padding: '12px 8px', color: '#334155', fontSize: '0.85rem', textTransform: 'uppercase' }}>Antigüedad</th>
+                    <th style={{ padding: '12px 8px', color: '#334155', fontSize: '0.85rem', textTransform: 'uppercase' }}>Pago / Frecuencia</th>
+                    <th style={{ padding: '12px 8px', color: '#334155', fontSize: '0.85rem', textTransform: 'uppercase' }}>Monto Original</th>
+                    <th style={{ padding: '12px 8px', color: '#334155', fontSize: '0.85rem', textTransform: 'uppercase', textAlign: 'right' }}>Equiv. Pesos MXN</th>
                   </tr>
                 </thead>
                 <tbody>
                   {drillDown.list.length === 0 ? (
                     <tr>
-                      <td colSpan="8" style={{ textAlign: 'center', padding: '40px', color: 'var(--text-dim)' }}>No hay datos para mostrar en este periodo o segmento.</td>
+                      <td colSpan="8" style={{ textAlign: 'center', padding: '40px', color: '#64748b' }}>No hay datos para mostrar en este periodo o segmento.</td>
                     </tr>
                   ) : drillDown.list.map((c, i) => {
                     const isAnnulled = c.status === 'Anulada';
@@ -1325,51 +1135,51 @@ const Analytics = () => {
                     }
 
                     return (
-                      <tr key={i} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', transition: 'background 0.2s', opacity: isAnnulled ? 0.4 : 1 }}>
+                      <tr key={i} style={{ borderBottom: '1px solid #e2e8f0', transition: 'background 0.2s', opacity: isAnnulled ? 0.4 : 1 }}>
                         <td style={{ padding: '14px 8px', fontWeight: '600', textDecoration: isAnnulled ? 'line-through' : 'none' }}>{c.contractor}</td>
-                        <td style={{ padding: '14px 8px', color: 'var(--accent-gold)', fontWeight: 'bold', textDecoration: isAnnulled ? 'line-through' : 'none' }}>{c.policyNumber}</td>
+                        <td style={{ padding: '14px 8px', color: '#1e40af', fontWeight: 'bold', textDecoration: isAnnulled ? 'line-through' : 'none' }}>{c.policyNumber}</td>
                         <td style={{ padding: '14px 8px', fontSize: '0.85rem', textDecoration: isAnnulled ? 'line-through' : 'none' }}>
                           <span style={{ 
                             fontSize: '0.75rem', 
-                            background: String(c.product || 'Vida').trim().toLowerCase().includes('gastos') || String(c.product || 'Vida').trim().toLowerCase().includes('gmm') ? 'rgba(255,170,0,0.1)' : 'rgba(226,176,66,0.1)', 
-                            color: String(c.product || 'Vida').trim().toLowerCase().includes('gastos') || String(c.product || 'Vida').trim().toLowerCase().includes('gmm') ? '#ffaa00' : 'var(--accent-gold)', 
+                            background: 'rgba(37, 99, 235, 0.1)', 
+                            color: '#1e40af', 
                             padding: '2px 8px', 
                             borderRadius: '10px', 
                             fontWeight: 'bold',
                             marginRight: '6px'
                           }}>
-                            {c.product}
+                            {c.product || 'Automotriz'}
                           </span>
-                          <span style={{ color: 'var(--text-dim)', fontSize: '0.8rem' }}>{c.planType || 'N/A'}</span>
+                          <span style={{ color: '#64748b', fontSize: '0.8rem' }}>{c.planType || 'N/A'}</span>
                         </td>
-                        <td style={{ padding: '14px 8px', fontSize: '0.85rem', color: 'var(--text-dim)', textDecoration: isAnnulled ? 'line-through' : 'none' }}>{c.emissionDate || 'N/A'}</td>
+                        <td style={{ padding: '14px 8px', fontSize: '0.85rem', color: '#64748b', textDecoration: isAnnulled ? 'line-through' : 'none' }}>{c.emissionDate || 'N/A'}</td>
                         <td style={{ padding: '14px 8px', fontSize: '0.85rem' }}>
                           {(() => {
                             const age = calculatePolicyAgeInMonths(c.emissionDate);
                             const isNewPolicy = age <= 13;
-                            if (isAnnulled) return <span style={{ color: 'var(--text-dim)' }}>ANULADA ❌</span>;
+                            if (isAnnulled) return <span style={{ color: '#64748b' }}>ANULADA</span>;
                             return (
                               <span style={{ 
                                 fontSize: '0.75rem', 
-                                background: isNewPolicy ? 'rgba(0, 200, 83, 0.1)' : 'rgba(0, 145, 234, 0.1)', 
-                                color: isNewPolicy ? '#00c853' : '#0091ea', 
+                                background: isNewPolicy ? 'rgba(5, 150, 105, 0.1)' : 'rgba(37, 99, 235, 0.1)', 
+                                color: isNewPolicy ? '#059669' : '#1e40af', 
                                 padding: '2px 8px', 
                                 borderRadius: '6px', 
                                 fontWeight: 'bold'
                               }}>
-                                {formatAgeInYearsAndMonths(age)} {isNewPolicy ? '🟢' : '🔵'}
+                                {formatAgeInYearsAndMonths(age)}
                               </span>
                             );
                           })()}
                         </td>
                         <td style={{ padding: '14px 8px', fontSize: '0.85rem' }}>
                           {c.status === 'Pagada' ? (
-                            <span style={{ color: 'var(--accent-mint)', fontWeight: '600' }}>Pagado el {c.paymentDate}</span>
+                            <span style={{ color: '#059669', fontWeight: '600' }}>Pagado el {c.paymentDate}</span>
                           ) : (
-                            <span style={{ color: isAnnulled ? 'var(--text-dim)' : '#ff4444', fontWeight: isAnnulled ? 'normal' : 'bold' }}>{isAnnulled ? 'Anulada' : 'Pendiente'}</span>
+                            <span style={{ color: isAnnulled ? '#64748b' : '#dc2626', fontWeight: isAnnulled ? 'normal' : 'bold' }}>{isAnnulled ? 'Anulada' : 'Pendiente'}</span>
                           )}
                           <br />
-                          <span style={{ color: 'var(--text-dim)', fontSize: '0.75rem' }}>Frecuencia: {c.paymentFrequency || 'MENSUAL'}</span>
+                          <span style={{ color: '#64748b', fontSize: '0.75rem' }}>Frecuencia: {c.paymentFrequency || 'MENSUAL'}</span>
                           {!isAnnulled && c.status !== 'Pagada' && c.collectionDate && (
                             (() => {
                               const dueDate = new Date(c.collectionDate + 'T00:00:00');
@@ -1381,8 +1191,8 @@ const Analytics = () => {
                                 const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
                                 const daysLeft = Math.max(0, 30 - diffDays);
                                 return (
-                                  <div style={{ color: '#ff4444', fontSize: '0.72rem', fontWeight: 'bold', marginTop: '6px', padding: '4px 8px', background: 'rgba(255,68,68,0.08)', borderRadius: '4px', border: '1px solid rgba(255,68,68,0.15)', display: 'inline-block' }}>
-                                    ⚠️ {diffDays}d atraso. {daysLeft}d p/ cancelar.
+                                  <div style={{ color: '#dc2626', fontSize: '0.72rem', fontWeight: 'bold', marginTop: '6px', padding: '4px 8px', background: 'rgba(220,38,38,0.08)', borderRadius: '4px', border: '1px solid rgba(220,38,38,0.15)', display: 'inline-block' }}>
+                                    Aviso: {diffDays}d atraso. {daysLeft}d p/ cancelar.
                                   </div>
                                 );
                               }
@@ -1390,7 +1200,7 @@ const Analytics = () => {
                             })()
                           )}
                         </td>
-                        <td style={{ padding: '14px 8px', fontWeight: '600', color: 'var(--text-main)', textDecoration: isAnnulled ? 'line-through' : 'none' }}>
+                        <td style={{ padding: '14px 8px', fontWeight: '600', color: '#0f172a', textDecoration: isAnnulled ? 'line-through' : 'none' }}>
                           {formatRawValue(displayVal, c.currency)}
                         </td>
                         <td style={{ padding: '14px 8px', fontWeight: 'bold', color: 'var(--accent-gold)', textAlign: 'right', textDecoration: isAnnulled ? 'line-through' : 'none' }}>

@@ -115,55 +115,25 @@ const LoginPage = ({ theme, toggleTheme }) => {
       position: 'relative',
       padding: '24px'
     }}>
-      {/* Botón de tema claro/oscuro flotante */}
-      <button 
-        onClick={toggleTheme}
-        type="button"
-        style={{
-          position: 'absolute',
-          top: '24px',
-          right: '24px',
-          width: '44px',
-          height: '44px',
-          borderRadius: '50%',
-          background: 'rgba(255,255,255,0.03)',
-          border: '1px solid var(--glass-border)',
-          color: 'var(--text-main)',
-          cursor: 'pointer',
-          display: 'flex',
-          justifyContent: 'center',
-          alignItems: 'center',
-          fontSize: '1.2rem',
-          boxShadow: 'var(--glass-shadow)',
-          transition: 'all 0.3s cubic-bezier(0.22, 1, 0.36, 1)',
-          zIndex: 10
-        }}
-        onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.08)'; e.currentTarget.style.borderColor = 'var(--accent-gold)'; e.currentTarget.style.transform = 'scale(1.05)'; }}
-        onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.03)'; e.currentTarget.style.borderColor = 'var(--glass-border)'; e.currentTarget.style.transform = 'scale(1)'; }}
-        title="Cambiar Tema"
-      >
-        {theme === 'light' ? '☀️' : '🌙'}
-      </button>
-
       <div className="glass-card animate-up" style={{ width: '420px', padding: '48px', textAlign: 'center', border: '1px solid var(--glass-border)' }}>
         {/* Logo de la Empresa */}
         <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '24px' }}>
           <img 
-            src="/ambriz_logo.png" 
-            alt="Logo Ambriz" 
+            src="/src/assets/logo.png" 
+            alt="Logo Novaris" 
             style={{ 
-              height: '80px', 
+              height: '90px', 
               objectFit: 'contain',
-              filter: 'drop-shadow(0 4px 12px rgba(226,176,66,0.1))'
+              filter: 'drop-shadow(0 4px 12px rgba(37,99,235,0.15))'
             }} 
           />
         </div>
 
-        <h1 style={{ fontSize: '2rem', marginBottom: '8px', letterSpacing: '3px' }} className="text-gradient-gold">
-          CRM A&D
+        <h1 style={{ fontSize: '2rem', marginBottom: '8px', letterSpacing: '2px', color: 'var(--text-main)', fontWeight: '800' }}>
+          NOVARIS CRM
         </h1>
         <p style={{ color: 'var(--text-dim)', fontSize: '0.85rem', marginBottom: '40px' }}>
-          Tu plataforma de gestión inteligente
+          Gestión Inteligente de Pólizas de Auto
         </p>
 
         <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
@@ -424,61 +394,42 @@ const Dashboard = () => {
 
   };
 
-  // Filtrado de listas según la pestaña seleccionada
+  // Filtrado de listas para seguros de auto
   const filterList = (list) => {
     if (!list) return [];
-    return list.filter(c => {
-      const isVida = c.product === 'Vida';
-      const isGMM = c.product === 'GMM' || c.product?.includes('Gastos Médicos');
-      return dashboardTab === 'Vida' ? isVida : isGMM;
-    });
+    return list;
   };
 
   const currentLists = {
-    atrasados: filterList(data.upcomingLists.atrasados),
-    hoy: filterList(data.upcomingLists.hoy),
-    en5Dias: filterList(data.upcomingLists.en5Dias),
-    en15Dias: filterList(data.upcomingLists.en15Dias),
-    enMes: filterList(data.upcomingLists.enMes),
+    atrasados: filterList(data.upcomingLists?.atrasados),
+    hoy: filterList(data.upcomingLists?.hoy),
+    en5Dias: filterList(data.upcomingLists?.en5Dias),
+    en15Dias: filterList(data.upcomingLists?.en15Dias),
+    enMes: filterList(data.upcomingLists?.enMes),
     collected: filterList(data.collectedList)
   };
 
-  const totalAlerts = currentLists.atrasados.length + currentLists.hoy.length + currentLists.en5Dias.length + currentLists.en15Dias.length;
+  const totalAlerts = (currentLists.atrasados?.length || 0) + (currentLists.hoy?.length || 0) + (currentLists.en5Dias?.length || 0) + (currentLists.en15Dias?.length || 0);
 
-  // KPIs por pestaña
+  // KPIs en Pesos MXN para Automotriz
   const getTabKPIs = () => {
-    // Para Vida, devolvemos desglosado. Para GMM, solo pesos.
-    const vidaStats = { USD: { paid: 0, pend: 0, late: 0 }, UDI: { paid: 0, pend: 0, late: 0 } };
-    const gmmStats = { MXN: { paid: 0, pend: 0, late: 0 } };
+    const stats = { MXN: { paid: 0, pend: 0, late: 0 } };
 
-    if (dashboardTab === 'Vida') {
-       data.collectedList?.filter(c => c.product === 'Vida' || c.product?.includes('Vida')).forEach(c => {
-         if (c.currency === 'USD') vidaStats.USD.paid += (c.amount || 0);
-         if (c.currency === 'UDI') vidaStats.UDI.paid += (c.amount || 0);
-       });
-       [...data.upcomingLists.hoy, ...data.upcomingLists.en5Dias, ...data.upcomingLists.en15Dias, ...data.upcomingLists.enMes]
-       .filter(c => c.product === 'Vida' || c.product?.includes('Vida')).forEach(c => {
-         if (c.currency === 'USD') vidaStats.USD.pend += (c.amount || 0);
-         if (c.currency === 'UDI') vidaStats.UDI.pend += (c.amount || 0);
-       });
-       data.upcomingLists.atrasados?.filter(c => c.product === 'Vida' || c.product?.includes('Vida')).forEach(c => {
-         if (c.currency === 'USD') vidaStats.USD.late += (c.amount || 0);
-         if (c.currency === 'UDI') vidaStats.UDI.late += (c.amount || 0);
-       });
-       return vidaStats;
-    } else {
-       data.collectedList?.filter(c => c.product === 'GMM' || c.product?.includes('Gastos')).forEach(c => {
-         gmmStats.MXN.paid += (c.amount || 0);
-       });
-       [...data.upcomingLists.hoy, ...data.upcomingLists.en5Dias, ...data.upcomingLists.en15Dias, ...data.upcomingLists.enMes]
-       .filter(c => c.product === 'GMM' || c.product?.includes('Gastos')).forEach(c => {
-         gmmStats.MXN.pend += (c.amount || 0);
-       });
-       data.upcomingLists.atrasados?.filter(c => c.product === 'GMM' || c.product?.includes('Gastos')).forEach(c => {
-         gmmStats.MXN.late += (c.amount || 0);
-       });
-       return gmmStats;
-    }
+    data.collectedList?.forEach(c => {
+      stats.MXN.paid += (c.amount || 0);
+    });
+    [
+      ...(data.upcomingLists?.hoy || []), 
+      ...(data.upcomingLists?.en5Dias || []), 
+      ...(data.upcomingLists?.en15Dias || []), 
+      ...(data.upcomingLists?.enMes || [])
+    ].forEach(c => {
+      stats.MXN.pend += (c.amount || 0);
+    });
+    data.upcomingLists?.atrasados?.forEach(c => {
+      stats.MXN.late += (c.amount || 0);
+    });
+    return stats;
   };
 
   const tabKPIs = getTabKPIs();
@@ -505,8 +456,8 @@ const Dashboard = () => {
                   const diffDays = Math.abs(c.days);
                   const daysLeft = Math.max(0, 30 - diffDays);
                   return (
-                    <div style={{ color: '#ff4444', fontSize: '0.72rem', fontWeight: 'bold', margin: '4px 0 8px 0', padding: '6px 10px', background: 'rgba(255,68,68,0.08)', borderRadius: '6px', border: '1px solid rgba(255,68,68,0.15)', lineHeight: '1.3' }}>
-                      ⚠️ {diffDays} {diffDays === 1 ? 'día' : 'días'} de atraso. Quedan {daysLeft} {daysLeft === 1 ? 'día' : 'días'} para cancelarse.
+                    <div style={{ color: '#dc2626', fontSize: '0.72rem', fontWeight: 'bold', margin: '4px 0 8px 0', padding: '6px 10px', background: 'rgba(220,38,38,0.08)', borderRadius: '6px', border: '1px solid rgba(220,38,38,0.15)', lineHeight: '1.3' }}>
+                      Aviso: {diffDays} {diffDays === 1 ? 'día' : 'días'} de atraso. Quedan {daysLeft} {daysLeft === 1 ? 'día' : 'días'} para cancelarse.
                     </div>
                   );
                 })()
@@ -516,11 +467,6 @@ const Dashboard = () => {
                   <p style={{ fontWeight: 'bold', fontSize: '1.1rem', color: titleColor }}>
                     {fmtCurrency(c.amount, c.currency)}
                   </p>
-                  {dashboardTab === 'Vida' && (
-                    <p style={{ fontSize: '0.7rem', color: 'var(--text-dim)' }}>
-                      ≈ {fmt(c.amount * (c.currency === 'USD' ? rates.USD : rates.UDI))} MXN
-                    </p>
-                  )}
                 </div>
                 <div style={{ display: 'flex', gap: '6px' }}>
                   <button 
@@ -528,8 +474,8 @@ const Dashboard = () => {
                     style={{ 
                       fontSize: '0.7rem', 
                       color: 'var(--accent-mint)', 
-                      background: 'rgba(0, 200, 83, 0.1)', 
-                      border: '1px solid rgba(0, 200, 83, 0.2)', 
+                      background: 'rgba(5, 150, 105, 0.1)', 
+                      border: '1px solid rgba(5, 150, 105, 0.2)', 
                       padding: '6px 10px', 
                       borderRadius: '6px', 
                       cursor: 'pointer',
@@ -539,12 +485,9 @@ const Dashboard = () => {
                       fontWeight: 'bold',
                       transition: 'all 0.2s'
                     }}
-                    onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(0, 200, 83, 0.2)'; }}
-                    onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(0, 200, 83, 0.1)'; }}
+                    onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(5, 150, 105, 0.2)'; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(5, 150, 105, 0.1)'; }}
                   >
-                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-                      <polyline points="20 6 9 17 4 12"/>
-                    </svg>
                     Pagado
                   </button>
                   <button 
@@ -552,8 +495,8 @@ const Dashboard = () => {
                     style={{ 
                       fontSize: '0.7rem', 
                       color: 'var(--accent-gold)', 
-                      background: 'rgba(226, 176, 66, 0.1)', 
-                      border: '1px solid rgba(226, 176, 66, 0.2)', 
+                      background: 'rgba(37, 99, 235, 0.08)', 
+                      border: '1px solid rgba(37, 99, 235, 0.2)', 
                       padding: '6px 10px', 
                       borderRadius: '6px', 
                       cursor: 'pointer',
@@ -563,18 +506,15 @@ const Dashboard = () => {
                       fontWeight: 'bold',
                       transition: 'all 0.2s'
                     }}
-                    onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(226, 176, 66, 0.2)'; }}
-                    onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(226, 176, 66, 0.1)'; }}
+                    onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(37, 99, 235, 0.15)'; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(37, 99, 235, 0.08)'; }}
                   >
-                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
-                    </svg>
                     Recordar
                   </button>
                 </div>
               </div>
               {c.days < 0 && (
-                <p style={{ fontSize: '0.7rem', color: '#ff4444', marginTop: '6px' }}>Atrasado por {Math.abs(c.days)} días</p>
+                <p style={{ fontSize: '0.7rem', color: '#dc2626', marginTop: '6px' }}>Atrasado por {Math.abs(c.days)} días</p>
               )}
             </div>
           ))
@@ -587,128 +527,44 @@ const Dashboard = () => {
     <>
       <header style={{ marginBottom: '32px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
         <div>
-          <h1 style={{ fontSize: '2.5rem', fontWeight: '800' }}>Hola, <span className="text-gradient-gold">{firstName}.</span></h1>
+          <h1 style={{ fontSize: '2.5rem', fontWeight: '800', color: 'var(--text-main)' }}>Hola, <span className="text-gradient-gold">{firstName}.</span></h1>
           <p style={{ color: 'var(--text-muted)', marginTop: '8px' }}>
-            Tienes <span style={{ color: 'var(--accent-gold)' }}>{totalAlerts} cobranzas activas</span> en tu dashboard de {dashboardTab}.
+            Tienes <span style={{ color: 'var(--accent-gold)', fontWeight: 'bold' }}>{totalAlerts} cobranzas activas</span> en tu panel de Seguros de Auto.
           </p>
-        </div>
-        
-        {/* Robot Financiero UI */}
-        <div style={{ display: 'flex', gap: '16px' }}>
-           <div className="glass-card" style={{ padding: '10px 16px', textAlign: 'center', border: '1px solid rgba(226, 176, 66, 0.2)' }}>
-              <p style={{ fontSize: '0.65rem', color: 'var(--text-dim)', textTransform: 'uppercase', marginBottom: '4px' }}>Dólar (USD)</p>
-              <p style={{ fontWeight: 'bold', color: 'var(--accent-gold)', fontSize: '1rem' }}>${rates.USD.toFixed(2)}</p>
-           </div>
-           <div className="glass-card" style={{ padding: '10px 16px', textAlign: 'center', border: '1px solid rgba(226, 176, 66, 0.2)' }}>
-              <p style={{ fontSize: '0.65rem', color: 'var(--text-dim)', textTransform: 'uppercase', marginBottom: '4px' }}>UDI</p>
-              <p style={{ fontWeight: 'bold', color: 'var(--accent-gold)', fontSize: '1rem' }}>${rates.UDI.toFixed(4)}</p>
-           </div>
         </div>
       </header>
 
-      {/* Tabs de Selección de Dashboard */}
-      <div style={{ display: 'flex', gap: '8px', marginBottom: '32px', background: 'rgba(128,128,128,0.1)', padding: '6px', borderRadius: '12px', width: 'fit-content' }}>
-        <button 
-          onClick={() => setDashboardTab('Vida')}
-          style={{ padding: '10px 24px', borderRadius: '8px', border: 'none', background: dashboardTab === 'Vida' ? 'var(--accent-gold)' : 'transparent', color: dashboardTab === 'Vida' ? '#000000' : 'var(--text-main)', fontWeight: 'bold', cursor: 'pointer', transition: '0.3s' }}
-        >
-          ☂️ Dashboard VIDA
-        </button>
-        <button 
-          onClick={() => setDashboardTab('GMM')}
-          style={{ padding: '10px 24px', borderRadius: '8px', border: 'none', background: dashboardTab === 'GMM' ? 'var(--accent-gold)' : 'transparent', color: dashboardTab === 'GMM' ? '#000000' : 'var(--text-main)', fontWeight: 'bold', cursor: 'pointer', transition: '0.3s' }}
-        >
-          🏥 Dashboard GMM
-        </button>
-      </div>
-
-      {/* Tarjetas KPIs Según el Ramo */}
+      {/* Tarjetas KPIs Pólizas de Auto (Pesos MXN) */}
       <div style={{ display: 'flex', justifyContent: 'center', gap: '32px', marginBottom: '48px' }}>
-        {dashboardTab === 'Vida' ? (
-          <>
-            {/* USD Card */}
-            <div className="glass-card stat-widget animate-up" style={{ flex: 1, padding: '32px', minHeight: '240px', display: 'flex', flexDirection: 'column', justifyContent: 'center', border: '1px solid rgba(255,255,255,0.05)' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '24px' }}>
-                <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: 'var(--accent-gold)', display: 'flex', justifyContent: 'center', alignItems: 'center', color: 'black', fontSize: '1.2rem', fontWeight: 'bold' }}>$</div>
-                <h3 style={{ fontSize: '1.2rem', color: 'var(--text-main)' }}>Cobranza VIDA (Dólares)</h3>
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px' }}>
-                <div style={{ padding: '16px', background: 'rgba(0, 255, 170, 0.05)', borderRadius: '16px', border: '1px solid rgba(0, 255, 170, 0.1)' }}>
-                  <p style={{ color: 'var(--accent-mint)', fontSize: '0.75rem', fontWeight: 'bold', textTransform: 'uppercase', marginBottom: '6px' }}>✅ Pagado</p>
-                  <p style={{ fontSize: '1.3rem', fontWeight: '800' }}>{fmtCurrency(tabKPIs.USD.paid, 'USD')}</p>
-                  <p style={{ fontSize: '0.7rem', color: 'var(--text-dim)', marginTop: '2px' }}>≈ {fmt(tabKPIs.USD.paid * rates.USD)} MXN</p>
-                </div>
-                <div style={{ padding: '16px', background: 'rgba(255, 255, 255, 0.03)', borderRadius: '16px', border: '1px solid var(--glass-border)' }}>
-                  <p style={{ color: 'var(--text-muted)', fontSize: '0.75rem', fontWeight: 'bold', textTransform: 'uppercase', marginBottom: '6px' }}>⏳ Pendiente</p>
-                  <p style={{ fontSize: '1.3rem', fontWeight: '800' }}>{fmtCurrency(tabKPIs.USD.pend, 'USD')}</p>
-                  <p style={{ fontSize: '0.7rem', color: 'var(--text-dim)', marginTop: '2px' }}>≈ {fmt(tabKPIs.USD.pend * rates.USD)} MXN</p>
-                </div>
-                <div style={{ padding: '16px', background: 'rgba(255, 68, 68, 0.05)', borderRadius: '16px', border: '1px solid rgba(255, 68, 68, 0.15)' }}>
-                  <p style={{ color: '#ff4444', fontSize: '0.75rem', fontWeight: 'bold', textTransform: 'uppercase', marginBottom: '6px' }}>🚨 Atrasado</p>
-                  <p style={{ fontSize: '1.3rem', fontWeight: '800', color: '#ff4444' }}>{fmtCurrency(tabKPIs.USD.late, 'USD')}</p>
-                  <p style={{ fontSize: '0.7rem', color: 'var(--text-dim)', marginTop: '2px' }}>≈ {fmt(tabKPIs.USD.late * rates.USD)} MXN</p>
-                </div>
-              </div>
+        <div className="glass-card stat-widget animate-up" style={{ flex: 1, maxWidth: '1000px', padding: '32px', minHeight: '220px', display: 'flex', flexDirection: 'column', justifyContent: 'center', border: '1px solid var(--glass-border)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '24px' }}>
+            <h3 style={{ fontSize: '1.3rem', color: 'var(--text-main)', fontWeight: '700' }}>Resumen de Cobranza (Seguros de Auto - MXN)</h3>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '20px' }}>
+            <div style={{ padding: '24px', background: 'rgba(5, 150, 105, 0.08)', borderRadius: '20px', border: '1px solid rgba(5, 150, 105, 0.2)', textAlign: 'center' }}>
+              <p style={{ color: 'var(--accent-mint)', fontSize: '0.85rem', fontWeight: 'bold', textTransform: 'uppercase', marginBottom: '8px' }}>Pagado del Mes</p>
+              <h2 style={{ fontSize: '2.1rem', fontWeight: '800', color: 'var(--text-main)' }}>{fmt(tabKPIs.MXN.paid)}</h2>
             </div>
-            {/* UDI Card */}
-            <div className="glass-card stat-widget animate-up" style={{ flex: 1, padding: '32px', minHeight: '240px', display: 'flex', flexDirection: 'column', justifyContent: 'center', animationDelay: '0.1s', border: '1px solid rgba(255,255,255,0.05)' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '24px' }}>
-                <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: 'var(--accent-gold)', display: 'flex', justifyContent: 'center', alignItems: 'center', color: 'black', fontSize: '0.8rem', fontWeight: 'bold' }}>UDI</div>
-                <h3 style={{ fontSize: '1.2rem', color: 'var(--text-main)' }}>Cobranza VIDA (UDI)</h3>
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px' }}>
-                <div style={{ padding: '16px', background: 'rgba(0, 255, 170, 0.05)', borderRadius: '16px', border: '1px solid rgba(0, 255, 170, 0.1)' }}>
-                  <p style={{ color: 'var(--accent-mint)', fontSize: '0.75rem', fontWeight: 'bold', textTransform: 'uppercase', marginBottom: '6px' }}>✅ Pagado</p>
-                  <p style={{ fontSize: '1.3rem', fontWeight: '800' }}>{fmtCurrency(tabKPIs.UDI.paid, 'UDI')}</p>
-                  <p style={{ fontSize: '0.7rem', color: 'var(--text-dim)', marginTop: '2px' }}>≈ {fmt(tabKPIs.UDI.paid * rates.UDI)} MXN</p>
-                </div>
-                <div style={{ padding: '16px', background: 'rgba(255, 255, 255, 0.03)', borderRadius: '16px', border: '1px solid var(--glass-border)' }}>
-                  <p style={{ color: 'var(--text-muted)', fontSize: '0.75rem', fontWeight: 'bold', textTransform: 'uppercase', marginBottom: '6px' }}>⏳ Pendiente</p>
-                  <p style={{ fontSize: '1.3rem', fontWeight: '800' }}>{fmtCurrency(tabKPIs.UDI.pend, 'UDI')}</p>
-                  <p style={{ fontSize: '0.7rem', color: 'var(--text-dim)', marginTop: '2px' }}>≈ {fmt(tabKPIs.UDI.pend * rates.UDI)} MXN</p>
-                </div>
-                <div style={{ padding: '16px', background: 'rgba(255, 68, 68, 0.05)', borderRadius: '16px', border: '1px solid rgba(255, 68, 68, 0.15)' }}>
-                  <p style={{ color: '#ff4444', fontSize: '0.75rem', fontWeight: 'bold', textTransform: 'uppercase', marginBottom: '6px' }}>🚨 Atrasado</p>
-                  <p style={{ fontSize: '1.3rem', fontWeight: '800', color: '#ff4444' }}>{fmtCurrency(tabKPIs.UDI.late, 'UDI')}</p>
-                  <p style={{ fontSize: '0.7rem', color: 'var(--text-dim)', marginTop: '2px' }}>≈ {fmt(tabKPIs.UDI.late * rates.UDI)} MXN</p>
-                </div>
-              </div>
+            <div style={{ padding: '24px', background: 'rgba(37, 99, 235, 0.06)', borderRadius: '20px', border: '1px solid rgba(37, 99, 235, 0.2)', textAlign: 'center' }}>
+              <p style={{ color: 'var(--accent-gold)', fontSize: '0.85rem', fontWeight: 'bold', textTransform: 'uppercase', marginBottom: '8px' }}>Cobranza Pendiente</p>
+              <h2 style={{ fontSize: '2.1rem', fontWeight: '800', color: 'var(--text-main)' }}>{fmt(tabKPIs.MXN.pend)}</h2>
             </div>
-          </>
-        ) : (
-          <>
-            <div className="glass-card stat-widget animate-up" style={{ flex: 1, maxWidth: '900px', padding: '32px', minHeight: '240px', display: 'flex', flexDirection: 'column', justifyContent: 'center', border: '1px solid rgba(255,255,255,0.05)' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '24px' }}>
-                <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: 'var(--accent-mint)', display: 'flex', justifyContent: 'center', alignItems: 'center', color: 'black', fontSize: '1.2rem', fontWeight: 'bold' }}>🏥</div>
-                <h3 style={{ fontSize: '1.2rem', color: 'var(--text-main)' }}>Resumen de Cobranza GMM (Pesos)</h3>
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '20px' }}>
-                <div style={{ padding: '24px', background: 'rgba(0, 255, 170, 0.05)', borderRadius: '20px', border: '1px solid rgba(0, 255, 170, 0.1)', textAlign: 'center' }}>
-                  <p style={{ color: 'var(--accent-mint)', fontSize: '0.85rem', fontWeight: 'bold', textTransform: 'uppercase', marginBottom: '8px' }}>✅ Pagado del Mes</p>
-                  <h2 style={{ fontSize: '2rem', fontWeight: '800', color: 'var(--text-main)' }}>{fmt(tabKPIs.MXN.paid)}</h2>
-                </div>
-                <div style={{ padding: '24px', background: 'rgba(255, 255, 255, 0.03)', borderRadius: '20px', border: '1px solid var(--glass-border)', textAlign: 'center' }}>
-                  <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', fontWeight: 'bold', textTransform: 'uppercase', marginBottom: '8px' }}>⏳ Cobranza Pendiente</p>
-                  <h2 style={{ fontSize: '2rem', fontWeight: '800', color: 'var(--text-main)' }}>{fmt(tabKPIs.MXN.pend)}</h2>
-                </div>
-                <div style={{ padding: '24px', background: 'rgba(255, 68, 68, 0.05)', borderRadius: '20px', border: '1px solid rgba(255, 68, 68, 0.15)', textAlign: 'center' }}>
-                  <p style={{ color: '#ff4444', fontSize: '0.85rem', fontWeight: 'bold', textTransform: 'uppercase', marginBottom: '8px' }}>🚨 Cobranza Atrasada</p>
-                  <h2 style={{ fontSize: '2rem', fontWeight: '800', color: '#ff4444' }}>{fmt(tabKPIs.MXN.late)}</h2>
-                </div>
-              </div>
+            <div style={{ padding: '24px', background: 'rgba(239, 68, 68, 0.08)', borderRadius: '20px', border: '1px solid rgba(239, 68, 68, 0.2)', textAlign: 'center' }}>
+              <p style={{ color: '#ef4444', fontSize: '0.85rem', fontWeight: 'bold', textTransform: 'uppercase', marginBottom: '8px' }}>Cobranza Atrasada</p>
+              <h2 style={{ fontSize: '2.1rem', fontWeight: '800', color: '#ef4444' }}>{fmt(tabKPIs.MXN.late)}</h2>
             </div>
-          </>
-        )}
+          </div>
+        </div>
       </div>
 
       {/* Sección Cobranza Próxima */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-        <h2 style={{ fontSize: '1.4rem', margin: 0 }}>Cobranza Próxima <span style={{ fontSize: '0.9rem', color: 'var(--text-dim)', fontWeight: 'normal' }}>({dashboardTab})</span></h2>
+        <h2 style={{ fontSize: '1.4rem', margin: 0, color: 'var(--text-main)' }}>Cobranza Próxima <span style={{ fontSize: '0.9rem', color: 'var(--text-dim)', fontWeight: 'normal' }}>(Autos)</span></h2>
         <button 
           onClick={() => setFullReportModal('upcoming')}
-          style={{ fontSize: '0.8rem', padding: '6px 12px', borderRadius: '8px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: 'var(--accent-mint)', cursor: 'pointer', transition: 'all 0.3s' }}
+          style={{ fontSize: '0.8rem', padding: '8px 16px', borderRadius: '8px', background: 'var(--bg-surface)', border: '1px solid var(--glass-border)', color: 'var(--accent-gold)', cursor: 'pointer', fontWeight: '600', transition: 'all 0.3s' }}
         >
-          📊 Ver reporte completo
+          Ver reporte completo
         </button>
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '20px', marginBottom: '40px' }}>
@@ -1512,9 +1368,12 @@ const AppContent = () => {
            {isSidebarOpen ? '◀' : '▶'}
         </button>
 
-        <div style={{ marginBottom: '48px', opacity: isSidebarOpen ? 1 : 0, transition: 'opacity 0.2s' }}>
-          <h1 style={{ fontSize: '1.5rem', letterSpacing: '2px' }} className="text-gradient-gold">CRM A&D</h1>
-          <p style={{ fontSize: '0.7rem', color: 'var(--text-dim)', marginTop: '4px' }}>GESTIÓN INTELIGENTE</p>
+        <div style={{ marginBottom: '36px', opacity: isSidebarOpen ? 1 : 0, transition: 'opacity 0.2s', display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '8px' }}>
+          <img src="/src/assets/logo.png" alt="Novaris" style={{ height: '45px', objectFit: 'contain' }} />
+          <div>
+            <h1 style={{ fontSize: '1.2rem', letterSpacing: '1px', color: 'var(--text-main)', fontWeight: '800' }}>NOVARIS CRM</h1>
+            <p style={{ fontSize: '0.65rem', color: 'var(--text-dim)', marginTop: '2px', fontWeight: '600' }}>SEGUROS DE AUTO</p>
+          </div>
         </div>
 
         <nav style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
@@ -1538,45 +1397,6 @@ const AppContent = () => {
         </nav>
 
         <div style={{ marginTop: 'auto', paddingTop: '24px', borderTop: '1px solid var(--glass-border)' }}>
-          {/* Botón de cambio de tema claro/oscuro */}
-          <button 
-            onClick={toggleTheme}
-            type="button"
-            style={{
-              width: '100%',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              padding: '10px 14px',
-              borderRadius: '8px',
-              background: 'rgba(255,255,255,0.02)',
-              border: '1px solid var(--glass-border)',
-              color: 'var(--text-main)',
-              cursor: 'pointer',
-              fontSize: '0.8rem',
-              fontWeight: '500',
-              marginBottom: '16px',
-              transition: 'all 0.3s'
-            }}
-            onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.06)'; e.currentTarget.style.borderColor = 'var(--accent-gold)'; }}
-            onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.02)'; e.currentTarget.style.borderColor = 'var(--glass-border)'; }}
-            title="Cambiar Tema"
-          >
-            <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              {theme === 'light' ? '☀️' : '🌙'} {theme === 'light' ? 'Modo Claro' : 'Modo Oscuro'}
-            </span>
-            <span style={{ 
-              fontSize: '0.7rem', 
-              color: 'var(--accent-gold)', 
-              background: 'rgba(226,176,66,0.1)', 
-              padding: '2px 8px', 
-              borderRadius: '12px',
-              fontWeight: '600'
-            }}>
-              Cambiar
-            </span>
-          </button>
-
           <div 
             onClick={() => setShowProfileModal(true)}
             style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px', cursor: 'pointer', padding: '8px', borderRadius: '10px', background: 'rgba(255,255,255,0.02)', border: '1px solid transparent', transition: 'all 0.2s' }}
@@ -1586,8 +1406,8 @@ const AppContent = () => {
           >
             <AvatarRenderer user={user} size={40} />
             <div>
-              <p style={{ fontSize: '0.9rem', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                {user.name} <span style={{ fontSize: '0.75rem' }}>⚙️</span>
+              <p style={{ fontSize: '0.9rem', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--text-main)' }}>
+                {user.name}
               </p>
               <p style={{ fontSize: '0.7rem', color: 'var(--text-dim)' }}>
                 {user.role === 'admin' && 'Cuenta Maestra'}
@@ -1613,17 +1433,15 @@ const AppContent = () => {
 
       {/* MODAL DE PERFIL DE USUARIO */}
       {showProfileModal && createPortal(
-        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(12px)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 3000, padding: '20px' }}>
-          <div className="glass-card animate-up" style={{ width: '100%', maxWidth: '420px', padding: '36px', position: 'relative', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '24px', border: '1px solid var(--accent-gold)', boxShadow: '0 20px 40px rgba(0,0,0,0.5)' }}>
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(15,23,42,0.6)', backdropFilter: 'blur(6px)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 3000, padding: '20px' }}>
+          <div className="glass-card animate-up" style={{ width: '100%', maxWidth: '420px', padding: '36px', position: 'relative', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '24px', background: '#ffffff', color: '#0f172a', border: '1px solid #cbd5e1', boxShadow: '0 20px 40px rgba(15,23,42,0.2)' }}>
             
             <button 
               onClick={() => setShowProfileModal(false)}
-              style={{ position: 'absolute', top: '16px', right: '16px', background: 'rgba(255,255,255,0.03)', border: 'none', color: 'var(--text-dim)', fontSize: '1.2rem', cursor: 'pointer', transition: '0.2s', width: '32px', height: '32px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-              onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
-              onMouseLeave={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.03)'}
+              style={{ position: 'absolute', top: '16px', right: '16px', background: '#f1f5f9', border: '1px solid #cbd5e1', color: '#0f172a', fontSize: '1.2rem', cursor: 'pointer', transition: '0.2s', width: '32px', height: '32px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold' }}
               title="Cerrar"
             >
-              ✖
+              ✕
             </button>
 
             <div>

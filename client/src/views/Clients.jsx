@@ -100,11 +100,11 @@ const Clients = () => {
   
   const initialClientData = {
     contractor: '', contractorBirthDate: '', email: '', phone: '',
-    policyNumber: '', product: 'Vida', planType: 'Orvi',
+    policyNumber: '', product: 'Automotriz', planType: '',
     emissionDate: '', collectionDate: '',
     paymentFrequency: 'MENSUAL', paymentMethod: 'TC',
-    annualPremium: '', currency: 'UDI',
-    insureds: [{ name: '', birthDate: '' }],
+    annualPremium: '', currency: 'MXN',
+    insureds: [],
     highlighted: false
   };
   const [clientData, setClientData] = useState(initialClientData);
@@ -127,56 +127,19 @@ const Clients = () => {
     .then(data => {
       if (data.success && data.data) {
         const info = data.data;
-        
-        // Mapear los datos al formulario
-        setClientData(prev => {
-          let updatedInsureds = prev.insureds;
-          if (info.insureds && info.insureds.length > 0) {
-            updatedInsureds = info.insureds.map(ins => ({
-              name: ins.name || '',
-              birthDate: ins.birthDate || ''
-            }));
-          }
-
-          let mappedPlan = prev.planType;
-          if (info.planType) {
-            const planUpper = info.planType.toUpperCase();
-            if (planUpper.includes('ORVI')) mappedPlan = 'Orvi';
-            else if (planUpper.includes('DOTAL')) mappedPlan = 'Dotal';
-            else if (planUpper.includes('MUJER')) mappedPlan = 'Vida mujer';
-            else if (planUpper.includes('IMAGINA') || planUpper.includes('SER')) mappedPlan = 'Imagina ser';
-            else if (planUpper.includes('PLANITUD')) mappedPlan = 'Nuevo planitud';
-            else if (planUpper.includes('SEGU') || planUpper.includes('BECA')) mappedPlan = 'Segubeca';
-            else if (planUpper.includes('MIO')) mappedPlan = 'Mio';
-            else if (planUpper.includes('OBJETIVO')) mappedPlan = 'Objetivo Vida';
-            else if (planUpper.includes('TEMPORAL')) mappedPlan = 'Temporal';
-            else if (planUpper.includes('PLENO')) mappedPlan = 'Pleno';
-            else if (planUpper.includes('INTEGRO')) mappedPlan = 'Integro';
-            else if (planUpper.includes('PRACTICO')) mappedPlan = 'Practico';
-            else if (planUpper.includes('FLEX A')) mappedPlan = 'Flex A';
-            else if (planUpper.includes('FLEX B')) mappedPlan = 'Flex B';
-            else {
-              mappedPlan = info.product === 'GMM' ? 'Pleno' : 'Orvi';
-            }
-          }
-
-          const calculatedAnnual = info.premium ? parseFloat(info.premium).toFixed(2) : prev.annualPremium;
-
-          return {
-            ...prev,
-            contractor: info.contractor || prev.contractor,
-            contractorBirthDate: (info.insureds && info.insureds[0]?.birthDate) || prev.contractorBirthDate,
-            policyNumber: info.policyNumber || prev.policyNumber,
-            product: info.product || prev.product,
-            planType: mappedPlan,
-            emissionDate: info.emissionDate || prev.emissionDate,
-            collectionDate: info.collectionDate || prev.collectionDate,
-            paymentFrequency: info.paymentFrequency || prev.paymentFrequency,
-            currency: info.currency || prev.currency,
-            annualPremium: calculatedAnnual,
-            insureds: updatedInsureds
-          };
-        });
+        setClientData(prev => ({
+          ...prev,
+          contractor: info.contractor || prev.contractor,
+          contractorBirthDate: (info.insureds && info.insureds[0]?.birthDate) || prev.contractorBirthDate,
+          policyNumber: info.policyNumber || prev.policyNumber,
+          product: 'Automotriz',
+          planType: info.planType || prev.planType,
+          emissionDate: info.emissionDate || prev.emissionDate,
+          collectionDate: info.collectionDate || prev.collectionDate,
+          paymentFrequency: info.paymentFrequency || prev.paymentFrequency,
+          currency: 'MXN',
+          annualPremium: info.premium ? parseFloat(info.premium).toFixed(2) : prev.annualPremium
+        }));
         alert('¡Carátula leída con éxito! Revisa la información autollenada en el formulario.');
       } else {
         alert('No se pudo extraer información de la carátula. Intenta subir otra carátula.');
@@ -184,7 +147,7 @@ const Clients = () => {
     })
     .catch(err => {
       console.error(err);
-      alert('Error al leer el PDF de la carátula. Asegúrate de que sea un PDF digital legible.');
+      alert('Error al leer el PDF de la carátula.');
     })
     .finally(() => {
       setParsingPdf(false);
@@ -319,15 +282,15 @@ const Clients = () => {
       email: client.email || '',
       phone: client.phone || '',
       policyNumber: client.policyNumber || '',
-      product: client.product || 'Vida',
+      product: 'Automotriz',
       planType: client.planType || '',
       emissionDate: client.emissionDate || '',
       collectionDate: client.collectionDate || '',
       paymentFrequency: client.paymentFrequency || 'MENSUAL',
       paymentMethod: client.paymentMethod || 'TC',
       annualPremium: client.annualPremium || '',
-      currency: client.currency || 'UDI',
-      insureds: client.insureds && client.insureds.length > 0 ? client.insureds : [{ name: client.contractor || '', birthDate: client.contractorBirthDate || '' }],
+      currency: 'MXN',
+      insureds: [],
       highlighted: client.highlighted || false
     });
     setShowClientModal(true);
@@ -357,46 +320,52 @@ const Clients = () => {
     });
   };
 
-  const inputStyle = { padding: '10px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--glass-border)', borderRadius: '8px', color: 'white', fontSize: '0.85rem', width: '100%', boxSizing: 'border-box' };
+  const inputStyle = { 
+    padding: '10px 14px', 
+    background: '#ffffff', 
+    border: '1px solid #cbd5e1', 
+    borderRadius: '8px', 
+    color: '#0f172a', 
+    fontSize: '0.85rem', 
+    width: '100%', 
+    boxSizing: 'border-box',
+    outline: 'none'
+  };
 
   return (
     <div className="animate-up">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '32px' }}>
-        <h1 style={{ fontSize: '2rem' }}>Base de Datos <span className="text-gradient-gold">de Clientes</span></h1>
+        <h1 style={{ fontSize: '2rem', color: 'var(--text-main)' }}>Base de Datos <span className="text-gradient-gold">de Clientes</span></h1>
         <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
           <input 
             type="text" 
-            placeholder="🔍 Buscar cliente, póliza..." 
+            placeholder="Buscar cliente, póliza..." 
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            style={{ padding: '10px 16px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--glass-border)', borderRadius: '8px', color: 'white', fontSize: '0.85rem', width: '250px' }}
+            style={{ padding: '10px 16px', background: '#ffffff', border: '1px solid #cbd5e1', borderRadius: '8px', color: '#0f172a', fontSize: '0.85rem', width: '250px', outline: 'none' }}
           />
           <select
             value={ageFilter}
             onChange={(e) => setAgeFilter(e.target.value)}
-            style={{ padding: '10px 16px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--glass-border)', borderRadius: '8px', color: 'white', fontSize: '0.85rem', outline: 'none', cursor: 'pointer' }}
+            style={{ padding: '10px 16px', background: '#ffffff', border: '1px solid #cbd5e1', borderRadius: '8px', color: '#0f172a', fontSize: '0.85rem', outline: 'none', cursor: 'pointer', fontWeight: '500' }}
           >
-            <option value="all">📅 Todas las Antigüedades</option>
-            <option value="13m">🟢 Primeros 13 Meses</option>
-            <option value="14m">🔵 14 Meses o más</option>
-            <option value="annulled">❌ Pólizas Anuladas</option>
+            <option value="all">Todas las Antigüedades</option>
+            <option value="13m">Primeros 13 Meses</option>
+            <option value="14m">14 Meses o más</option>
+            <option value="annulled">Pólizas Anuladas</option>
           </select>
           <select
             value={sortBy}
             onChange={(e) => setSortBy(e.target.value)}
-            style={{ padding: '10px 16px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--glass-border)', borderRadius: '8px', color: 'white', fontSize: '0.85rem', outline: 'none', cursor: 'pointer' }}
+            style={{ padding: '10px 16px', background: '#ffffff', border: '1px solid #cbd5e1', borderRadius: '8px', color: '#0f172a', fontSize: '0.85rem', outline: 'none', cursor: 'pointer', fontWeight: '500' }}
           >
-            <option value="alphabetical-asc">🔤 Orden Alfabético (A-Z)</option>
-            <option value="alphabetical-desc">🔤 Orden Alfabético (Z-A)</option>
-            <option value="added-desc">🆕 Más Recientes Agregados</option>
-            <option value="added-asc">⏳ Más Antiguos Agregados</option>
-            <option value="emission-desc">📅 Emisión: Reciente a Antigua</option>
-            <option value="emission-asc">📅 Emisión: Antigua a Reciente</option>
+            <option value="alphabetical-asc">Orden Alfabético (A-Z)</option>
+            <option value="alphabetical-desc">Orden Alfabético (Z-A)</option>
+            <option value="added-desc">Más Recientes Agregados</option>
+            <option value="added-asc">Más Antiguos Agregados</option>
+            <option value="emission-desc">Emisión: Reciente a Antigua</option>
+            <option value="emission-asc">Emisión: Antigua a Reciente</option>
           </select>
-          <label className="glass-card" style={{ padding: '10px 20px', cursor: 'pointer', border: '1px solid var(--accent-gold)', color: 'var(--accent-gold)' }}>
-            📊 Migrar Excel
-            <input type="file" hidden onChange={(e) => handleMigration(e.target.files[0])} />
-          </label>
           <button onClick={openNewModal} className="btn-primary" style={{ width: 'auto', padding: '10px 20px' }}>+ Nuevo Cliente</button>
         </div>
       </div>
@@ -406,15 +375,13 @@ const Clients = () => {
           <thead>
             <tr style={{ borderBottom: '1px solid var(--glass-border)', background: 'rgba(255,255,255,0.02)' }}>
               <th style={{ padding: '16px' }}>Contratante</th>
-              <th style={{ padding: '16px' }}>Asegurados</th>
               <th style={{ padding: '16px' }}>Correo</th>
               <th style={{ padding: '16px' }}>Teléfono</th>
               <th style={{ padding: '16px' }}>Póliza</th>
-              <th style={{ padding: '16px' }}>Producto</th>
-              <th style={{ padding: '16px' }}>Plan</th>
+              <th style={{ padding: '16px' }}>Ramo</th>
+              <th style={{ padding: '16px' }}>Tipo de Plan</th>
               <th style={{ padding: '16px' }}>Prima Anual</th>
               <th style={{ padding: '16px' }}>Prima (Cobro)</th>
-              <th style={{ padding: '16px' }}>Moneda</th>
               <th style={{ padding: '16px' }}>Frecuencia</th>
               <th style={{ padding: '16px' }}>Modo</th>
               <th style={{ padding: '16px' }}>Emisión</th>
@@ -425,16 +392,15 @@ const Clients = () => {
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan="16" style={{ padding: '40px', textAlign: 'center' }}>Procesando Cartera...</td></tr>
+              <tr><td colSpan="14" style={{ padding: '40px', textAlign: 'center' }}>Procesando Cartera...</td></tr>
             ) : clients.length === 0 ? (
-               <tr><td colSpan="16" style={{ padding: '40px', textAlign: 'center', color: 'var(--text-dim)' }}>Aún no tienes clientes. Migra tu Excel o añade uno nuevo.</td></tr>
+               <tr><td colSpan="14" style={{ padding: '40px', textAlign: 'center', color: 'var(--text-dim)' }}>Aún no tienes clientes registrados. Añade uno nuevo con el botón superior.</td></tr>
             ) : clients.filter(c => {
                const term = searchTerm.toLowerCase();
                const matchesSearch = c.contractor?.toLowerCase().includes(term) ||
                       c.policyNumber?.toLowerCase().includes(term) ||
                       c.email?.toLowerCase().includes(term) ||
-                      c.phone?.toLowerCase().includes(term) ||
-                      c.insureds?.some(ins => ins.name?.toLowerCase().includes(term));
+                      c.phone?.toLowerCase().includes(term);
                
                if (!matchesSearch) return false;
                
@@ -485,9 +451,9 @@ const Clients = () => {
                     borderBottom: '1px solid var(--glass-border)',
                     opacity: isAnnulled ? 0.4 : 1,
                     transition: 'all 0.3s',
-                    background: client.highlighted ? 'rgba(226, 176, 66, 0.08)' : 'transparent',
+                    background: client.highlighted ? 'rgba(37, 99, 235, 0.08)' : 'transparent',
                     borderLeft: client.highlighted ? '4px solid var(--accent-gold)' : '4px solid transparent',
-                    boxShadow: client.highlighted ? 'inset 0 0 10px rgba(226, 176, 66, 0.05)' : 'none'
+                    boxShadow: client.highlighted ? 'inset 0 0 10px rgba(37, 99, 235, 0.05)' : 'none'
                   }}
                 >
                   <td style={{ padding: '12px 16px', fontWeight: '600', textDecoration: isAnnulled ? 'line-through' : 'none' }}>
@@ -496,48 +462,40 @@ const Clients = () => {
                       {client.highlighted && (
                         <span style={{ 
                           fontSize: '0.65rem', 
-                          background: 'rgba(226, 176, 66, 0.15)', 
-                          color: 'var(--accent-gold)', 
-                          padding: '2px 6px', 
+                          background: 'rgba(37, 99, 235, 0.12)', 
+                          color: '#1e40af', 
+                          padding: '2px 8px', 
                           borderRadius: '4px', 
                           fontWeight: 'bold',
-                          border: '1px solid rgba(226, 176, 66, 0.3)'
+                          border: '1px solid rgba(37, 99, 235, 0.25)'
                         }}>
-                          📌 Identificado
+                          Identificado
                         </span>
                       )}
                     </div>
-                    <span style={{ fontSize: '0.75rem', color: 'var(--text-dim)', textDecoration: 'none', display: 'inline-block', marginTop: '4px' }}>🎂 {formatBirthday(client.contractorBirthDate)}</span>
-                  </td>
-                  <td style={{ padding: '12px 16px', fontSize: '0.85rem', textDecoration: isAnnulled ? 'line-through' : 'none' }}>
-                    {client.insureds && client.insureds.map((ins, idx) => (
-                      <div key={idx} style={{ color: 'var(--text-muted)' }}>
-                        • {ins.name} <span style={{ color: 'var(--text-dim)', fontSize: '0.75rem' }}>(🎂 {formatBirthday(ins.birthDate)})</span>
-                      </div>
-                    ))}
+                    <span style={{ fontSize: '0.75rem', color: 'var(--text-dim)', textDecoration: 'none', display: 'inline-block', marginTop: '4px' }}>Nacimiento: {formatBirthday(client.contractorBirthDate)}</span>
                   </td>
                   <td style={{ padding: '12px 16px', color: 'var(--text-dim)', fontSize: '0.85rem', textDecoration: isAnnulled ? 'line-through' : 'none' }}>{client.email}</td>
                   <td style={{ padding: '12px 16px', color: 'var(--text-dim)', fontSize: '0.85rem', textDecoration: isAnnulled ? 'line-through' : 'none' }}>{client.phone}</td>
                   <td style={{ padding: '12px 16px', fontSize: '0.9rem', textDecoration: isAnnulled ? 'line-through' : 'none' }}>{client.policyNumber}</td>
-                  <td style={{ padding: '12px 16px', fontSize: '0.9rem', textDecoration: isAnnulled ? 'line-through' : 'none' }}>{client.product}</td>
+                  <td style={{ padding: '12px 16px', fontSize: '0.9rem', textDecoration: isAnnulled ? 'line-through' : 'none' }}>{client.product || 'Automotriz'}</td>
                   <td style={{ padding: '12px 16px', color: 'var(--text-muted)', fontSize: '0.85rem', textDecoration: isAnnulled ? 'line-through' : 'none' }}>{client.planType}</td>
-                  <td style={{ padding: '12px 16px', textDecoration: isAnnulled ? 'line-through' : 'none' }}>${client.annualPremium?.toLocaleString() || '0.00'}</td>
-                  <td style={{ padding: '12px 16px', fontWeight: 'bold', color: 'var(--accent-gold)', textDecoration: isAnnulled ? 'line-through' : 'none' }}>${client.premium?.toLocaleString()}</td>
-                  <td style={{ padding: '12px 16px', fontSize: '0.85rem', textDecoration: isAnnulled ? 'line-through' : 'none' }}>{client.currency || 'UDI'}</td>
+                  <td style={{ padding: '12px 16px', textDecoration: isAnnulled ? 'line-through' : 'none' }}>${client.annualPremium?.toLocaleString() || '0.00'} MXN</td>
+                  <td style={{ padding: '12px 16px', fontWeight: 'bold', color: 'var(--accent-gold)', textDecoration: isAnnulled ? 'line-through' : 'none' }}>${client.premium?.toLocaleString()} MXN</td>
                   <td style={{ padding: '12px 16px', fontSize: '0.85rem', textDecoration: isAnnulled ? 'line-through' : 'none' }}>{client.paymentFrequency}</td>
                   <td style={{ padding: '12px 16px', fontSize: '0.85rem', textDecoration: isAnnulled ? 'line-through' : 'none' }}>{client.paymentMethod}</td>
                   <td style={{ padding: '12px 16px', color: 'var(--text-dim)', fontSize: '0.85rem', textDecoration: isAnnulled ? 'line-through' : 'none' }}>{client.emissionDate}</td>
                   <td style={{ padding: '12px 16px' }}>
                     <span style={{ 
                       fontSize: '0.75rem', 
-                      background: isAnnulled ? 'rgba(255,255,255,0.05)' : isNewPolicy ? 'rgba(0, 200, 83, 0.1)' : 'rgba(0, 145, 234, 0.1)', 
-                      color: isAnnulled ? 'var(--text-dim)' : isNewPolicy ? '#00c853' : '#0091ea', 
+                      background: isAnnulled ? '#f1f5f9' : isNewPolicy ? 'rgba(5, 150, 105, 0.1)' : 'rgba(37, 99, 235, 0.1)', 
+                      color: isAnnulled ? 'var(--text-dim)' : isNewPolicy ? '#059669' : '#1e40af', 
                       padding: '4px 8px', 
                       borderRadius: '6px', 
                       fontWeight: 'bold',
                       display: 'inline-block'
                     }}>
-                      {isAnnulled ? 'ANULADA ❌' : `${formatAgeInYearsAndMonths(ageInMonths)} ${isNewPolicy ? '🟢' : '🔵'}`}
+                      {isAnnulled ? 'ANULADA' : formatAgeInYearsAndMonths(ageInMonths)}
                     </span>
                   </td>
                   <td style={{ padding: '12px 16px', color: 'var(--text-dim)', fontSize: '0.85rem' }}>
@@ -553,8 +511,8 @@ const Clients = () => {
                           const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
                           const daysLeft = Math.max(0, 30 - diffDays);
                           return (
-                            <div style={{ color: '#ff4444', fontSize: '0.75rem', fontWeight: 'bold', marginTop: '4px' }}>
-                              ⚠️ {diffDays} {diffDays === 1 ? 'día' : 'días'} de atraso. Quedan {daysLeft} {daysLeft === 1 ? 'día' : 'días'} para cancelarse.
+                            <div style={{ color: '#dc2626', fontSize: '0.75rem', fontWeight: 'bold', marginTop: '4px' }}>
+                              Aviso: {diffDays} {diffDays === 1 ? 'día' : 'días'} de atraso. Quedan {daysLeft} {daysLeft === 1 ? 'día' : 'días'} para cancelarse.
                             </div>
                           );
                         }
@@ -564,7 +522,7 @@ const Clients = () => {
                   </td>
                   <td style={{ padding: '12px 16px' }}>
                     <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                      <button onClick={() => openEditModal(client)} style={{ color: 'var(--accent-gold)', fontSize: '0.75rem', cursor: 'pointer', background: 'none', border: 'none' }}>Editar</button>
+                      <button onClick={() => openEditModal(client)} style={{ color: 'var(--accent-gold)', fontSize: '0.75rem', cursor: 'pointer', background: 'none', border: 'none', fontWeight: '600' }}>Editar</button>
                       <button 
                         onClick={() => handleToggleHighlight(client.id)} 
                         style={{ 
@@ -577,7 +535,7 @@ const Clients = () => {
                         }}
                         title={client.highlighted ? "Quitar marca de identificación" : "Identificar este cliente"}
                       >
-                        {client.highlighted ? '📌 Desmarcar' : '📌 Identificar'}
+                        {client.highlighted ? 'Desmarcar' : 'Identificar'}
                       </button>
                       {isAnnulled ? (
                         <button 
@@ -606,211 +564,106 @@ const Clients = () => {
 
       {/* Modal Crear/Editar Cliente */}
       {showClientModal && createPortal(
-        <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', background: 'rgba(0,0,0,0.85)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000 }}>
-          <div className="glass-card animate-up" style={{ width: '550px', padding: '32px', maxHeight: '90vh', overflowY: 'auto' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '24px' }}>
-              <h2>{editingClientId ? 'Editar Cliente' : 'Añadir Nuevo Cliente'}</h2>
-              <button onClick={() => setShowClientModal(false)} style={{ fontSize: '1.5rem', background: 'none', border: 'none', color: 'white', cursor: 'pointer' }}>✕</button>
+        <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', background: 'rgba(15,23,42,0.6)', backdropFilter: 'blur(4px)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000 }}>
+          <div className="glass-card animate-up" style={{ width: '580px', padding: '32px', maxHeight: '90vh', overflowY: 'auto', background: '#ffffff', color: '#0f172a', border: '1px solid #cbd5e1', boxShadow: '0 20px 40px rgba(15,23,42,0.2)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', borderBottom: '1px solid #e2e8f0', paddingBottom: '12px' }}>
+              <h2 style={{ fontSize: '1.4rem', fontWeight: '700', color: '#0f172a', margin: 0 }}>{editingClientId ? 'Editar Cliente' : 'Añadir Nuevo Cliente'}</h2>
+              <button 
+                type="button"
+                onClick={() => setShowClientModal(false)} 
+                style={{ 
+                  fontSize: '1.2rem', 
+                  background: '#f1f5f9', 
+                  border: '1px solid #cbd5e1', 
+                  color: '#0f172a', 
+                  cursor: 'pointer', 
+                  width: '36px', 
+                  height: '36px', 
+                  borderRadius: '50%', 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  justifyContent: 'center', 
+                  fontWeight: 'bold',
+                  transition: 'all 0.2s'
+                }}
+                title="Cerrar modal"
+              >
+                ✕
+              </button>
             </div>
             
             <form onSubmit={handleSubmitClient} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-              {!editingClientId && (
-                <div style={{
-                  background: 'rgba(226,176,66,0.03)',
-                  border: '1px dashed var(--accent-gold)',
-                  borderRadius: '12px',
-                  padding: '20px',
-                  textAlign: 'center',
-                  marginBottom: '8px',
-                  position: 'relative',
-                  transition: 'all 0.3s ease',
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.background = 'rgba(226,176,66,0.08)';
-                  e.currentTarget.style.borderColor = '#ffd700';
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.background = 'rgba(226,176,66,0.03)';
-                  e.currentTarget.style.borderColor = 'var(--accent-gold)';
-                }}
-                >
-                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
-                    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--accent-gold)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-                      <polyline points="14 2 14 8 20 8"></polyline>
-                      <line x1="12" y1="18" x2="12" y2="12"></line>
-                      <polyline points="9 15 12 12 15 15"></polyline>
-                    </svg>
-                    <div style={{ fontSize: '0.85rem', fontWeight: '600', color: 'white' }}>
-                      Lectura Inteligente de Póliza
-                    </div>
-                    <div style={{ fontSize: '0.75rem', color: 'var(--text-dim)' }}>
-                      Sube la carátula en PDF para rellenar el formulario automáticamente
-                    </div>
-                    <label className="btn-primary" style={{
-                      marginTop: '8px',
-                      padding: '6px 16px',
-                      fontSize: '0.75rem',
-                      width: 'auto',
-                      background: 'rgba(226,176,66,0.2)',
-                      color: 'var(--accent-gold)',
-                      border: '1px solid var(--accent-gold)',
-                      cursor: 'pointer',
-                      display: 'inline-block'
-                    }}>
-                      {parsingPdf ? 'Analizando carátula...' : '📄 Seleccionar PDF'}
-                      <input type="file" accept="application/pdf" hidden disabled={parsingPdf} onChange={(e) => handlePolicyParse(e.target.files[0])} />
-                    </label>
-                  </div>
-                </div>
-              )}
               <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '16px' }}>
                 <div>
-                  <label style={{ fontSize: '0.8rem', color: 'var(--text-dim)', marginBottom: '6px', display: 'block' }}>Nombre del Contratante</label>
-                  <input required value={clientData.contractor} onChange={e => setClientData({...clientData, contractor: e.target.value})} style={inputStyle} />
+                  <label style={{ fontSize: '0.8rem', color: '#334155', marginBottom: '6px', display: 'block', fontWeight: '600' }}>Nombre del Contratante</label>
+                  <input required value={clientData.contractor} onChange={e => setClientData({...clientData, contractor: e.target.value})} placeholder="Nombre completo" style={inputStyle} />
                 </div>
                 <div>
-                  <label style={{ fontSize: '0.8rem', color: 'var(--text-dim)', marginBottom: '6px', display: 'block' }}>Nacimiento (Contratante)</label>
+                  <label style={{ fontSize: '0.8rem', color: '#334155', marginBottom: '6px', display: 'block', fontWeight: '600' }}>Nacimiento (Contratante)</label>
                   <input type="date" value={clientData.contractorBirthDate} onChange={e => setClientData({...clientData, contractorBirthDate: e.target.value})} style={inputStyle} />
                 </div>
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'rgba(255,255,255,0.02)', padding: '10px 14px', borderRadius: '8px', border: '1px solid var(--glass-border)' }}>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', background: '#f8fafc', padding: '12px 16px', borderRadius: '8px', border: '1px solid #cbd5e1' }}>
                 <input 
                   type="checkbox" 
                   id="highlighted" 
                   checked={clientData.highlighted || false} 
                   onChange={e => setClientData({...clientData, highlighted: e.target.checked})} 
-                  style={{ width: '16px', height: '16px', cursor: 'pointer', accentColor: 'var(--accent-gold)' }} 
+                  style={{ width: '18px', height: '18px', cursor: 'pointer', accentColor: '#1e40af' }} 
                 />
-                <label htmlFor="highlighted" style={{ fontSize: '0.8rem', color: 'white', cursor: 'pointer', userSelect: 'none' }}>
-                  📌 Identificar cliente (Resaltar fila completa en la base de datos)
+                <label htmlFor="highlighted" style={{ fontSize: '0.85rem', color: '#0f172a', cursor: 'pointer', fontWeight: '600', userSelect: 'none' }}>
+                  Identificar cliente (Resaltar fila completa en la base de datos)
                 </label>
               </div>
+
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
                 <div>
-                  <label style={{ fontSize: '0.8rem', color: 'var(--text-dim)', marginBottom: '6px', display: 'block' }}>Teléfono (WhatsApp)</label>
-                  <input value={clientData.phone} onChange={e => setClientData({...clientData, phone: e.target.value})} style={inputStyle} />
+                  <label style={{ fontSize: '0.8rem', color: '#334155', marginBottom: '6px', display: 'block', fontWeight: '600' }}>Teléfono (WhatsApp)</label>
+                  <input value={clientData.phone} onChange={e => setClientData({...clientData, phone: e.target.value})} placeholder="Ej: 5512345678" style={inputStyle} />
                 </div>
                 <div>
-                  <label style={{ fontSize: '0.8rem', color: 'var(--text-dim)', marginBottom: '6px', display: 'block' }}>Correo Electrónico</label>
-                  <input type="email" value={clientData.email} onChange={e => setClientData({...clientData, email: e.target.value})} style={inputStyle} />
-                </div>
-              </div>
-
-              <div style={{ background: 'rgba(255,255,255,0.02)', padding: '16px', borderRadius: '12px', border: '1px solid var(--glass-border)' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-                  <label style={{ fontSize: '0.85rem', color: 'var(--accent-gold)', fontWeight: 'bold' }}>Asegurados</label>
-                  <button type="button" onClick={() => setClientData({...clientData, insureds: [...clientData.insureds, {name: '', birthDate: ''}]})} style={{ fontSize: '0.75rem', background: 'rgba(226,176,66,0.2)', color: 'var(--accent-gold)', border: 'none', padding: '4px 8px', borderRadius: '4px', cursor: 'pointer' }}>+ Añadir Asegurado</button>
-                </div>
-                {clientData.insureds.map((ins, idx) => (
-                  <div key={idx} style={{ display: 'grid', gridTemplateColumns: '2fr 1fr auto', gap: '8px', marginBottom: '8px', alignItems: 'end' }}>
-                    <div>
-                      <label style={{ fontSize: '0.7rem', color: 'var(--text-dim)', marginBottom: '4px', display: 'block' }}>Nombre del Asegurado</label>
-                      <input placeholder="Asegurado" value={ins.name} onChange={e => {
-                        const newIns = [...clientData.insureds];
-                        newIns[idx].name = e.target.value;
-                        setClientData({...clientData, insureds: newIns});
-                      }} style={inputStyle} />
-                    </div>
-                    <div>
-                      <label style={{ fontSize: '0.7rem', color: 'var(--text-dim)', marginBottom: '4px', display: 'block' }}>Nacimiento</label>
-                      <input type="date" value={ins.birthDate} onChange={e => {
-                        const newIns = [...clientData.insureds];
-                        newIns[idx].birthDate = e.target.value;
-                        setClientData({...clientData, insureds: newIns});
-                      }} style={inputStyle} />
-                    </div>
-                    {clientData.insureds.length > 1 && (
-                      <button type="button" onClick={() => {
-                        const newIns = clientData.insureds.filter((_, i) => i !== idx);
-                        setClientData({...clientData, insureds: newIns});
-                      }} style={{ background: 'none', border: 'none', color: '#ff4444', cursor: 'pointer', padding: '10px' }}>✕</button>
-                    )}
-                  </div>
-                ))}
-              </div>
-
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px' }}>
-                <div>
-                  <label style={{ fontSize: '0.8rem', color: 'var(--text-dim)', marginBottom: '6px', display: 'block' }}>Póliza</label>
-                  <input required value={clientData.policyNumber} onChange={e => setClientData({...clientData, policyNumber: e.target.value})} style={inputStyle} />
-                </div>
-                <div>
-                  <label style={{ fontSize: '0.8rem', color: 'var(--text-dim)', marginBottom: '6px', display: 'block' }}>Ramo</label>
-                  <select value={clientData.product} onChange={e => {
-                      const newProduct = e.target.value;
-                      let newCurrency = clientData.currency;
-                      if (newProduct === 'GMM') newCurrency = 'MXN';
-                      else if (newCurrency === 'MXN') newCurrency = 'USD';
-                      const defaultPlan = newProduct === 'GMM' ? 'Pleno' : 'Orvi';
-                      setClientData({...clientData, product: newProduct, currency: newCurrency, planType: defaultPlan});
-                    }} style={inputStyle}>
-                     <option value="Vida">Vida</option>
-                     <option value="GMM">Gastos Médicos Mayores (GMM)</option>
-                  </select>
-                </div>
-                <div>
-                  <label style={{ fontSize: '0.8rem', color: 'var(--text-dim)', marginBottom: '6px', display: 'block' }}>Tipo de Plan</label>
-                  <select value={clientData.planType} onChange={e => setClientData({...clientData, planType: e.target.value})} style={inputStyle}>
-                    {clientData.product === 'GMM' ? (
-                      <>
-                        <option value="Pleno">Pleno</option>
-                        <option value="Integro">Integro</option>
-                        <option value="Practico">Practico</option>
-                        <option value="Flex A">Flex A</option>
-                        <option value="Flex B">Flex B</option>
-                      </>
-                    ) : (
-                      <>
-                        <option value="Orvi">Orvi</option>
-                        <option value="Dotal">Dotal</option>
-                        <option value="Vida mujer">Vida mujer</option>
-                        <option value="Imagina ser">Imagina ser</option>
-                        <option value="Nuevo planitud">Nuevo planitud</option>
-                        <option value="Segubeca">Segubeca</option>
-                        <option value="Mio">Mio</option>
-                        <option value="Objetivo Vida">Objetivo Vida</option>
-                        <option value="Temporal">Temporal</option>
-                      </>
-                    )}
-                  </select>
+                  <label style={{ fontSize: '0.8rem', color: '#334155', marginBottom: '6px', display: 'block', fontWeight: '600' }}>Correo Electrónico</label>
+                  <input type="email" value={clientData.email} onChange={e => setClientData({...clientData, email: e.target.value})} placeholder="correo@ejemplo.com" style={inputStyle} />
                 </div>
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
                 <div>
-                  <label style={{ fontSize: '0.8rem', color: 'var(--text-dim)', marginBottom: '6px', display: 'block' }}>Fecha de Emisión</label>
+                  <label style={{ fontSize: '0.8rem', color: '#334155', marginBottom: '6px', display: 'block', fontWeight: '600' }}>Póliza</label>
+                  <input required value={clientData.policyNumber} onChange={e => setClientData({...clientData, policyNumber: e.target.value})} placeholder="Número de Póliza" style={inputStyle} />
+                </div>
+                <div>
+                  <label style={{ fontSize: '0.8rem', color: '#334155', marginBottom: '6px', display: 'block', fontWeight: '600' }}>Tipo de Plan</label>
+                  <input value={clientData.planType} onChange={e => setClientData({...clientData, planType: e.target.value})} placeholder="Ej: Cobertura Amplia, RC, Amplia Plus..." style={inputStyle} />
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                <div>
+                  <label style={{ fontSize: '0.8rem', color: '#334155', marginBottom: '6px', display: 'block', fontWeight: '600' }}>Fecha de Emisión</label>
                   <input type="date" value={clientData.emissionDate} onChange={e => setClientData({...clientData, emissionDate: e.target.value})} style={inputStyle} />
                 </div>
                 <div>
-                  <label style={{ fontSize: '0.8rem', color: 'var(--text-dim)', marginBottom: '6px', display: 'block' }}>Fecha de Pago / Cobro</label>
+                  <label style={{ fontSize: '0.8rem', color: '#334155', marginBottom: '6px', display: 'block', fontWeight: '600' }}>Fecha de Pago / Cobro</label>
                   <input type="date" value={clientData.collectionDate} onChange={e => setClientData({...clientData, collectionDate: e.target.value})} style={inputStyle} />
                 </div>
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', background: 'rgba(255,255,255,0.02)', padding: '16px', borderRadius: '12px', border: '1px solid rgba(226,176,66,0.2)' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', background: '#f8fafc', padding: '16px', borderRadius: '12px', border: '1px solid #cbd5e1' }}>
                  <div style={{ gridColumn: 'span 2', display: 'flex', gap: '16px' }}>
                     <div style={{ flex: 2 }}>
-                      <label style={{ fontSize: '0.8rem', color: 'var(--accent-gold)', marginBottom: '6px', display: 'block' }}>Prima Anual (Monto Total)</label>
-                      <input required type="number" step="0.01" value={clientData.annualPremium} onChange={e => setClientData({...clientData, annualPremium: e.target.value})} style={{...inputStyle, borderColor: 'var(--accent-gold)'}} />
+                      <label style={{ fontSize: '0.8rem', color: '#1e40af', marginBottom: '6px', display: 'block', fontWeight: '700' }}>Prima Anual (Monto Total MXN)</label>
+                      <input required type="number" step="0.01" value={clientData.annualPremium} onChange={e => setClientData({...clientData, annualPremium: e.target.value})} placeholder="Monto total anual" style={{...inputStyle, borderColor: '#2563eb', fontWeight: 'bold'}} />
                     </div>
                     <div style={{ flex: 1 }}>
-                      <label style={{ fontSize: '0.8rem', color: 'var(--text-dim)', marginBottom: '6px', display: 'block' }}>Moneda</label>
-                      <select value={clientData.currency} onChange={e => setClientData({...clientData, currency: e.target.value})} style={inputStyle} disabled={clientData.product === 'GMM'}>
-                          {clientData.product === 'GMM' ? (
-                            <option value="MXN">Pesos (MXN)</option>
-                          ) : (
-                            <>
-                              <option value="UDI">UDI</option>
-                              <option value="USD">Dólares (USD)</option>
-                            </>
-                          )}
-                      </select>
+                      <label style={{ fontSize: '0.8rem', color: '#334155', marginBottom: '6px', display: 'block', fontWeight: '600' }}>Moneda</label>
+                      <input type="text" value="Pesos (MXN)" readOnly style={{...inputStyle, background: '#e2e8f0', color: '#475569', fontWeight: '600'}} />
                     </div>
                  </div>
                  
                  <div>
-                    <label style={{ fontSize: '0.8rem', color: 'var(--text-dim)', marginBottom: '6px', display: 'block' }}>Frecuencia de Pago</label>
+                    <label style={{ fontSize: '0.8rem', color: '#334155', marginBottom: '6px', display: 'block', fontWeight: '600' }}>Frecuencia de Pago</label>
                     <select value={clientData.paymentFrequency} onChange={e => setClientData({...clientData, paymentFrequency: e.target.value})} style={inputStyle}>
                       <option value="MENSUAL">Mensual</option>
                       <option value="TRIMESTRAL">Trimestral</option>
@@ -820,15 +673,15 @@ const Clients = () => {
                  </div>
                  
                  <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
-                    <label style={{ fontSize: '0.75rem', color: 'var(--text-dim)', marginBottom: '6px', display: 'block' }}>Prima a Pagar ({clientData.paymentFrequency})</label>
-                    <div style={{ padding: '10px', background: 'rgba(0,0,0,0.3)', borderRadius: '8px', color: 'white', fontWeight: 'bold', fontSize: '1rem', border: '1px solid rgba(255,255,255,0.1)' }}>
-                      $ {calculatedPremium}
+                    <label style={{ fontSize: '0.75rem', color: '#334155', marginBottom: '6px', display: 'block', fontWeight: '600' }}>Prima a Pagar ({clientData.paymentFrequency})</label>
+                    <div style={{ padding: '10px 14px', background: '#e2e8f0', borderRadius: '8px', color: '#0f172a', fontWeight: 'bold', fontSize: '1rem', border: '1px solid #cbd5e1' }}>
+                      $ {calculatedPremium} MXN
                     </div>
                  </div>
               </div>
 
               <div>
-                <label style={{ fontSize: '0.8rem', color: 'var(--text-dim)', marginBottom: '6px', display: 'block' }}>Modo de Cobro</label>
+                <label style={{ fontSize: '0.8rem', color: '#334155', marginBottom: '6px', display: 'block', fontWeight: '600' }}>Modo de Cobro</label>
                 <select value={clientData.paymentMethod} onChange={e => setClientData({...clientData, paymentMethod: e.target.value})} style={inputStyle}>
                   <option value="TC">Tarjeta de Crédito (TC)</option>
                   <option value="TD">Tarjeta de Débito (TD)</option>
@@ -836,7 +689,14 @@ const Clients = () => {
                 </select>
               </div>
 
-              <button type="submit" className="btn-primary" style={{ marginTop: '12px' }}>{editingClientId ? 'Guardar Cambios' : 'Guardar Cliente'}</button>
+              <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', marginTop: '16px' }}>
+                <button type="button" onClick={() => setShowClientModal(false)} style={{ padding: '12px 24px', background: '#f1f5f9', border: '1px solid #cbd5e1', borderRadius: '8px', color: '#0f172a', fontWeight: '600', cursor: 'pointer' }}>
+                  Cancelar
+                </button>
+                <button type="submit" className="btn-primary">
+                  {editingClientId ? 'Guardar Cambios' : 'Guardar Cliente'}
+                </button>
+              </div>
             </form>
           </div>
         </div>,
@@ -844,31 +704,31 @@ const Clients = () => {
       )}
 
       {selectedClient && createPortal(
-        <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', background: 'rgba(0,0,0,0.85)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000 }}>
-          <div className="glass-card animate-up" style={{ width: '600px', padding: '32px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '24px' }}>
-              <h2>Expediente: {selectedClient.contractor}</h2>
-              <button onClick={() => setSelectedClient(null)} style={{ fontSize: '1.5rem', background: 'none', border: 'none', color: 'white', cursor: 'pointer' }}>✕</button>
+        <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', background: 'rgba(15,23,42,0.6)', backdropFilter: 'blur(4px)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000 }}>
+          <div className="glass-card animate-up" style={{ width: '600px', padding: '32px', background: '#ffffff', color: '#0f172a', border: '1px solid #cbd5e1', boxShadow: '0 20px 40px rgba(15,23,42,0.2)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', borderBottom: '1px solid #e2e8f0', paddingBottom: '12px' }}>
+              <h2 style={{ fontSize: '1.3rem', color: '#0f172a', margin: 0, fontWeight: '700' }}>Expediente: {selectedClient.contractor}</h2>
+              <button onClick={() => setSelectedClient(null)} style={{ fontSize: '1.2rem', background: '#f1f5f9', border: '1px solid #cbd5e1', color: '#0f172a', cursor: 'pointer', width: '36px', height: '36px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold' }}>✕</button>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px', marginBottom: '32px' }}>
               <div>
-                <p style={{ color: 'var(--text-dim)', fontSize: '0.8rem', marginBottom: '12px' }}>Subir Documento</p>
+                <p style={{ color: '#334155', fontSize: '0.85rem', marginBottom: '12px', fontWeight: '600' }}>Subir Documento</p>
                 <select value={docCategory} onChange={(e) => setDocCategory(e.target.value)}
-                  style={{ width: '100%', padding: '10px', background: 'rgba(255,255,255,0.05)', color: 'white', borderRadius: '8px', marginBottom: '12px', border: '1px solid var(--glass-border)' }}>
-                  <option value="Poliza">📄 Póliza</option>
-                  <option value="INE">🪪 INE</option>
-                  <option value="Pago">💰 Comprobante</option>
-                  <option value="Otros">📂 Otros</option>
+                  style={{ width: '100%', padding: '10px', background: '#ffffff', color: '#0f172a', borderRadius: '8px', marginBottom: '12px', border: '1px solid #cbd5e1', outline: 'none' }}>
+                  <option value="Poliza">Póliza</option>
+                  <option value="INE">INE</option>
+                  <option value="Pago">Comprobante</option>
+                  <option value="Otros">Otros</option>
                 </select>
-                <input type="file" onChange={(e) => handleUpload(selectedClient.id, e.target.files[0])} style={{ fontSize: '0.8rem' }} />
+                <input type="file" onChange={(e) => handleUpload(selectedClient.id, e.target.files[0])} style={{ fontSize: '0.8rem', color: '#334155' }} />
               </div>
-              <div style={{ background: 'rgba(255,255,255,0.02)', padding: '16px', borderRadius: '12px', border: '1px solid var(--glass-border)' }}>
-                <p style={{ color: 'var(--text-dim)', fontSize: '0.8rem', marginBottom: '12px' }}>Documentos</p>
-                {selectedClient.documents.length === 0 ? <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Sin archivos.</p> : (
+              <div style={{ background: '#f8fafc', padding: '16px', borderRadius: '12px', border: '1px solid #cbd5e1' }}>
+                <p style={{ color: '#334155', fontSize: '0.85rem', marginBottom: '12px', fontWeight: '600' }}>Documentos</p>
+                {selectedClient.documents.length === 0 ? <p style={{ fontSize: '0.8rem', color: '#64748b' }}>Sin archivos.</p> : (
                   <ul style={{ listStyle: 'none', padding: 0 }}>
                     {selectedClient.documents.map((doc, i) => (
-                      <li key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: '1px solid rgba(255,255,255,0.05)', fontSize: '0.85rem' }}>
-                        <a href={`http://localhost:5001/${doc.path}`} target="_blank" style={{ color: 'var(--accent-gold)', textDecoration: 'none', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '180px', display: 'inline-block', whiteSpace: 'nowrap' }} title={doc.name}>
+                      <li key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: '1px solid #e2e8f0', fontSize: '0.85rem' }}>
+                        <a href={`http://localhost:5001/${doc.path}`} target="_blank" style={{ color: '#1e40af', fontWeight: '600', textDecoration: 'none', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '180px', display: 'inline-block', whiteSpace: 'nowrap' }} title={doc.name}>
                           [{doc.category}] {doc.name}
                         </a>
                         <button 
@@ -876,7 +736,7 @@ const Clients = () => {
                           style={{
                             background: 'none',
                             border: 'none',
-                            color: '#ff4444',
+                            color: '#dc2626',
                             cursor: 'pointer',
                             padding: '4px',
                             display: 'flex',
@@ -884,7 +744,7 @@ const Clients = () => {
                             borderRadius: '4px',
                             transition: 'all 0.2s'
                           }}
-                          onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255, 68, 68, 0.1)'}
+                          onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(220, 38, 38, 0.1)'}
                           onMouseLeave={(e) => e.currentTarget.style.background = 'none'}
                           title="Eliminar documento del expediente"
                         >
