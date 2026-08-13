@@ -1893,6 +1893,10 @@ app.get('/api/analytics', authMiddleware, (req, res) => {
     pendiente: 0,
     cobradoMXN: 0,
     pendienteMXN: 0,
+    cobradoNuevasMXN: 0,
+    cobradoSubsecuentesMXN: 0,
+    pendienteNuevasMXN: 0,
+    pendienteSubsecuentesMXN: 0,
     ventas: 0
   }));
 
@@ -1987,31 +1991,18 @@ app.get('/api/analytics', authMiddleware, (req, res) => {
         let isPaidThisMonth = false;
 
         if (c.status !== 'Anulada') {
-          // Obtener día de cobro de la póliza
-          let scheduledDay = c.collectionDay;
-          if (!scheduledDay && c.collectionDate) {
-            scheduledDay = new Date(c.collectionDate + 'T00:00:00').getDate();
-          }
-          if (!scheduledDay && c.emissionDate) {
-            scheduledDay = new Date(c.emissionDate + 'T00:00:00').getDate();
-          }
-          if (!scheduledDay) scheduledDay = 1;
-
-          const tYearNum = parseInt(currentYear);
-          const tMonthNum = parseInt(month);
-          const daysInMonth = new Date(tYearNum, tMonthNum, 0).getDate();
-          const safeDay = Math.min(scheduledDay, daysInMonth);
-          const scheduledDateStr = `${tYearNum}-${String(tMonthNum).padStart(2, '0')}-${String(safeDay).padStart(2, '0')}`;
-          const todayStr = new Date().toISOString().slice(0, 10);
-
           if (c.status === 'Atrasada') {
             isPaidThisMonth = false;
-          } else if (scheduledDateStr < todayStr) {
-            // Si la fecha de cobro de este mes o mes anterior ya ocurrió antes de hoy, se presupone PAGADA
+          } else if (isNewSale) {
+            // Venta Nueva emitida en el mes en curso: el primer cobro se considera pagado al emitirse
+            isPaidThisMonth = true;
+          } else if (tYear < nowYear || (tYear === nowYear && tMonth < nowMonth)) {
+            // Cobros de meses/años pasados históricos
             isPaidThisMonth = true;
           } else {
-            // Si la fecha de cobro es hoy o en el futuro, es PENDIENTE salvo que el asesor manualmente la haya marcado como Pagada
-            isPaidThisMonth = (c.status === 'Pagada');
+            // Mes actual en curso o meses futuros: requiere estar explícitamente marcada como Pagada con fecha de pago registrada en este mes
+            const mStr = String(tMonth).padStart(2, '0');
+            isPaidThisMonth = Boolean(c.paymentDate && c.paymentDate.startsWith(`${currentYear}-${mStr}`));
           }
         }
 
@@ -2105,15 +2096,18 @@ app.get('/api/analytics', authMiddleware, (req, res) => {
           if (scheduled) {
             const mStr = String(m).padStart(2, '0');
             const tYear = parseInt(currentYear);
+            const isNewSaleInM = (eYear === currentYear && parseInt(eMonth) === m);
             let isPaidThisMonth = false;
 
             if (c.status !== 'Anulada') {
               if (c.status === 'Atrasada') {
                 isPaidThisMonth = false;
-              } else if (tYear < nowYear || (tYear === nowYear && m <= nowMonth)) {
+              } else if (isNewSaleInM) {
+                isPaidThisMonth = true;
+              } else if (tYear < nowYear || (tYear === nowYear && m < nowMonth)) {
                 isPaidThisMonth = true;
               } else {
-                isPaidThisMonth = (c.status === 'Pagada' && c.paymentDate && c.paymentDate.startsWith(`${currentYear}-${mStr}`));
+                isPaidThisMonth = Boolean(c.paymentDate && c.paymentDate.startsWith(`${currentYear}-${mStr}`));
               }
             }
 
@@ -2192,10 +2186,12 @@ app.get('/api/analytics', authMiddleware, (req, res) => {
         if (c.status !== 'Anulada') {
           if (c.status === 'Atrasada') {
             isPaidThisMonth = false;
-          } else if (tYear < nowYear || (tYear === nowYear && (mIndex + 1) <= nowMonth)) {
+          } else if (isNewSaleInM) {
+            isPaidThisMonth = true;
+          } else if (tYear < nowYear || (tYear === nowYear && (mIndex + 1) < nowMonth)) {
             isPaidThisMonth = true;
           } else {
-            isPaidThisMonth = (c.status === 'Pagada' && c.paymentDate && c.paymentDate.startsWith(`${currentYear}-${mStr}`));
+            isPaidThisMonth = Boolean(c.paymentDate && c.paymentDate.startsWith(`${currentYear}-${mStr}`));
           }
         }
 
@@ -2204,11 +2200,20 @@ app.get('/api/analytics', authMiddleware, (req, res) => {
           monthlyFlow[mIndex].cobradoMXN += mxnVal;
           
           if (isNewSaleInM) {
+            monthlyFlow[mIndex].cobradoNuevasMXN += mxnVal;
             monthlyFlow[mIndex].ventas += 1;
+          } else {
+            monthlyFlow[mIndex].cobradoSubsecuentesMXN += mxnVal;
           }
         } else {
           monthlyFlow[mIndex].pendiente += premiumVal;
           monthlyFlow[mIndex].pendienteMXN += mxnVal;
+
+          if (isNewSaleInM) {
+            monthlyFlow[mIndex].pendienteNuevasMXN += mxnVal;
+          } else {
+            monthlyFlow[mIndex].pendienteSubsecuentesMXN += mxnVal;
+          }
         }
       }
     }

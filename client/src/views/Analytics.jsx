@@ -346,6 +346,10 @@ const Analytics = () => {
       mes: i + 1,
       cobrado: 0,
       pendiente: 0,
+      cobradoNuevas: 0,
+      cobradoSubsecuentes: 0,
+      pendienteNuevas: 0,
+      pendienteSubsecuentes: 0,
       ventas: 0
     }));
 
@@ -384,39 +388,38 @@ const Analytics = () => {
         const mIndex = m - 1;
         const val = subTab === 'consolidado' ? convertAmount(c.premium || 0, c.currency) : (c.premium || 0);
         const mStr = String(m).padStart(2, '0');
+        const isNewSaleInM = (eYear === tYear && eMonth === m);
 
         let isPaidThisMonth = false;
         if (c.status !== 'Anulada') {
-          let scheduledDay = c.collectionDay;
-          if (!scheduledDay && c.collectionDate) {
-            scheduledDay = new Date(c.collectionDate + 'T00:00:00').getDate();
-          }
-          if (!scheduledDay && c.emissionDate) {
-            scheduledDay = new Date(c.emissionDate + 'T00:00:00').getDate();
-          }
-          if (!scheduledDay) scheduledDay = 1;
-
-          const daysInMonth = new Date(tYear, m, 0).getDate();
-          const safeDay = Math.min(scheduledDay, daysInMonth);
-          const scheduledDateStr = `${tYear}-${String(m).padStart(2, '0')}-${String(safeDay).padStart(2, '0')}`;
-          const todayStr = new Date().toISOString().slice(0, 10);
-
           if (c.status === 'Atrasada') {
             isPaidThisMonth = false;
-          } else if (scheduledDateStr < todayStr) {
+          } else if (isNewSaleInM) {
+            isPaidThisMonth = true;
+          } else if (tYear < nowYear || (tYear === nowYear && m < nowMonth)) {
             isPaidThisMonth = true;
           } else {
-            isPaidThisMonth = (c.status === 'Pagada');
+            isPaidThisMonth = Boolean(c.paymentDate && c.paymentDate.startsWith(`${year}-${mStr}`));
           }
         }
 
         if (isPaidThisMonth) {
           flow[mIndex].cobrado += val;
+          if (isNewSaleInM) {
+            flow[mIndex].cobradoNuevas += val;
+          } else {
+            flow[mIndex].cobradoSubsecuentes += val;
+          }
         } else {
           flow[mIndex].pendiente += val;
+          if (isNewSaleInM) {
+            flow[mIndex].pendienteNuevas += val;
+          } else {
+            flow[mIndex].pendienteSubsecuentes += val;
+          }
         }
 
-        if (eYear === tYear && eMonth === m) {
+        if (isNewSaleInM) {
           flow[mIndex].ventas += 1;
         }
       });
@@ -852,11 +855,11 @@ const Analytics = () => {
                     contentStyle={{ backgroundColor: 'rgba(10,10,10,0.95)', border: '1px solid #4488ff', borderRadius: '6px', fontSize: '9px', padding: '4px 8px' }}
                     itemStyle={{ color: '#fff', padding: 0 }}
                     labelStyle={{ color: 'var(--text-dim)', fontWeight: 'bold', margin: 0 }}
-                    formatter={(value) => [activeSubTab === 'consolidado' ? fmt(value) : formatRawValue(value, activeSubTab), 'Cobrado']}
+                    formatter={(value) => [activeSubTab === 'consolidado' ? fmt(value) : formatRawValue(value, activeSubTab), 'Subsecuente Cobrado']}
                   />
                   <Area 
                     type="linear" 
-                    dataKey="cobrado" 
+                    dataKey="cobradoSubsecuentes" 
                     stroke="#4488ff" 
                     strokeWidth={2} 
                     fillOpacity={1} 
