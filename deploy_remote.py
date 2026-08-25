@@ -25,7 +25,10 @@ else:
     time.sleep(1)
     os.write(master, b"ls -la\n")
     time.sleep(1)
-    os.write(master, b"cd domains/crm.ambrizydavalos.com/nodejs && git fetch --all && git reset --hard origin/main && touch tmp/restart.txt\n")
+    # pack.threads=1: el hosting compartido a veces no puede crear hilos para
+    # resolver deltas ("fatal: unable to create thread: Resource temporarily
+    # unavailable"), forzar un solo hilo evita ese error intermitente.
+    os.write(master, b"cd domains/crm.ambrizydavalos.com/nodejs && git -c pack.threads=1 fetch --all && git reset --hard origin/main && touch tmp/restart.txt && git log -1 --oneline\n")
     time.sleep(4)
     os.write(master, b"exit\n")
     
