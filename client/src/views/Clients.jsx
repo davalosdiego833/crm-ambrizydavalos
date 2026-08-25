@@ -84,8 +84,16 @@ const formatAgeInYearsAndMonths = (totalMonths) => {
   return parts.join(' ');
 };
 
+// Ramos y planes propios de Ambriz & Dávalos (Vida/GMM). Novaris solo maneja
+// Automotriz/MXN, así que estas listas no aplican para ese despacho.
+const AMBRIZ_PLAN_OPTIONS = {
+  GMM: ['Pleno', 'Integro', 'Practico', 'Flex A', 'Flex B'],
+  Vida: ['Orvi', 'Dotal', 'Vida mujer', 'Imagina ser', 'Nuevo planitud', 'Segubeca', 'Mio', 'Objetivo Vida'],
+};
+
 const Clients = () => {
-  const { authFetch } = useAuth();
+  const { user, authFetch } = useAuth();
+  const isAmbriz = user?.company === 'ambriz';
   const [clients, setClients] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(true);
@@ -97,13 +105,13 @@ const Clients = () => {
   // Estados para Modal Cliente (Crear/Editar)
   const [showClientModal, setShowClientModal] = useState(false);
   const [editingClientId, setEditingClientId] = useState(null);
-  
+
   const initialClientData = {
     contractor: '', contractorBirthDate: '', email: '', phone: '',
-    policyNumber: '', product: 'Automotriz', planType: '',
+    policyNumber: '', product: isAmbriz ? 'Vida' : 'Automotriz', planType: isAmbriz ? 'Orvi' : '',
     emissionDate: '', collectionDate: '',
     paymentFrequency: 'MENSUAL', paymentMethod: 'TC',
-    annualPremium: '', currency: 'MXN',
+    annualPremium: '', currency: isAmbriz ? 'UDI' : 'MXN',
     insureds: [],
     highlighted: false
   };
@@ -132,12 +140,12 @@ const Clients = () => {
           contractor: info.contractor || prev.contractor,
           contractorBirthDate: (info.insureds && info.insureds[0]?.birthDate) || prev.contractorBirthDate,
           policyNumber: info.policyNumber || prev.policyNumber,
-          product: 'Automotriz',
+          product: isAmbriz ? (info.product || prev.product) : 'Automotriz',
           planType: info.planType || prev.planType,
           emissionDate: info.emissionDate || prev.emissionDate,
           collectionDate: info.collectionDate || prev.collectionDate,
           paymentFrequency: info.paymentFrequency || prev.paymentFrequency,
-          currency: 'MXN',
+          currency: isAmbriz ? (info.currency || prev.currency) : 'MXN',
           annualPremium: info.premium ? parseFloat(info.premium).toFixed(2) : prev.annualPremium
         }));
         alert('¡Carátula leída con éxito! Revisa la información autollenada en el formulario.');
@@ -282,14 +290,14 @@ const Clients = () => {
       email: client.email || '',
       phone: client.phone || '',
       policyNumber: client.policyNumber || '',
-      product: 'Automotriz',
+      product: isAmbriz ? (client.product || 'Vida') : 'Automotriz',
       planType: client.planType || '',
       emissionDate: client.emissionDate || '',
       collectionDate: client.collectionDate || '',
       paymentFrequency: client.paymentFrequency || 'MENSUAL',
       paymentMethod: client.paymentMethod || 'TC',
       annualPremium: client.annualPremium || '',
-      currency: 'MXN',
+      currency: isAmbriz ? (client.currency || 'UDI') : 'MXN',
       insureds: [],
       highlighted: client.highlighted || false
     });
@@ -382,6 +390,7 @@ const Clients = () => {
               <th style={{ padding: '16px' }}>Tipo de Plan</th>
               <th style={{ padding: '16px' }}>Prima Anual</th>
               <th style={{ padding: '16px' }}>Prima (Cobro)</th>
+              <th style={{ padding: '16px' }}>Moneda</th>
               <th style={{ padding: '16px' }}>Frecuencia</th>
               <th style={{ padding: '16px' }}>Modo</th>
               <th style={{ padding: '16px' }}>Emisión</th>
@@ -478,10 +487,11 @@ const Clients = () => {
                   <td style={{ padding: '12px 16px', color: 'var(--text-dim)', fontSize: '0.85rem', textDecoration: isAnnulled ? 'line-through' : 'none' }}>{client.email}</td>
                   <td style={{ padding: '12px 16px', color: 'var(--text-dim)', fontSize: '0.85rem', textDecoration: isAnnulled ? 'line-through' : 'none' }}>{client.phone}</td>
                   <td style={{ padding: '12px 16px', fontSize: '0.9rem', textDecoration: isAnnulled ? 'line-through' : 'none' }}>{client.policyNumber}</td>
-                  <td style={{ padding: '12px 16px', fontSize: '0.9rem', textDecoration: isAnnulled ? 'line-through' : 'none' }}>{client.product || 'Automotriz'}</td>
+                  <td style={{ padding: '12px 16px', fontSize: '0.9rem', textDecoration: isAnnulled ? 'line-through' : 'none' }}>{client.product || (isAmbriz ? 'Vida' : 'Automotriz')}</td>
                   <td style={{ padding: '12px 16px', color: 'var(--text-muted)', fontSize: '0.85rem', textDecoration: isAnnulled ? 'line-through' : 'none' }}>{client.planType}</td>
-                  <td style={{ padding: '12px 16px', textDecoration: isAnnulled ? 'line-through' : 'none' }}>${client.annualPremium?.toLocaleString() || '0.00'} MXN</td>
-                  <td style={{ padding: '12px 16px', fontWeight: 'bold', color: 'var(--accent-gold)', textDecoration: isAnnulled ? 'line-through' : 'none' }}>${client.premium?.toLocaleString()} MXN</td>
+                  <td style={{ padding: '12px 16px', textDecoration: isAnnulled ? 'line-through' : 'none' }}>${client.annualPremium?.toLocaleString() || '0.00'}{isAmbriz ? '' : ' MXN'}</td>
+                  <td style={{ padding: '12px 16px', fontWeight: 'bold', color: 'var(--accent-gold)', textDecoration: isAnnulled ? 'line-through' : 'none' }}>${client.premium?.toLocaleString()}{isAmbriz ? '' : ' MXN'}</td>
+                  <td style={{ padding: '12px 16px', fontSize: '0.85rem', textDecoration: isAnnulled ? 'line-through' : 'none' }}>{client.currency || (isAmbriz ? 'UDI' : 'MXN')}</td>
                   <td style={{ padding: '12px 16px', fontSize: '0.85rem', textDecoration: isAnnulled ? 'line-through' : 'none' }}>{client.paymentFrequency}</td>
                   <td style={{ padding: '12px 16px', fontSize: '0.85rem', textDecoration: isAnnulled ? 'line-through' : 'none' }}>{client.paymentMethod}</td>
                   <td style={{ padding: '12px 16px', color: 'var(--text-dim)', fontSize: '0.85rem', textDecoration: isAnnulled ? 'line-through' : 'none' }}>{client.emissionDate}</td>
@@ -628,14 +638,38 @@ const Clients = () => {
                 </div>
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: isAmbriz ? '1fr 1fr 1fr' : '1fr 1fr', gap: '16px' }}>
                 <div>
                   <label style={{ fontSize: '0.8rem', color: '#334155', marginBottom: '6px', display: 'block', fontWeight: '600' }}>Póliza</label>
                   <input required value={clientData.policyNumber} onChange={e => setClientData({...clientData, policyNumber: e.target.value})} placeholder="Número de Póliza" style={inputStyle} />
                 </div>
+                {isAmbriz && (
+                  <div>
+                    <label style={{ fontSize: '0.8rem', color: '#334155', marginBottom: '6px', display: 'block', fontWeight: '600' }}>Ramo</label>
+                    <select value={clientData.product} onChange={e => {
+                        const newProduct = e.target.value;
+                        let newCurrency = clientData.currency;
+                        if (newProduct === 'GMM') newCurrency = 'MXN';
+                        else if (newCurrency === 'MXN') newCurrency = 'USD';
+                        const defaultPlan = newProduct === 'GMM' ? 'Pleno' : 'Orvi';
+                        setClientData({...clientData, product: newProduct, currency: newCurrency, planType: defaultPlan});
+                      }} style={inputStyle}>
+                       <option value="Vida">Vida</option>
+                       <option value="GMM">Gastos Médicos Mayores (GMM)</option>
+                    </select>
+                  </div>
+                )}
                 <div>
                   <label style={{ fontSize: '0.8rem', color: '#334155', marginBottom: '6px', display: 'block', fontWeight: '600' }}>Tipo de Plan</label>
-                  <input value={clientData.planType} onChange={e => setClientData({...clientData, planType: e.target.value})} placeholder="Ej: Cobertura Amplia, RC, Amplia Plus..." style={inputStyle} />
+                  {isAmbriz ? (
+                    <select value={clientData.planType} onChange={e => setClientData({...clientData, planType: e.target.value})} style={inputStyle}>
+                      {(AMBRIZ_PLAN_OPTIONS[clientData.product] || AMBRIZ_PLAN_OPTIONS.Vida).map(plan => (
+                        <option key={plan} value={plan}>{plan}</option>
+                      ))}
+                    </select>
+                  ) : (
+                    <input value={clientData.planType} onChange={e => setClientData({...clientData, planType: e.target.value})} placeholder="Ej: Cobertura Amplia, RC, Amplia Plus..." style={inputStyle} />
+                  )}
                 </div>
               </div>
 
@@ -653,12 +687,25 @@ const Clients = () => {
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', background: '#f8fafc', padding: '16px', borderRadius: '12px', border: '1px solid #cbd5e1' }}>
                  <div style={{ gridColumn: 'span 2', display: 'flex', gap: '16px' }}>
                     <div style={{ flex: 2 }}>
-                      <label style={{ fontSize: '0.8rem', color: '#1e40af', marginBottom: '6px', display: 'block', fontWeight: '700' }}>Prima Anual (Monto Total MXN)</label>
+                      <label style={{ fontSize: '0.8rem', color: '#1e40af', marginBottom: '6px', display: 'block', fontWeight: '700' }}>Prima Anual (Monto Total{isAmbriz ? '' : ' MXN'})</label>
                       <input required type="number" step="0.01" value={clientData.annualPremium} onChange={e => setClientData({...clientData, annualPremium: e.target.value})} placeholder="Monto total anual" style={{...inputStyle, borderColor: '#2563eb', fontWeight: 'bold'}} />
                     </div>
                     <div style={{ flex: 1 }}>
                       <label style={{ fontSize: '0.8rem', color: '#334155', marginBottom: '6px', display: 'block', fontWeight: '600' }}>Moneda</label>
-                      <input type="text" value="Pesos (MXN)" readOnly style={{...inputStyle, background: '#e2e8f0', color: '#475569', fontWeight: '600'}} />
+                      {isAmbriz ? (
+                        <select value={clientData.currency} onChange={e => setClientData({...clientData, currency: e.target.value})} style={inputStyle} disabled={clientData.product === 'GMM'}>
+                          {clientData.product === 'GMM' ? (
+                            <option value="MXN">Pesos (MXN)</option>
+                          ) : (
+                            <>
+                              <option value="UDI">UDI</option>
+                              <option value="USD">Dólares (USD)</option>
+                            </>
+                          )}
+                        </select>
+                      ) : (
+                        <input type="text" value="Pesos (MXN)" readOnly style={{...inputStyle, background: '#e2e8f0', color: '#475569', fontWeight: '600'}} />
+                      )}
                     </div>
                  </div>
                  
@@ -675,7 +722,7 @@ const Clients = () => {
                  <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
                     <label style={{ fontSize: '0.75rem', color: '#334155', marginBottom: '6px', display: 'block', fontWeight: '600' }}>Prima a Pagar ({clientData.paymentFrequency})</label>
                     <div style={{ padding: '10px 14px', background: '#e2e8f0', borderRadius: '8px', color: '#0f172a', fontWeight: 'bold', fontSize: '1rem', border: '1px solid #cbd5e1' }}>
-                      $ {calculatedPremium} MXN
+                      $ {calculatedPremium}{isAmbriz ? '' : ' MXN'}
                     </div>
                  </div>
               </div>

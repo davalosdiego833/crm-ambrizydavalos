@@ -10,7 +10,8 @@ const COLORS = ['#e2b042', '#333333', '#1e1e1e', '#a37a24', '#ffffff'];
 const PIE_COLORS = ['#e2b042', '#00ffaa', '#ffaa00', '#ff4444'];
 
 const Analytics = () => {
-  const { authFetch } = useAuth();
+  const { user, authFetch } = useAuth();
+  const isAmbriz = user?.company === 'ambriz';
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   
@@ -484,9 +485,11 @@ const Analytics = () => {
           filter: drop-shadow(0 2px 4px rgba(68, 136, 255, 0.2));
         }
         
-        /* Progress bars styling matching mobile mockup */
+        /* Progress bars styling matching mobile mockup.
+           'body.dark-theme' es la variante oscura; sin esa clase (default) es el
+           modo claro/ejecutivo, que es la base del rediseño actual. */
         .progress-bar-container {
-          background: rgba(255, 255, 255, 0.02);
+          background: rgba(0, 0, 0, 0.02);
           border: 1px solid var(--glass-border);
           border-radius: 10px;
           padding: 12px 16px;
@@ -498,27 +501,27 @@ const Analytics = () => {
         }
         .progress-bar-container:hover {
           transform: translateY(-2px);
-          background: rgba(255, 255, 255, 0.04);
-          border-color: rgba(226, 176, 66, 0.2);
-          box-shadow: 0 8px 20px rgba(0,0,0,0.3);
+          background: rgba(0, 0, 0, 0.04);
+          border-color: var(--accent-gold-glow);
+          box-shadow: 0 8px 20px rgba(15, 23, 42, 0.05);
         }
         .progress-bar-track {
           width: 100%;
           height: 6px;
-          background: rgba(255, 255, 255, 0.05);
+          background: rgba(0, 0, 0, 0.08);
           border-radius: 3px;
           overflow: hidden;
         }
-        body.light-theme .progress-bar-container {
-          background: rgba(0, 0, 0, 0.02);
+        body.dark-theme .progress-bar-container {
+          background: rgba(255, 255, 255, 0.02);
         }
-        body.light-theme .progress-bar-container:hover {
-          background: rgba(0, 0, 0, 0.04);
-          border-color: rgba(197, 147, 36, 0.3);
-          box-shadow: 0 8px 20px rgba(15, 23, 42, 0.05);
+        body.dark-theme .progress-bar-container:hover {
+          background: rgba(255, 255, 255, 0.04);
+          border-color: var(--accent-gold-glow);
+          box-shadow: 0 8px 20px rgba(0,0,0,0.3);
         }
-        body.light-theme .progress-bar-track {
-          background: rgba(0, 0, 0, 0.08);
+        body.dark-theme .progress-bar-track {
+          background: rgba(255, 255, 255, 0.05);
         }
         .progress-bar-fill {
           height: 100%;
@@ -531,8 +534,14 @@ const Analytics = () => {
       {/* CABECERA Y FILTROS */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '32px', flexWrap: 'wrap', gap: '20px' }}>
         <div>
-          <h1 style={{ fontSize: '2.2rem', margin: 0, fontWeight: '700', color: 'var(--text-main)' }}>Estadísticas <span className="text-gradient-gold">Automotrices</span></h1>
-          <p style={{ color: 'var(--text-dim)', marginTop: '4px', fontSize: '0.95rem' }}>Análisis integral de cartera, ventas y salud financiera en Pesos (MXN)</p>
+          <h1 style={{ fontSize: '2.2rem', margin: 0, fontWeight: '700', color: 'var(--text-main)' }}>
+            Estadísticas <span className="text-gradient-gold">{isAmbriz ? 'Financieras' : 'Automotrices'}</span>
+          </h1>
+          <p style={{ color: 'var(--text-dim)', marginTop: '4px', fontSize: '0.95rem' }}>
+            {isAmbriz
+              ? 'Análisis integral de cartera, ventas y salud financiera multi-moneda'
+              : 'Análisis integral de cartera, ventas y salud financiera en Pesos (MXN)'}
+          </p>
         </div>
 
         {/* Filtros Globales */}
@@ -589,6 +598,91 @@ const Analytics = () => {
         </div>
       </div>
 
+      {/* SELECTOR DE SUBPESTAÑAS (Consolidado/UDI/USD/GMM) — exclusivo Ambriz & Dávalos,
+          Novaris solo maneja Automotriz/MXN y se queda fijo en 'consolidado'. */}
+      {isAmbriz && (
+        <div style={{
+          display: 'flex',
+          gap: '6px',
+          marginBottom: '32px',
+          padding: '6px',
+          background: 'rgba(255,255,255,0.02)',
+          border: '1px solid var(--glass-border)',
+          borderRadius: '14px',
+          width: 'fit-content',
+          flexWrap: 'wrap'
+        }}>
+          <button
+            onClick={() => setActiveSubTab('consolidado')}
+            style={{
+              padding: '12px 24px',
+              background: activeSubTab === 'consolidado' ? 'var(--accent-gold)' : 'transparent',
+              color: activeSubTab === 'consolidado' ? 'var(--bg-deep)' : 'var(--text-main)',
+              border: 'none',
+              borderRadius: '10px',
+              cursor: 'pointer',
+              fontWeight: '700',
+              transition: 'all 0.3s',
+              fontSize: '0.85rem',
+              boxShadow: activeSubTab === 'consolidado' ? '0 4px 15px var(--accent-gold-glow)' : 'none'
+            }}
+          >
+            🏆 Consolidado Pesos (MXN)
+          </button>
+          <button
+            onClick={() => setActiveSubTab('udi')}
+            style={{
+              padding: '12px 24px',
+              background: activeSubTab === 'udi' ? 'var(--accent-gold)' : 'transparent',
+              color: activeSubTab === 'udi' ? 'var(--bg-deep)' : 'var(--text-main)',
+              border: 'none',
+              borderRadius: '10px',
+              cursor: 'pointer',
+              fontWeight: '700',
+              transition: 'all 0.3s',
+              fontSize: '0.85rem',
+              boxShadow: activeSubTab === 'udi' ? '0 4px 15px var(--accent-gold-glow)' : 'none'
+            }}
+          >
+            🧬 Cartera UDI
+          </button>
+          <button
+            onClick={() => setActiveSubTab('usd')}
+            style={{
+              padding: '12px 24px',
+              background: activeSubTab === 'usd' ? 'var(--accent-gold)' : 'transparent',
+              color: activeSubTab === 'usd' ? 'var(--bg-deep)' : 'var(--text-main)',
+              border: 'none',
+              borderRadius: '10px',
+              cursor: 'pointer',
+              fontWeight: '700',
+              transition: 'all 0.3s',
+              fontSize: '0.85rem',
+              boxShadow: activeSubTab === 'usd' ? '0 4px 15px var(--accent-gold-glow)' : 'none'
+            }}
+          >
+            💵 Cartera USD
+          </button>
+          <button
+            onClick={() => setActiveSubTab('gmm')}
+            style={{
+              padding: '12px 24px',
+              background: activeSubTab === 'gmm' ? 'var(--accent-gold)' : 'transparent',
+              color: activeSubTab === 'gmm' ? 'var(--bg-deep)' : 'var(--text-main)',
+              border: 'none',
+              borderRadius: '10px',
+              cursor: 'pointer',
+              fontWeight: '700',
+              transition: 'all 0.3s',
+              fontSize: '0.85rem',
+              boxShadow: activeSubTab === 'gmm' ? '0 4px 15px var(--accent-gold-glow)' : 'none'
+            }}
+          >
+            🏥 GMM
+          </button>
+        </div>
+      )}
+
       {data.isSnapshot && (
         <div style={{ background: 'rgba(37, 99, 235, 0.08)', padding: '16px', borderRadius: '12px', marginBottom: '24px', border: '1px solid var(--accent-gold)', textAlign: 'center' }}>
           <p style={{ color: 'var(--accent-gold)', fontWeight: 'bold', fontSize: '0.95rem', margin: 0 }}>
@@ -614,7 +708,7 @@ const Analytics = () => {
             })}
           >
             <h3 style={{ margin: '0 0 16px 0', color: 'var(--text-main)', fontSize: '0.95rem', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-              Distribución de Planes (Seguros de Auto)
+              Distribución de Planes {isAmbriz ? '' : '(Seguros de Auto)'}
             </h3>
             <div style={{ flex: 1, display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: '16px', minHeight: '180px' }}>
               {subTabPlans.length === 0 ? (

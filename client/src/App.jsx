@@ -4,6 +4,26 @@ import Clients from './views/Clients';
 import Analytics from './views/Analytics';
 import TemplatesPanel from './views/TemplatesPanel';
 import Prospects from './views/Prospects';
+import novarisLogo from './assets/logo.png';
+import ambrizLogo from './assets/ambriz_logo.png';
+
+// Branding por despacho (multi-tenant) — mismo dominio, mismo login, distinta identidad visual.
+const COMPANY_BRANDING = {
+  ambriz: {
+    logo: ambrizLogo,
+    logoAlt: 'Ambriz & Dávalos',
+    sidebarTitle: 'AMBRIZ CRM',
+    sidebarSubtitle: 'SEGUROS DE VIDA Y GMM',
+    pageTitle: 'CRM AMBRIZ & DÁVALOS',
+  },
+  novaris: {
+    logo: novarisLogo,
+    logoAlt: 'Novaris',
+    sidebarTitle: 'NOVARIS CRM',
+    sidebarSubtitle: 'SEGUROS DE AUTO',
+    pageTitle: 'NOVARIS CRM | Seguros de Auto',
+  },
+};
 
 
 
@@ -115,6 +135,36 @@ const LoginPage = ({ theme, toggleTheme }) => {
       position: 'relative',
       padding: '24px'
     }}>
+      {/* Botón de tema claro/oscuro flotante */}
+      <button
+        onClick={toggleTheme}
+        type="button"
+        style={{
+          position: 'absolute',
+          top: '24px',
+          right: '24px',
+          width: '44px',
+          height: '44px',
+          borderRadius: '50%',
+          background: 'rgba(255,255,255,0.03)',
+          border: '1px solid var(--glass-border)',
+          color: 'var(--text-main)',
+          cursor: 'pointer',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          fontSize: '1.2rem',
+          boxShadow: 'var(--glass-shadow)',
+          transition: 'all 0.3s cubic-bezier(0.22, 1, 0.36, 1)',
+          zIndex: 10
+        }}
+        onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.08)'; e.currentTarget.style.borderColor = 'var(--accent-gold)'; e.currentTarget.style.transform = 'scale(1.05)'; }}
+        onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.03)'; e.currentTarget.style.borderColor = 'var(--glass-border)'; e.currentTarget.style.transform = 'scale(1)'; }}
+        title="Cambiar Tema"
+      >
+        {theme === 'light' ? '☀️' : '🌙'}
+      </button>
+
       <div className="glass-card animate-up" style={{ width: '420px', padding: '48px', textAlign: 'center', border: '1px solid var(--glass-border)' }}>
         {/* Logo de la Empresa */}
         <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '24px' }}>
@@ -258,6 +308,7 @@ const StatWidget = ({ title, value, subValue, trend, type = 'gold' }) => (
 
 const Dashboard = () => {
   const { user, authFetch } = useAuth();
+  const isAmbriz = user?.company === 'ambriz';
   const [data, setData] = useState(null);
   const [rates, setRates] = useState({ USD: 17.50, UDI: 8.25, lastUpdated: null });
   const [dashboardTab, setDashboardTab] = useState('Vida'); // 'Vida' or 'GMM'
@@ -529,7 +580,7 @@ const Dashboard = () => {
         <div>
           <h1 style={{ fontSize: '2.5rem', fontWeight: '800', color: 'var(--text-main)' }}>Hola, <span className="text-gradient-gold">{firstName}.</span></h1>
           <p style={{ color: 'var(--text-muted)', marginTop: '8px' }}>
-            Tienes <span style={{ color: 'var(--accent-gold)', fontWeight: 'bold' }}>{totalAlerts} cobranzas activas</span> en tu panel de Seguros de Auto.
+            Tienes <span style={{ color: 'var(--accent-gold)', fontWeight: 'bold' }}>{totalAlerts} cobranzas activas</span> en tu panel de {isAmbriz ? 'Seguros de Vida y GMM' : 'Seguros de Auto'}.
           </p>
         </div>
       </header>
@@ -538,7 +589,7 @@ const Dashboard = () => {
       <div style={{ display: 'flex', justifyContent: 'center', gap: '32px', marginBottom: '48px' }}>
         <div className="glass-card stat-widget animate-up" style={{ flex: 1, maxWidth: '1000px', padding: '32px', minHeight: '220px', display: 'flex', flexDirection: 'column', justifyContent: 'center', border: '1px solid var(--glass-border)' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '24px' }}>
-            <h3 style={{ fontSize: '1.3rem', color: 'var(--text-main)', fontWeight: '700' }}>Resumen de Cobranza (Seguros de Auto - MXN)</h3>
+            <h3 style={{ fontSize: '1.3rem', color: 'var(--text-main)', fontWeight: '700' }}>Resumen de Cobranza ({isAmbriz ? 'Vida y GMM' : 'Seguros de Auto'} - MXN)</h3>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '20px' }}>
             <div style={{ padding: '24px', background: 'rgba(5, 150, 105, 0.08)', borderRadius: '20px', border: '1px solid rgba(5, 150, 105, 0.2)', textAlign: 'center' }}>
@@ -559,7 +610,7 @@ const Dashboard = () => {
 
       {/* Sección Cobranza Próxima */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-        <h2 style={{ fontSize: '1.4rem', margin: 0, color: 'var(--text-main)' }}>Cobranza Próxima <span style={{ fontSize: '0.9rem', color: 'var(--text-dim)', fontWeight: 'normal' }}>(Autos)</span></h2>
+        <h2 style={{ fontSize: '1.4rem', margin: 0, color: 'var(--text-main)' }}>Cobranza Próxima <span style={{ fontSize: '0.9rem', color: 'var(--text-dim)', fontWeight: 'normal' }}>({isAmbriz ? 'Vida y GMM' : 'Autos'})</span></h2>
         <button 
           onClick={() => setFullReportModal('upcoming')}
           style={{ fontSize: '0.8rem', padding: '8px 16px', borderRadius: '8px', background: 'var(--bg-surface)', border: '1px solid var(--glass-border)', color: 'var(--accent-gold)', cursor: 'pointer', fontWeight: '600', transition: 'all 0.3s' }}
@@ -1326,7 +1377,10 @@ const AppContent = () => {
   });
 
   useEffect(() => {
-    document.body.className = theme === 'light' ? 'light-theme' : '';
+    // 'light' es la base (:root) desde el rediseño ejecutivo; 'dark' es la variante
+    // que activa el bloque body.dark-theme en index.css. (Antes decía 'light-theme',
+    // una clase que index.css nunca definió, así que el oscuro nunca se veía.)
+    document.body.className = theme === 'dark' ? 'dark-theme' : '';
     localStorage.setItem('crm_theme', theme);
   }, [theme]);
 
@@ -1334,9 +1388,23 @@ const AppContent = () => {
     setTheme(prev => prev === 'light' ? 'dark' : 'light');
   };
 
+  // Multi-tenant: adapta paleta (vía [data-company] en index.css), título de
+  // pestaña y favicon al despacho del usuario autenticado. No afecta la
+  // pantalla de login (compartida) ni nada mientras user es null.
+  useEffect(() => {
+    if (!user) return;
+    const company = user.company === 'ambriz' ? 'ambriz' : 'novaris';
+    document.body.setAttribute('data-company', company);
+    const branding = COMPANY_BRANDING[company];
+    document.title = branding.pageTitle;
+    const iconLink = document.querySelector('link[rel="icon"]');
+    if (iconLink) iconLink.href = branding.logo;
+  }, [user]);
+
   if (!user) return <LoginPage theme={theme} toggleTheme={toggleTheme} />;
 
   const firstName = user.name.split(' ')[0];
+  const branding = COMPANY_BRANDING[user.company === 'ambriz' ? 'ambriz' : 'novaris'];
 
   const navItems = [
     { name: 'Dashboard', id: 'Dashboard' },
@@ -1369,10 +1437,10 @@ const AppContent = () => {
         </button>
 
         <div style={{ marginBottom: '36px', opacity: isSidebarOpen ? 1 : 0, transition: 'opacity 0.2s', display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '8px' }}>
-          <img src="/src/assets/logo.png" alt="Novaris" style={{ height: '45px', objectFit: 'contain' }} />
+          <img src={branding.logo} alt={branding.logoAlt} style={{ height: '45px', objectFit: 'contain' }} />
           <div>
-            <h1 style={{ fontSize: '1.2rem', letterSpacing: '1px', color: 'var(--text-main)', fontWeight: '800' }}>NOVARIS CRM</h1>
-            <p style={{ fontSize: '0.65rem', color: 'var(--text-dim)', marginTop: '2px', fontWeight: '600' }}>SEGUROS DE AUTO</p>
+            <h1 style={{ fontSize: '1.2rem', letterSpacing: '1px', color: 'var(--text-main)', fontWeight: '800' }}>{branding.sidebarTitle}</h1>
+            <p style={{ fontSize: '0.65rem', color: 'var(--text-dim)', marginTop: '2px', fontWeight: '600' }}>{branding.sidebarSubtitle}</p>
           </div>
         </div>
 
@@ -1397,7 +1465,46 @@ const AppContent = () => {
         </nav>
 
         <div style={{ marginTop: 'auto', paddingTop: '24px', borderTop: '1px solid var(--glass-border)' }}>
-          <div 
+          {/* Botón de cambio de tema claro/oscuro */}
+          <button
+            onClick={toggleTheme}
+            type="button"
+            style={{
+              width: '100%',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              padding: '10px 14px',
+              borderRadius: '8px',
+              background: 'rgba(255,255,255,0.02)',
+              border: '1px solid var(--glass-border)',
+              color: 'var(--text-main)',
+              cursor: 'pointer',
+              fontSize: '0.8rem',
+              fontWeight: '500',
+              marginBottom: '16px',
+              transition: 'all 0.3s'
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.06)'; e.currentTarget.style.borderColor = 'var(--accent-gold)'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.02)'; e.currentTarget.style.borderColor = 'var(--glass-border)'; }}
+            title="Cambiar Tema"
+          >
+            <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              {theme === 'light' ? '☀️' : '🌙'} {theme === 'light' ? 'Modo Claro' : 'Modo Oscuro'}
+            </span>
+            <span style={{
+              fontSize: '0.7rem',
+              color: 'var(--accent-gold)',
+              background: 'var(--accent-gold-glow)',
+              padding: '2px 8px',
+              borderRadius: '12px',
+              fontWeight: '600'
+            }}>
+              Cambiar
+            </span>
+          </button>
+
+          <div
             onClick={() => setShowProfileModal(true)}
             style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px', cursor: 'pointer', padding: '8px', borderRadius: '10px', background: 'rgba(255,255,255,0.02)', border: '1px solid transparent', transition: 'all 0.2s' }}
             onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(226,176,66,0.05)'; e.currentTarget.style.borderColor = 'rgba(226,176,66,0.2)'; }}

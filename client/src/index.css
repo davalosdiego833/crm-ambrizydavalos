@@ -221,6 +221,33 @@ body.dark-theme .sidebar {
   border-right-color: var(--glass-border);
 }
 
+/* Company Theming (Multi-Tenant) — overrides accent colors only, per despacho */
+[data-company="novaris"] {
+  --accent-gold: #2563eb;
+  --accent-gold-glow: rgba(37, 99, 235, 0.2);
+  --accent-mint: #059669;
+  --accent-mint-glow: rgba(5, 150, 105, 0.15);
+}
+body.dark-theme[data-company="novaris"] {
+  --accent-gold: #3b82f6;
+  --accent-gold-glow: rgba(59, 130, 246, 0.3);
+  --accent-mint: #10b981;
+  --accent-mint-glow: rgba(16, 185, 129, 0.2);
+}
+
+[data-company="ambriz"] {
+  --accent-gold: #c59324;     /* Deep gold for high legibility in light mode */
+  --accent-gold-glow: rgba(197, 147, 36, 0.15);
+  --accent-mint: #047857;     /* Darker emerald for light theme clarity */
+  --accent-mint-glow: rgba(4, 120, 87, 0.1);
+}
+body.dark-theme[data-company="ambriz"] {
+  --accent-gold: #e2b042;
+  --accent-gold-glow: rgba(226, 176, 66, 0.3);
+  --accent-mint: #00ffaa;
+  --accent-mint-glow: rgba(0, 255, 170, 0.2);
+}
+
 /* Table Row Hover */
 table tbody tr {
   transition: background-color 0.2s ease, box-shadow 0.2s ease;

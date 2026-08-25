@@ -7,6 +7,7 @@ const xlsx = require('xlsx');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const fs = require('fs');
+const { COMPANIES } = require('./config/companies');
 
 
 
@@ -889,7 +890,7 @@ app.post('/api/login', (req, res) => {
     return res.status(403).json({ error: 'Tu cuenta ha sido bloqueada. Contacta a tu promotor.' });
   }
 
-  const token = jwt.sign({ id: user.id, role: user.role }, JWT_SECRET, { expiresIn: '24h' });
+  const token = jwt.sign({ id: user.id, role: user.role, company: user.company || 'ambriz' }, JWT_SECRET, { expiresIn: '24h' });
   res.json({
     token,
     user: {
@@ -897,6 +898,7 @@ app.post('/api/login', (req, res) => {
       name: user.name,
       email: user.email,
       role: user.role,
+      company: user.company || 'ambriz',
       avatarUrl: user.avatarUrl || null,
       avatarConfig: user.avatarConfig || null
     }
@@ -2730,10 +2732,17 @@ app.post('/api/migrate', authMiddleware, upload.single('file'), (req, res) => {
 // ======================================
 // ENDPOINTS DE ADMINISTRACIÓN (Solo Master)
 // ======================================
+// Multi-tenant: la cuenta Master ('admin') supervisa ambos despachos; un
+// 'administrador' de despacho solo ve/gestiona usuarios de su propia company.
+const isMasterAdmin = (req) => req.user.role === 'admin';
+const inSameCompany = (req, targetUser) => (targetUser.company || 'ambriz') === (req.user.company || 'ambriz');
+
 // Listar usuarios (con contraseña visible para el admin)
 app.get('/api/admin/users', authMiddleware, adminOnly, (req, res) => {
-  res.json(users.map(u => ({
+  const scoped = isMasterAdmin(req) ? users : users.filter(u => inSameCompany(req, u));
+  res.json(scoped.map(u => ({
     id: u.id, name: u.name, email: u.email, role: u.role,
+    company: u.company || 'ambriz',
     rawPassword: u.rawPassword,
     blocked: u.blocked || false,
     totalClients: u.clients.length
@@ -2742,7 +2751,7 @@ app.get('/api/admin/users', authMiddleware, adminOnly, (req, res) => {
 
 // Crear usuario
 app.post('/api/admin/users', authMiddleware, adminOnly, (req, res) => {
-  const { email, name, password, role } = req.body;
+  const { email, name, password, role, company } = req.body;
   const cleanEmail = String(email || '').trim();
   if (users.find(u => u.email.trim().toLowerCase() === cleanEmail.toLowerCase())) {
     return res.status(400).json({ error: 'El correo ya está registrado' });
@@ -2750,6 +2759,10 @@ app.post('/api/admin/users', authMiddleware, adminOnly, (req, res) => {
 
   // Permitir asignación de 'administrador' o 'advisor'. El rol 'admin' (Master) está bloqueado por seguridad.
   const targetRole = (role === 'administrador') ? 'administrador' : 'advisor';
+  // Un administrador de despacho solo puede crear usuarios de su propio despacho;
+  // la cuenta Master puede elegir el despacho del nuevo usuario (validado contra COMPANIES).
+  const requestedCompany = isMasterAdmin(req) && COMPANIES[company] ? company : null;
+  const targetCompany = requestedCompany || req.user.company || 'ambriz';
 
   const newUser = {
     id: users.length > 0 ? Math.max(...users.map(u => u.id)) + 1 : 1,
@@ -2758,12 +2771,13 @@ app.post('/api/admin/users', authMiddleware, adminOnly, (req, res) => {
     password: bcrypt.hashSync(password, 10),
     rawPassword: password,
     role: targetRole,
+    company: targetCompany,
     blocked: false,
     clients: []
   };
   users.push(newUser);
   saveDB();
-  res.json({ success: true, user: { id: newUser.id, name: newUser.name, email: newUser.email, role: newUser.role } });
+  res.json({ success: true, user: { id: newUser.id, name: newUser.name, email: newUser.email, role: newUser.role, company: newUser.company } });
 });
 
 // Editar usuario
@@ -2774,6 +2788,10 @@ app.put('/api/admin/users/:id', authMiddleware, adminOnly, (req, res) => {
   // Seguridad: Un sub-administrador no puede modificar al usuario Master (Diego)
   if (user.role === 'admin' && req.user.role !== 'admin') {
     return res.status(403).json({ error: 'No tienes permisos para modificar al usuario Master' });
+  }
+  // Multi-tenant: un administrador de despacho no puede tocar usuarios de otro despacho
+  if (!isMasterAdmin(req) && !inSameCompany(req, user)) {
+    return res.status(403).json({ error: 'No tienes permisos para modificar usuarios de otro despacho' });
   }
 
   const { name, email, password, role } = req.body;
@@ -2804,6 +2822,9 @@ app.put('/api/admin/users/:id', authMiddleware, adminOnly, (req, res) => {
 app.put('/api/admin/users/:id/toggle-block', authMiddleware, adminOnly, (req, res) => {
   const user = users.find(u => u.id == req.params.id && u.role !== 'admin');
   if (!user) return res.status(404).json({ error: 'No se puede bloquear esa cuenta' });
+  if (!isMasterAdmin(req) && !inSameCompany(req, user)) {
+    return res.status(403).json({ error: 'No tienes permisos sobre usuarios de otro despacho' });
+  }
   user.blocked = !user.blocked;
   saveDB();
   res.json({ success: true, blocked: user.blocked });
@@ -2811,8 +2832,12 @@ app.put('/api/admin/users/:id/toggle-block', authMiddleware, adminOnly, (req, re
 
 // Eliminar usuario
 app.delete('/api/admin/users/:id', authMiddleware, adminOnly, (req, res) => {
+  const target = users.find(u => u.id == req.params.id && u.role !== 'admin');
+  if (!target) return res.status(404).json({ error: 'No se puede eliminar' });
+  if (!isMasterAdmin(req) && !inSameCompany(req, target)) {
+    return res.status(403).json({ error: 'No tienes permisos sobre usuarios de otro despacho' });
+  }
   const index = users.findIndex(u => u.id == req.params.id && u.role !== 'admin');
-  if (index === -1) return res.status(404).json({ error: 'No se puede eliminar' });
   users.splice(index, 1);
   saveDB();
   res.json({ success: true });
