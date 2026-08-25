@@ -166,24 +166,33 @@ const LoginPage = ({ theme, toggleTheme }) => {
       </button>
 
       <div className="glass-card animate-up" style={{ width: '420px', padding: '48px', textAlign: 'center', border: '1px solid var(--glass-border)' }}>
-        {/* Logo de la Empresa */}
+        {/* Ícono genérico: el login es una pantalla compartida entre despachos,
+            así que no lleva logo ni nombre de marca. El logo y nombre del
+            despacho correspondiente aparecen recién después de autenticarse
+            (ver COMPANY_BRANDING / useEffect de data-company más abajo). */}
         <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '24px' }}>
-          <img 
-            src="/src/assets/logo.png" 
-            alt="Logo Novaris" 
-            style={{ 
-              height: '90px', 
-              objectFit: 'contain',
-              filter: 'drop-shadow(0 4px 12px rgba(37,99,235,0.15))'
-            }} 
-          />
+          <div style={{
+            width: '72px',
+            height: '72px',
+            borderRadius: '50%',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            background: 'rgba(148, 163, 184, 0.1)',
+            border: '1px solid var(--glass-border)'
+          }}>
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="3" y="10" width="18" height="11" rx="2" />
+              <path d="M7 10V7a5 5 0 0 1 10 0v3" />
+            </svg>
+          </div>
         </div>
 
-        <h1 style={{ fontSize: '2rem', marginBottom: '8px', letterSpacing: '2px', color: 'var(--text-main)', fontWeight: '800' }}>
-          NOVARIS CRM
+        <h1 style={{ fontSize: '1.6rem', marginBottom: '8px', letterSpacing: '1px', color: 'var(--text-main)', fontWeight: '800' }}>
+          Iniciar Sesión
         </h1>
         <p style={{ color: 'var(--text-dim)', fontSize: '0.85rem', marginBottom: '40px' }}>
-          Gestión Inteligente de Pólizas de Auto
+          Plataforma de Gestión de Cartera y Cobranza
         </p>
 
         <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
@@ -1055,6 +1064,9 @@ const AdminPanel = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [newRole, setNewRole] = useState('advisor');
   const [editRole, setEditRole] = useState('advisor');
+  const [newCompany, setNewCompany] = useState(user?.company === 'novaris' ? 'novaris' : 'ambriz');
+  const isMasterAdmin = user?.role === 'admin';
+  const companyLabel = (c) => (c === 'novaris' ? 'Novaris' : 'Ambriz & Dávalos');
 
   useEffect(() => { loadUsers(); }, []);
 
@@ -1065,7 +1077,7 @@ const AdminPanel = () => {
   };
 
   const handleCopyWelcome = (u) => {
-    const message = `¡Hola, ${u.name}! Bienvenido(a) al CRM de Ambriz y Dávalos. 💼✨\n\nAquí tienes tus credenciales para acceder a la plataforma:\n🔗 Enlace: https://crm.ambrizydavalos.com\n📧 Usuario: ${u.email}\n🔑 Contraseña: ${u.rawPassword}\n\nCualquier duda, estoy a tus órdenes. ¡Mucho éxito! 🚀`;
+    const message = `¡Hola, ${u.name}! Bienvenido(a) al CRM de ${companyLabel(u.company)}. 💼✨\n\nAquí tienes tus credenciales para acceder a la plataforma:\n🔗 Enlace: https://crm.ambrizydavalos.com\n📧 Usuario: ${u.email}\n🔑 Contraseña: ${u.rawPassword}\n\nCualquier duda, estoy a tus órdenes. ¡Mucho éxito! 🚀`;
     
     navigator.clipboard.writeText(message)
       .then(() => {
@@ -1079,16 +1091,20 @@ const AdminPanel = () => {
 
   const createUser = () => {
     if (!newName || !newEmail || !newPassword) return alert('Llena todos los campos');
+    // Un administrador de despacho (no Master) siempre crea dentro de su propio
+    // despacho — el backend lo fuerza igual, pero aquí reflejamos lo mismo en
+    // el mensaje de bienvenida.
+    const companyToUse = isMasterAdmin ? newCompany : (user?.company || 'ambriz');
     authFetch('/api/admin/users', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: newName, email: newEmail.trim(), password: newPassword, role: newRole })
+      body: JSON.stringify({ name: newName, email: newEmail.trim(), password: newPassword, role: newRole, company: companyToUse })
     })
     .then(res => res.json())
     .then(data => {
       if (data.success) {
-        alert(`✅ CRM creado para ${newName}`);
-        const tempUser = { name: newName, email: newEmail.trim(), rawPassword: newPassword };
+        alert(`✅ CRM creado para ${newName} (${companyLabel(companyToUse)})`);
+        const tempUser = { name: newName, email: newEmail.trim(), rawPassword: newPassword, company: companyToUse };
         handleCopyWelcome(tempUser);
         setNewName(''); setNewEmail(''); setNewPassword('');
         setNewRole('advisor');
@@ -1161,6 +1177,19 @@ const AdminPanel = () => {
               <option value="advisor" style={{ background: 'var(--bg-surface)' }}>Asesor</option>
               <option value="administrador" style={{ background: 'var(--bg-surface)' }}>Administrador</option>
             </select>
+            {isMasterAdmin ? (
+              <div>
+                <label style={{ fontSize: '0.75rem', color: 'var(--text-dim)', marginBottom: '6px', display: 'block' }}>Despacho</label>
+                <select value={newCompany} onChange={(e) => setNewCompany(e.target.value)} style={inputStyle}>
+                  <option value="ambriz" style={{ background: 'var(--bg-surface)' }}>Ambriz & Dávalos (Vida/GMM)</option>
+                  <option value="novaris" style={{ background: 'var(--bg-surface)' }}>Novaris (Autos)</option>
+                </select>
+              </div>
+            ) : (
+              <p style={{ fontSize: '0.75rem', color: 'var(--text-dim)', margin: 0 }}>
+                Se creará en tu propio despacho: <strong style={{ color: 'var(--accent-gold)' }}>{companyLabel(user?.company)}</strong>
+              </p>
+            )}
             <button onClick={createUser} className="btn-primary">Crear Cuenta</button>
           </div>
         </div>
@@ -1201,6 +1230,7 @@ const AdminPanel = () => {
                 <tr style={{ borderBottom: '1px solid var(--glass-border)' }}>
                   <th style={{ padding: '16px' }}>Nombre</th>
                   <th style={{ padding: '16px' }}>Correo</th>
+                  <th style={{ padding: '16px' }}>Despacho</th>
                   <th style={{ padding: '16px' }}>Contraseña</th>
                   <th style={{ padding: '16px' }}>Clientes</th>
                   <th style={{ padding: '16px' }}>Estatus</th>
@@ -1210,7 +1240,7 @@ const AdminPanel = () => {
               <tbody>
                 {filteredUsers.length === 0 ? (
                   <tr>
-                    <td colSpan="6" style={{ padding: '32px', textAlign: 'center', color: 'var(--text-muted)' }}>
+                    <td colSpan="7" style={{ padding: '32px', textAlign: 'center', color: 'var(--text-muted)' }}>
                       No se encontraron usuarios
                     </td>
                   </tr>
@@ -1257,6 +1287,18 @@ const AdminPanel = () => {
                         {editingUser === u.id ? (
                           <input value={editEmail} onChange={(e) => setEditEmail(e.target.value)} style={{ ...inputStyle, padding: '6px 8px' }} />
                         ) : u.email}
+                      </td>
+                      <td style={{ padding: '16px' }}>
+                        <span style={{
+                          fontSize: '0.7rem',
+                          padding: '4px 10px',
+                          borderRadius: '20px',
+                          fontWeight: '600',
+                          background: u.company === 'novaris' ? 'rgba(37, 99, 235, 0.12)' : 'rgba(226, 176, 66, 0.15)',
+                          color: u.company === 'novaris' ? '#2563eb' : 'var(--accent-gold)'
+                        }}>
+                          {companyLabel(u.company)}
+                        </span>
                       </td>
                       <td style={{ padding: '16px', fontSize: '0.85rem', fontFamily: 'monospace' }}>
                         {editingUser === u.id ? (
@@ -1389,15 +1431,21 @@ const AppContent = () => {
   };
 
   // Multi-tenant: adapta paleta (vía [data-company] en index.css), título de
-  // pestaña y favicon al despacho del usuario autenticado. No afecta la
-  // pantalla de login (compartida) ni nada mientras user es null.
+  // pestaña y favicon al despacho del usuario autenticado. Al cerrar sesión
+  // (user === null) vuelve todo a lo neutral de index.html — el login es
+  // una pantalla compartida, sin marca de ningún despacho.
   useEffect(() => {
-    if (!user) return;
+    const iconLink = document.querySelector('link[rel="icon"]');
+    if (!user) {
+      document.body.removeAttribute('data-company');
+      document.title = 'Iniciar Sesión | CRM';
+      if (iconLink) iconLink.href = '/favicon.svg';
+      return;
+    }
     const company = user.company === 'ambriz' ? 'ambriz' : 'novaris';
     document.body.setAttribute('data-company', company);
     const branding = COMPANY_BRANDING[company];
     document.title = branding.pageTitle;
-    const iconLink = document.querySelector('link[rel="icon"]');
     if (iconLink) iconLink.href = branding.logo;
   }, [user]);
 
