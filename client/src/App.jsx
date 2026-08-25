@@ -373,7 +373,7 @@ const Dashboard = () => {
   };
 
   const handleWhatsAppReminder = (c, title) => {
-    let planName = c.planType || c.product || (dashboardTab === 'Vida' ? 'Vida' : 'Gastos Médicos Mayores');
+    let planName = c.planType || c.product || (isAmbriz ? (dashboardTab === 'Vida' ? 'Vida' : 'Gastos Médicos Mayores') : 'Automotriz');
     if (planName.includes('(')) {
       planName = planName.split('(')[0].trim();
     }
@@ -454,10 +454,17 @@ const Dashboard = () => {
 
   };
 
-  // Filtrado de listas para seguros de auto
+  // Filtrado de listas: para Ambriz, separa Vida de GMM según dashboardTab
+  // (mismo criterio que Analytics.jsx: product default 'Vida', GMM detectado
+  // por substring). Novaris no tiene este split, se queda sin filtrar.
   const filterList = (list) => {
     if (!list) return [];
-    return list;
+    if (!isAmbriz) return list;
+    return list.filter(c => {
+      const prod = String(c.product || 'Vida').trim().toLowerCase();
+      const isGMM = prod.includes('gastos') || prod.includes('gmm') || prod.includes('médicos');
+      return dashboardTab === 'Vida' ? !isGMM : isGMM;
+    });
   };
 
   const currentLists = {
@@ -471,25 +478,36 @@ const Dashboard = () => {
 
   const totalAlerts = (currentLists.atrasados?.length || 0) + (currentLists.hoy?.length || 0) + (currentLists.en5Dias?.length || 0) + (currentLists.en15Dias?.length || 0);
 
-  // KPIs en Pesos MXN para Automotriz
+  // KPIs por pestaña: Novaris consolida todo en MXN; Ambriz desglosa por
+  // moneda real del cliente (USD/UDI en Vida, MXN en GMM) — currentLists ya
+  // viene filtrado por ramo arriba, así que aquí solo se suma por moneda.
   const getTabKPIs = () => {
-    const stats = { MXN: { paid: 0, pend: 0, late: 0 } };
+    if (!isAmbriz) {
+      const stats = { MXN: { paid: 0, pend: 0, late: 0 } };
+      currentLists.collected?.forEach(c => { stats.MXN.paid += (c.amount || 0); });
+      [...currentLists.hoy, ...currentLists.en5Dias, ...currentLists.en15Dias, ...currentLists.enMes].forEach(c => {
+        stats.MXN.pend += (c.amount || 0);
+      });
+      currentLists.atrasados?.forEach(c => { stats.MXN.late += (c.amount || 0); });
+      return stats;
+    }
 
-    data.collectedList?.forEach(c => {
-      stats.MXN.paid += (c.amount || 0);
+    if (dashboardTab === 'Vida') {
+      const vidaStats = { USD: { paid: 0, pend: 0, late: 0 }, UDI: { paid: 0, pend: 0, late: 0 } };
+      const addTo = (bucket, c) => { if (vidaStats[c.currency]) vidaStats[c.currency][bucket] += (c.amount || 0); };
+      currentLists.collected?.forEach(c => addTo('paid', c));
+      [...currentLists.hoy, ...currentLists.en5Dias, ...currentLists.en15Dias, ...currentLists.enMes].forEach(c => addTo('pend', c));
+      currentLists.atrasados?.forEach(c => addTo('late', c));
+      return vidaStats;
+    }
+
+    const gmmStats = { MXN: { paid: 0, pend: 0, late: 0 } };
+    currentLists.collected?.forEach(c => { gmmStats.MXN.paid += (c.amount || 0); });
+    [...currentLists.hoy, ...currentLists.en5Dias, ...currentLists.en15Dias, ...currentLists.enMes].forEach(c => {
+      gmmStats.MXN.pend += (c.amount || 0);
     });
-    [
-      ...(data.upcomingLists?.hoy || []), 
-      ...(data.upcomingLists?.en5Dias || []), 
-      ...(data.upcomingLists?.en15Dias || []), 
-      ...(data.upcomingLists?.enMes || [])
-    ].forEach(c => {
-      stats.MXN.pend += (c.amount || 0);
-    });
-    data.upcomingLists?.atrasados?.forEach(c => {
-      stats.MXN.late += (c.amount || 0);
-    });
-    return stats;
+    currentLists.atrasados?.forEach(c => { gmmStats.MXN.late += (c.amount || 0); });
+    return gmmStats;
   };
 
   const tabKPIs = getTabKPIs();
@@ -583,43 +601,115 @@ const Dashboard = () => {
     </div>
   );
 
+  // Tarjeta de KPIs por moneda (Pagado/Pendiente/Atrasado) — usada por el
+  // Dashboard de Ambriz para Vida (Dólares, UDI) y GMM (Pesos).
+  const renderCurrencyCard = (title, badge, stats, currency, maxWidth) => (
+    <div className="glass-card stat-widget animate-up" style={{ flex: 1, maxWidth, padding: '32px', minHeight: '220px', display: 'flex', flexDirection: 'column', justifyContent: 'center', border: '1px solid var(--glass-border)' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '24px' }}>
+        <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: 'var(--accent-gold)', display: 'flex', justifyContent: 'center', alignItems: 'center', color: '#000', fontSize: '1rem', fontWeight: 'bold' }}>{badge}</div>
+        <h3 style={{ fontSize: '1.2rem', color: 'var(--text-main)', fontWeight: '700' }}>{title}</h3>
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px' }}>
+        <div style={{ padding: '20px', background: 'rgba(5, 150, 105, 0.08)', borderRadius: '16px', border: '1px solid rgba(5, 150, 105, 0.2)', textAlign: 'center' }}>
+          <p style={{ color: 'var(--accent-mint)', fontSize: '0.75rem', fontWeight: 'bold', textTransform: 'uppercase', marginBottom: '8px' }}>Pagado</p>
+          <h2 style={{ fontSize: '1.5rem', fontWeight: '800', color: 'var(--text-main)' }}>{fmtCurrency(stats.paid, currency)}</h2>
+          {currency !== 'MXN' && <p style={{ fontSize: '0.7rem', color: 'var(--text-dim)', marginTop: '4px' }}>≈ {fmt(stats.paid * (currency === 'USD' ? rates.USD : rates.UDI))} MXN</p>}
+        </div>
+        <div style={{ padding: '20px', background: 'rgba(37, 99, 235, 0.06)', borderRadius: '16px', border: '1px solid rgba(37, 99, 235, 0.2)', textAlign: 'center' }}>
+          <p style={{ color: 'var(--accent-gold)', fontSize: '0.75rem', fontWeight: 'bold', textTransform: 'uppercase', marginBottom: '8px' }}>Pendiente</p>
+          <h2 style={{ fontSize: '1.5rem', fontWeight: '800', color: 'var(--text-main)' }}>{fmtCurrency(stats.pend, currency)}</h2>
+          {currency !== 'MXN' && <p style={{ fontSize: '0.7rem', color: 'var(--text-dim)', marginTop: '4px' }}>≈ {fmt(stats.pend * (currency === 'USD' ? rates.USD : rates.UDI))} MXN</p>}
+        </div>
+        <div style={{ padding: '20px', background: 'rgba(239, 68, 68, 0.08)', borderRadius: '16px', border: '1px solid rgba(239, 68, 68, 0.2)', textAlign: 'center' }}>
+          <p style={{ color: '#ef4444', fontSize: '0.75rem', fontWeight: 'bold', textTransform: 'uppercase', marginBottom: '8px' }}>Atrasado</p>
+          <h2 style={{ fontSize: '1.5rem', fontWeight: '800', color: '#ef4444' }}>{fmtCurrency(stats.late, currency)}</h2>
+          {currency !== 'MXN' && <p style={{ fontSize: '0.7rem', color: 'var(--text-dim)', marginTop: '4px' }}>≈ {fmt(stats.late * (currency === 'USD' ? rates.USD : rates.UDI))} MXN</p>}
+        </div>
+      </div>
+    </div>
+  );
+
   return (
     <>
-      <header style={{ marginBottom: '32px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
+      <header style={{ marginBottom: '32px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', flexWrap: 'wrap', gap: '20px' }}>
         <div>
           <h1 style={{ fontSize: '2.5rem', fontWeight: '800', color: 'var(--text-main)' }}>Hola, <span className="text-gradient-gold">{firstName}.</span></h1>
           <p style={{ color: 'var(--text-muted)', marginTop: '8px' }}>
-            Tienes <span style={{ color: 'var(--accent-gold)', fontWeight: 'bold' }}>{totalAlerts} cobranzas activas</span> en tu panel de {isAmbriz ? 'Seguros de Vida y GMM' : 'Seguros de Auto'}.
+            Tienes <span style={{ color: 'var(--accent-gold)', fontWeight: 'bold' }}>{totalAlerts} cobranzas activas</span> en tu {isAmbriz ? `dashboard de ${dashboardTab}` : 'panel de Seguros de Auto'}.
           </p>
         </div>
+
+        {/* Robot Financiero (tipo de cambio) — solo aplica a Ambriz, que maneja UDI/USD */}
+        {isAmbriz && (
+          <div style={{ display: 'flex', gap: '16px' }}>
+            <div className="glass-card" style={{ padding: '10px 16px', textAlign: 'center', border: '1px solid var(--accent-gold-glow)' }}>
+              <p style={{ fontSize: '0.65rem', color: 'var(--text-dim)', textTransform: 'uppercase', marginBottom: '4px' }}>Dólar (USD)</p>
+              <p style={{ fontWeight: 'bold', color: 'var(--accent-gold)', fontSize: '1rem' }}>${rates.USD.toFixed(2)}</p>
+            </div>
+            <div className="glass-card" style={{ padding: '10px 16px', textAlign: 'center', border: '1px solid var(--accent-gold-glow)' }}>
+              <p style={{ fontSize: '0.65rem', color: 'var(--text-dim)', textTransform: 'uppercase', marginBottom: '4px' }}>UDI</p>
+              <p style={{ fontWeight: 'bold', color: 'var(--accent-gold)', fontSize: '1rem' }}>${rates.UDI.toFixed(4)}</p>
+            </div>
+          </div>
+        )}
       </header>
 
-      {/* Tarjetas KPIs Pólizas de Auto (Pesos MXN) */}
-      <div style={{ display: 'flex', justifyContent: 'center', gap: '32px', marginBottom: '48px' }}>
-        <div className="glass-card stat-widget animate-up" style={{ flex: 1, maxWidth: '1000px', padding: '32px', minHeight: '220px', display: 'flex', flexDirection: 'column', justifyContent: 'center', border: '1px solid var(--glass-border)' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '24px' }}>
-            <h3 style={{ fontSize: '1.3rem', color: 'var(--text-main)', fontWeight: '700' }}>Resumen de Cobranza ({isAmbriz ? 'Vida y GMM' : 'Seguros de Auto'} - MXN)</h3>
-          </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '20px' }}>
-            <div style={{ padding: '24px', background: 'rgba(5, 150, 105, 0.08)', borderRadius: '20px', border: '1px solid rgba(5, 150, 105, 0.2)', textAlign: 'center' }}>
-              <p style={{ color: 'var(--accent-mint)', fontSize: '0.85rem', fontWeight: 'bold', textTransform: 'uppercase', marginBottom: '8px' }}>Pagado del Mes</p>
-              <h2 style={{ fontSize: '2.1rem', fontWeight: '800', color: 'var(--text-main)' }}>{fmt(tabKPIs.MXN.paid)}</h2>
-            </div>
-            <div style={{ padding: '24px', background: 'rgba(37, 99, 235, 0.06)', borderRadius: '20px', border: '1px solid rgba(37, 99, 235, 0.2)', textAlign: 'center' }}>
-              <p style={{ color: 'var(--accent-gold)', fontSize: '0.85rem', fontWeight: 'bold', textTransform: 'uppercase', marginBottom: '8px' }}>Cobranza Pendiente</p>
-              <h2 style={{ fontSize: '2.1rem', fontWeight: '800', color: 'var(--text-main)' }}>{fmt(tabKPIs.MXN.pend)}</h2>
-            </div>
-            <div style={{ padding: '24px', background: 'rgba(239, 68, 68, 0.08)', borderRadius: '20px', border: '1px solid rgba(239, 68, 68, 0.2)', textAlign: 'center' }}>
-              <p style={{ color: '#ef4444', fontSize: '0.85rem', fontWeight: 'bold', textTransform: 'uppercase', marginBottom: '8px' }}>Cobranza Atrasada</p>
-              <h2 style={{ fontSize: '2.1rem', fontWeight: '800', color: '#ef4444' }}>{fmt(tabKPIs.MXN.late)}</h2>
-            </div>
-          </div>
+      {/* Selector Dashboard VIDA / GMM — exclusivo Ambriz */}
+      {isAmbriz && (
+        <div style={{ display: 'flex', gap: '8px', marginBottom: '32px', background: 'rgba(128,128,128,0.1)', padding: '6px', borderRadius: '12px', width: 'fit-content' }}>
+          <button
+            onClick={() => setDashboardTab('Vida')}
+            style={{ padding: '10px 24px', borderRadius: '8px', border: 'none', background: dashboardTab === 'Vida' ? 'var(--accent-gold)' : 'transparent', color: dashboardTab === 'Vida' ? '#000000' : 'var(--text-main)', fontWeight: 'bold', cursor: 'pointer', transition: '0.3s' }}
+          >
+            ☂️ Dashboard VIDA
+          </button>
+          <button
+            onClick={() => setDashboardTab('GMM')}
+            style={{ padding: '10px 24px', borderRadius: '8px', border: 'none', background: dashboardTab === 'GMM' ? 'var(--accent-gold)' : 'transparent', color: dashboardTab === 'GMM' ? '#000000' : 'var(--text-main)', fontWeight: 'bold', cursor: 'pointer', transition: '0.3s' }}
+          >
+            🏥 Dashboard GMM
+          </button>
         </div>
+      )}
+
+      {/* Tarjetas KPIs: Ambriz desglosa por moneda (Dólares/UDI en Vida, Pesos en
+          GMM); Novaris se queda con la tarjeta única consolidada en MXN. */}
+      <div style={{ display: 'flex', justifyContent: 'center', gap: '32px', marginBottom: '48px', flexWrap: 'wrap' }}>
+        {isAmbriz ? (
+          dashboardTab === 'Vida' ? (
+            <>
+              {renderCurrencyCard('Cobranza VIDA (Dólares)', '$', tabKPIs.USD, 'USD')}
+              {renderCurrencyCard('Cobranza VIDA (UDI)', 'UDI', tabKPIs.UDI, 'UDI')}
+            </>
+          ) : (
+            renderCurrencyCard('Resumen de Cobranza GMM (Pesos)', '🏥', tabKPIs.MXN, 'MXN', '800px')
+          )
+        ) : (
+          <div className="glass-card stat-widget animate-up" style={{ flex: 1, maxWidth: '1000px', padding: '32px', minHeight: '220px', display: 'flex', flexDirection: 'column', justifyContent: 'center', border: '1px solid var(--glass-border)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '24px' }}>
+              <h3 style={{ fontSize: '1.3rem', color: 'var(--text-main)', fontWeight: '700' }}>Resumen de Cobranza (Seguros de Auto - MXN)</h3>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '20px' }}>
+              <div style={{ padding: '24px', background: 'rgba(5, 150, 105, 0.08)', borderRadius: '20px', border: '1px solid rgba(5, 150, 105, 0.2)', textAlign: 'center' }}>
+                <p style={{ color: 'var(--accent-mint)', fontSize: '0.85rem', fontWeight: 'bold', textTransform: 'uppercase', marginBottom: '8px' }}>Pagado del Mes</p>
+                <h2 style={{ fontSize: '2.1rem', fontWeight: '800', color: 'var(--text-main)' }}>{fmt(tabKPIs.MXN.paid)}</h2>
+              </div>
+              <div style={{ padding: '24px', background: 'rgba(37, 99, 235, 0.06)', borderRadius: '20px', border: '1px solid rgba(37, 99, 235, 0.2)', textAlign: 'center' }}>
+                <p style={{ color: 'var(--accent-gold)', fontSize: '0.85rem', fontWeight: 'bold', textTransform: 'uppercase', marginBottom: '8px' }}>Cobranza Pendiente</p>
+                <h2 style={{ fontSize: '2.1rem', fontWeight: '800', color: 'var(--text-main)' }}>{fmt(tabKPIs.MXN.pend)}</h2>
+              </div>
+              <div style={{ padding: '24px', background: 'rgba(239, 68, 68, 0.08)', borderRadius: '20px', border: '1px solid rgba(239, 68, 68, 0.2)', textAlign: 'center' }}>
+                <p style={{ color: '#ef4444', fontSize: '0.85rem', fontWeight: 'bold', textTransform: 'uppercase', marginBottom: '8px' }}>Cobranza Atrasada</p>
+                <h2 style={{ fontSize: '2.1rem', fontWeight: '800', color: '#ef4444' }}>{fmt(tabKPIs.MXN.late)}</h2>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Sección Cobranza Próxima */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-        <h2 style={{ fontSize: '1.4rem', margin: 0, color: 'var(--text-main)' }}>Cobranza Próxima <span style={{ fontSize: '0.9rem', color: 'var(--text-dim)', fontWeight: 'normal' }}>({isAmbriz ? 'Vida y GMM' : 'Autos'})</span></h2>
+        <h2 style={{ fontSize: '1.4rem', margin: 0, color: 'var(--text-main)' }}>Cobranza Próxima <span style={{ fontSize: '0.9rem', color: 'var(--text-dim)', fontWeight: 'normal' }}>({isAmbriz ? dashboardTab : 'Autos'})</span></h2>
         <button 
           onClick={() => setFullReportModal('upcoming')}
           style={{ fontSize: '0.8rem', padding: '8px 16px', borderRadius: '8px', background: 'var(--bg-surface)', border: '1px solid var(--glass-border)', color: 'var(--accent-gold)', cursor: 'pointer', fontWeight: '600', transition: 'all 0.3s' }}
@@ -636,7 +726,7 @@ const Dashboard = () => {
 
       {/* Sección Pagos Atrasados */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-        <h2 style={{ fontSize: '1.4rem', margin: 0, color: '#ff4444' }}>Pagos Atrasados <span style={{ fontSize: '0.9rem', color: 'var(--text-dim)', fontWeight: 'normal' }}>({dashboardTab})</span></h2>
+        <h2 style={{ fontSize: '1.4rem', margin: 0, color: '#ff4444' }}>Pagos Atrasados <span style={{ fontSize: '0.9rem', color: 'var(--text-dim)', fontWeight: 'normal' }}>({isAmbriz ? dashboardTab : 'Autos'})</span></h2>
       </div>
       <div className="glass-card" style={{ marginBottom: '40px', padding: '24px', border: '1px solid rgba(255, 68, 68, 0.15)' }}>
         {currentLists.atrasados.length === 0 ? (
@@ -718,7 +808,7 @@ const Dashboard = () => {
 
       {/* Sección Cobranzas Realizadas */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-        <h2 style={{ fontSize: '1.4rem', margin: 0, color: 'var(--accent-gold)' }}>Cobrado del Mes ({dashboardTab})</h2>
+        <h2 style={{ fontSize: '1.4rem', margin: 0, color: 'var(--accent-gold)' }}>Cobrado del Mes ({isAmbriz ? dashboardTab : 'Autos'})</h2>
         <button 
           onClick={() => setFullReportModal('collected')}
           style={{ fontSize: '0.8rem', padding: '6px 12px', borderRadius: '8px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: 'var(--accent-gold)', cursor: 'pointer', transition: 'all 0.3s' }}
@@ -728,7 +818,7 @@ const Dashboard = () => {
       </div>
       <div className="glass-card" style={{ marginBottom: '40px', padding: '24px' }}>
         {currentLists.collected.length === 0 ? (
-          <p style={{ color: 'var(--text-dim)', textAlign: 'center', padding: '20px 0' }}>Aún no hay pólizas de {dashboardTab} pagadas este mes.</p>
+          <p style={{ color: 'var(--text-dim)', textAlign: 'center', padding: '20px 0' }}>Aún no hay pólizas {isAmbriz ? `de ${dashboardTab}` : 'de Autos'} pagadas este mes.</p>
         ) : (
           <table style={{ width: '100%', textAlign: 'left', borderCollapse: 'collapse' }}>
             <thead>
@@ -857,8 +947,8 @@ const Dashboard = () => {
                 <h2 style={{ fontSize: '1.8rem', fontWeight: '800', letterSpacing: '1px' }}>
                   {fullReportModal === 'birthdays' && '🎂 Reporte de Cumpleaños del Mes'}
                   {fullReportModal === 'anniversaries' && '🎉 Reporte de Aniversarios de Clientes'}
-                  {fullReportModal === 'collected' && `📊 Reporte de Cobros Realizados (${dashboardTab})`}
-                  {fullReportModal === 'upcoming' && `📅 Reporte de Cobranza Próxima (${dashboardTab})`}
+                  {fullReportModal === 'collected' && `📊 Reporte de Cobros Realizados (${isAmbriz ? dashboardTab : 'Autos'})`}
+                  {fullReportModal === 'upcoming' && `📅 Reporte de Cobranza Próxima (${isAmbriz ? dashboardTab : 'Autos'})`}
                 </h2>
                 <p style={{ color: 'var(--text-dim)', fontSize: '0.85rem', marginTop: '4px' }}>
                   Lista completa y organizada para reportes rápidos y capturas de pantalla.

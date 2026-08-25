@@ -374,6 +374,12 @@ const Clients = () => {
             <option value="emission-desc">Emisión: Reciente a Antigua</option>
             <option value="emission-asc">Emisión: Antigua a Reciente</option>
           </select>
+          {isAmbriz && (
+            <label className="glass-card" style={{ padding: '10px 20px', cursor: 'pointer', border: '1px solid var(--accent-gold)', color: 'var(--accent-gold)', fontSize: '0.85rem', fontWeight: '600' }}>
+              📊 Migrar Excel
+              <input type="file" hidden onChange={(e) => handleMigration(e.target.files[0])} />
+            </label>
+          )}
           <button onClick={openNewModal} className="btn-primary" style={{ width: 'auto', padding: '10px 20px' }}>+ Nuevo Cliente</button>
         </div>
       </div>
@@ -603,6 +609,49 @@ const Clients = () => {
             </div>
             
             <form onSubmit={handleSubmitClient} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              {!editingClientId && isAmbriz && (
+                <div style={{
+                  background: 'rgba(226,176,66,0.05)',
+                  border: '1px dashed #c59324',
+                  borderRadius: '12px',
+                  padding: '20px',
+                  textAlign: 'center',
+                  marginBottom: '8px',
+                  transition: 'all 0.3s ease',
+                }}
+                onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(226,176,66,0.1)'; }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(226,176,66,0.05)'; }}
+                >
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
+                    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#c59324" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                      <polyline points="14 2 14 8 20 8"></polyline>
+                      <line x1="12" y1="18" x2="12" y2="12"></line>
+                      <polyline points="9 15 12 12 15 15"></polyline>
+                    </svg>
+                    <div style={{ fontSize: '0.85rem', fontWeight: '600', color: '#0f172a' }}>
+                      Lectura Inteligente de Póliza
+                    </div>
+                    <div style={{ fontSize: '0.75rem', color: '#64748b' }}>
+                      Sube la carátula en PDF para rellenar el formulario automáticamente
+                    </div>
+                    <label className="btn-primary" style={{
+                      marginTop: '8px',
+                      padding: '6px 16px',
+                      fontSize: '0.75rem',
+                      width: 'auto',
+                      background: 'rgba(226,176,66,0.15)',
+                      color: '#c59324',
+                      border: '1px solid #c59324',
+                      cursor: 'pointer',
+                      display: 'inline-block'
+                    }}>
+                      {parsingPdf ? 'Analizando carátula...' : '📄 Seleccionar PDF'}
+                      <input type="file" accept="application/pdf" hidden disabled={parsingPdf} onChange={(e) => handlePolicyParse(e.target.files[0])} />
+                    </label>
+                  </div>
+                </div>
+              )}
               <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '16px' }}>
                 <div>
                   <label style={{ fontSize: '0.8rem', color: '#334155', marginBottom: '6px', display: 'block', fontWeight: '600' }}>Nombre del Contratante</label>
