@@ -1390,36 +1390,52 @@ app.post('/api/policies/parse', authMiddleware, upload.single('policy'), async (
     if (result.product === 'GMM') {
       // --- LÓGICA DE EXTRACCIÓN EXCLUSIVA PARA GMM (Gastos Médicos Mayores) ---
 
-      // 2. Plan (Búsqueda global de planes oficiales del CRM)
-      const textUpper = text.toUpperCase();
-      if (textUpper.includes('PRACTICO') || textUpper.includes('PRÁCTICO')) {
-        result.planType = 'PRACTICO';
-      } else if (textUpper.includes('INTEGRO') || textUpper.includes('ÍNTEGRO')) {
-        result.planType = 'INTEGRO';
-      } else if (textUpper.includes('PLENO')) {
-        result.planType = 'PLENO';
-      } else if (textUpper.includes('FLEX A')) {
-        result.planType = 'FLEX A';
-      } else if (textUpper.includes('FLEX B')) {
-        result.planType = 'FLEX B';
-      } else {
-        result.planType = 'PLENO';
-      }
+      // 2. Plan: primero se busca ANCLADO al renglón real "PLAN SUMA ASEGURADA"
+      // (ej. "ALFA MEDICAL PRACTICO $ 170,000,000") para no confundirlo con la
+      // palabra suelta en textos legales de las páginas siguientes (p.ej.
+      // "de pleno derecho" contiene "PLENO" sin ser el plan contratado).
+      // Si no se encuentra ese renglón, cae al escaneo global como respaldo.
+      const planHeaderMatch = text.match(/PLAN\s+SUMA\s+ASEGURADA\s*\n?([^\n]+)/i);
+      const planScanTarget = (planHeaderMatch ? planHeaderMatch[1] : text).toUpperCase();
+      const detectPlanType = (scanTarget) => {
+        if (scanTarget.includes('PRACTICO') || scanTarget.includes('PRÁCTICO')) return 'PRACTICO';
+        if (scanTarget.includes('INTEGRO') || scanTarget.includes('ÍNTEGRO')) return 'INTEGRO';
+        if (scanTarget.includes('PLENO')) return 'PLENO';
+        if (scanTarget.includes('FLEX A')) return 'FLEX A';
+        if (scanTarget.includes('FLEX B')) return 'FLEX B';
+        return null;
+      };
+      result.planType = detectPlanType(planScanTarget) || detectPlanType(text.toUpperCase()) || 'PLENO';
 
-      // 3. Contratante GMM (Soporta el formato de columnas del PDF de Seguros Monterrey)
+      // 3. Contratante GMM (Soporta el formato de columnas del PDF de Seguros Monterrey).
+      // El PDF tiene 2 columnas (nombre | territorialidad) que pdf-parse aplana en
+      // una sola línea de texto, así que hay que despegar la contaminación de la
+      // columna derecha (TERRITORIALIDAD/NACIONAL/INTERNACIONAL/ZONA) y, si el
+      // nombre es muy largo y se recorre a la siguiente línea, recuperar también
+      // ese segundo renglón (filtrando fragmentos sueltos que no son nombre real).
+      const RIGHT_COLUMN_NOISE = /\b(TERRITORIALIDAD|NACIONAL|INTERNACIONAL|ZONA)\b.*/i;
+      const cleanContractorLine = (line) => {
+        let l = String(line || '').trim();
+        l = l.replace(RIGHT_COLUMN_NOISE, '').trim();
+        l = l.replace(/(PLAN|PÓLIZA|No\.|EMISIÓN|VIGENCIA|EDAD|FECHA|RFC|DOMICILIO|C\.P\.).*/i, '').trim();
+        return l;
+      };
+      const looksLikeNamePart = (l) => /^[A-ZÁÉÍÓÚÑ\s]{3,}$/i.test(l);
+
       const contractorIndex = text.indexOf('CONTRA TA NTE');
       if (contractorIndex !== -1) {
         const afterContractor = text.substring(contractorIndex);
         const linesAfter = afterContractor.split('\n');
         if (linesAfter.length > 1) {
-          let rawLine = linesAfter[1].trim();
-          const parts = rawLine.split(/\t|\s{2,}/);
-          if (parts.length > 0) {
-            rawLine = parts[0].trim();
+          const nameParts = [];
+          const line1 = cleanContractorLine(linesAfter[1]);
+          if (looksLikeNamePart(line1)) nameParts.push(line1);
+          // Apellido que se recorrió a la línea de abajo (nombres muy largos)
+          if (nameParts.length > 0 && linesAfter.length > 2) {
+            const line2 = cleanContractorLine(linesAfter[2]);
+            if (looksLikeNamePart(line2)) nameParts.push(line2);
           }
-          rawLine = rawLine.replace(/(PLAN|PÓLIZA|No\.|EMISIÓN|VIGENCIA|EDAD|FECHA|RFC|DOMICILIO|C\.P\.).*/i, '').trim();
-          const nameMatch = rawLine.match(/^[A-Z\sÁÉÍÓÚÑ]+/i);
-          result.contractor = nameMatch ? nameMatch[0].trim() : rawLine;
+          result.contractor = nameParts.length > 0 ? nameParts.join(' ').trim() : cleanContractorLine(linesAfter[1]);
         }
       }
       
