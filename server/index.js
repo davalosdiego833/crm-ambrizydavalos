@@ -1387,6 +1387,36 @@ app.post('/api/policies/parse', authMiddleware, upload.single('policy'), async (
       }
     }
 
+    // Helpers compartidos para extraer nombres de contratante/asegurado, usados
+    // tanto en Vida como en GMM: despegan la contaminación de columnas vecinas
+    // (territorialidad en GMM) y recuperan el apellido cuando el nombre es tan
+    // largo que se recorre a la línea de abajo (filtrando fragmentos sueltos
+    // que no son continuación real del nombre, como restos de otra columna).
+    const RIGHT_COLUMN_NOISE = /\b(TERRITORIALIDAD|NACIONAL|INTERNACIONAL|ZONA)\b.*/i;
+    const NAME_STOP_WORDS = /(PLAN|PÓLIZA|No\.|EMISIÓN|VIGENCIA|EDAD|FECHA|RFC|DOMICILIO|C\.P\.|ASEGURADO|CONTRATANTE|TITULAR|CLAVE|FIGURA|GÉNERO|MONEDA|FORMA\s+DE\s*PAGO).*/i;
+    const cleanNameLine = (line) => {
+      let l = String(line || '').trim();
+      l = l.replace(RIGHT_COLUMN_NOISE, '').trim();
+      l = l.replace(NAME_STOP_WORDS, '').trim();
+      return l;
+    };
+    const looksLikeNamePart = (l) => /^[A-ZÁÉÍÓÚÑ\s]{3,}$/i.test(l);
+    const extractWrappableName = (firstLineRaw, nextLineRaw) => {
+      const line1 = cleanNameLine(firstLineRaw);
+      if (looksLikeNamePart(line1)) {
+        const parts = [line1];
+        if (nextLineRaw !== undefined) {
+          const line2 = cleanNameLine(nextLineRaw);
+          if (looksLikeNamePart(line2)) parts.push(line2);
+        }
+        return parts.join(' ').trim();
+      }
+      // Algo quedó pegado que no se pudo despegar por palabra clave (ej. un
+      // número de póliza) — se recupera solo el prefijo de letras.
+      const prefixMatch = line1.match(/^[A-ZÁÉÍÓÚÑ\s]+/i);
+      return prefixMatch ? prefixMatch[0].trim() : line1;
+    };
+
     if (result.product === 'GMM') {
       // --- LÓGICA DE EXTRACCIÓN EXCLUSIVA PARA GMM (Gastos Médicos Mayores) ---
 
@@ -1407,35 +1437,15 @@ app.post('/api/policies/parse', authMiddleware, upload.single('policy'), async (
       };
       result.planType = detectPlanType(planScanTarget) || detectPlanType(text.toUpperCase()) || 'PLENO';
 
-      // 3. Contratante GMM (Soporta el formato de columnas del PDF de Seguros Monterrey).
-      // El PDF tiene 2 columnas (nombre | territorialidad) que pdf-parse aplana en
-      // una sola línea de texto, así que hay que despegar la contaminación de la
-      // columna derecha (TERRITORIALIDAD/NACIONAL/INTERNACIONAL/ZONA) y, si el
-      // nombre es muy largo y se recorre a la siguiente línea, recuperar también
-      // ese segundo renglón (filtrando fragmentos sueltos que no son nombre real).
-      const RIGHT_COLUMN_NOISE = /\b(TERRITORIALIDAD|NACIONAL|INTERNACIONAL|ZONA)\b.*/i;
-      const cleanContractorLine = (line) => {
-        let l = String(line || '').trim();
-        l = l.replace(RIGHT_COLUMN_NOISE, '').trim();
-        l = l.replace(/(PLAN|PÓLIZA|No\.|EMISIÓN|VIGENCIA|EDAD|FECHA|RFC|DOMICILIO|C\.P\.).*/i, '').trim();
-        return l;
-      };
-      const looksLikeNamePart = (l) => /^[A-ZÁÉÍÓÚÑ\s]{3,}$/i.test(l);
-
+      // 3. Contratante GMM (Soporta el formato de columnas del PDF de Seguros
+      // Monterrey). El PDF tiene 2 columnas (nombre | territorialidad) que
+      // pdf-parse aplana en una sola línea de texto, así que extractWrappableName
+      // despega esa contaminación y recupera el apellido si se recorre abajo.
       const contractorIndex = text.indexOf('CONTRA TA NTE');
       if (contractorIndex !== -1) {
-        const afterContractor = text.substring(contractorIndex);
-        const linesAfter = afterContractor.split('\n');
+        const linesAfter = text.substring(contractorIndex).split('\n');
         if (linesAfter.length > 1) {
-          const nameParts = [];
-          const line1 = cleanContractorLine(linesAfter[1]);
-          if (looksLikeNamePart(line1)) nameParts.push(line1);
-          // Apellido que se recorrió a la línea de abajo (nombres muy largos)
-          if (nameParts.length > 0 && linesAfter.length > 2) {
-            const line2 = cleanContractorLine(linesAfter[2]);
-            if (looksLikeNamePart(line2)) nameParts.push(line2);
-          }
-          result.contractor = nameParts.length > 0 ? nameParts.join(' ').trim() : cleanContractorLine(linesAfter[1]);
+          result.contractor = extractWrappableName(linesAfter[1], linesAfter[2]);
         }
       }
       
@@ -1527,30 +1537,21 @@ app.post('/api/policies/parse', authMiddleware, upload.single('policy'), async (
         }
       }
 
-      // 3. Contratante
-      const contractorMatch = text.match(/CONTRATANTE\s*([^\n\r]+)/i);
-      if (contractorMatch) {
-        let rawName = contractorMatch[1].trim();
-        const parts = rawName.split(/\s{2,}/);
-        if (parts.length > 0) {
-          rawName = parts[0].trim();
-        }
-        rawName = rawName.replace(/(PLAN|PÓLIZA|No\.|EMISIÓN|VIGENCIA|EDAD|FECHA|RFC|DOMICILIO|C\.P\.).*/i, '').trim();
-        const nameMatch = rawName.match(/^[A-Z\sÁÉÍÓÚÑ]+/i);
-        result.contractor = nameMatch ? nameMatch[0].trim() : rawName;
+      // 3. Contratante (usa extractWrappableName para recuperar el apellido si
+      // el nombre es largo y se recorre a la línea de abajo)
+      const contractorIdx = text.search(/CONTRATANTE/i);
+      if (contractorIdx !== -1) {
+        const linesAfter = text.substring(contractorIdx).split('\n');
+        const firstLine = linesAfter[0].replace(/CONTRATANTE\s*/i, '');
+        result.contractor = extractWrappableName(firstLine, linesAfter[1]);
       }
 
-      // 4. Asegurado
-      const insuredMatch = text.match(/ASEGURADO\s*([^\n\r]+)/i);
-      if (insuredMatch) {
-        let rawName = insuredMatch[1].trim();
-        const parts = rawName.split(/\s{2,}/);
-        if (parts.length > 0) {
-          rawName = parts[0].trim();
-        }
-        rawName = rawName.replace(/(PLAN|PÓLIZA|No\.|EMISIÓN|VIGENCIA|EDAD|FECHA|RFC|DOMICILIO|C\.P\.).*/i, '').trim();
-        const nameMatch = rawName.match(/^[A-Z\sÁÉÍÓÚÑ]+/i);
-        const insuredName = nameMatch ? nameMatch[0].trim() : rawName;
+      // 4. Asegurado (mismo tratamiento que Contratante)
+      const insuredIdx = text.search(/ASEGURADO/i);
+      if (insuredIdx !== -1) {
+        const linesAfterInsured = text.substring(insuredIdx).split('\n');
+        const firstInsuredLine = linesAfterInsured[0].replace(/ASEGURADO\s*/i, '');
+        const insuredName = extractWrappableName(firstInsuredLine, linesAfterInsured[1]);
         // Buscar Fecha de Nacimiento
         const dobMatch = text.match(/FECHA\s+DE\s*NACIMIENTO\s*([0-9]{1,2}\/[A-Z]{3,4}\/[0-9]{4})/i);
         let birthDate = '';
