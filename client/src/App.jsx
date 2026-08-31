@@ -476,7 +476,7 @@ const Dashboard = () => {
     collected: filterList(data.collectedList)
   };
 
-  const totalAlerts = (currentLists.atrasados?.length || 0) + (currentLists.hoy?.length || 0) + (currentLists.en5Dias?.length || 0) + (currentLists.en15Dias?.length || 0);
+  const totalAlerts = (currentLists.atrasados?.length || 0) + (currentLists.hoy?.length || 0) + (currentLists.en5Dias?.length || 0) + (currentLists.en15Dias?.length || 0) + (currentLists.enMes?.length || 0);
 
   // KPIs por pestaña: Novaris consolida todo en MXN; Ambriz desglosa por
   // moneda real del cliente (USD/UDI en Vida, MXN en GMM) — currentLists ya
