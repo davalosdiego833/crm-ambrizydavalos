@@ -317,8 +317,6 @@ const Prospects = () => {
             <thead>
               <tr style={{ borderBottom: '1px solid var(--glass-border)', background: 'rgba(255,255,255,0.01)' }}>
                 <th style={{ padding: '16px 24px', color: 'var(--text-muted)', fontWeight: '600', fontSize: '0.85rem' }}>Nombre del Prospecto</th>
-                <th style={{ padding: '16px 24px', color: 'var(--text-muted)', fontWeight: '600', fontSize: '0.85rem' }}>1ra Cita</th>
-                <th style={{ padding: '16px 24px', color: 'var(--text-muted)', fontWeight: '600', fontSize: '0.85rem' }}>2da Cita</th>
                 <th style={{ padding: '16px 24px', color: 'var(--text-muted)', fontWeight: '600', fontSize: '0.85rem' }}>Fuente</th>
                 <th style={{ padding: '16px 24px', color: 'var(--text-muted)', fontWeight: '600', fontSize: '0.85rem' }}>Compromiso Búsqueda</th>
                 <th style={{ padding: '16px 24px', color: 'var(--text-muted)', fontWeight: '600', fontSize: '0.85rem', width: '30%' }}>Comentarios/Observaciones</th>
@@ -328,13 +326,13 @@ const Prospects = () => {
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan="7" style={{ padding: '48px', textAlign: 'center', color: 'var(--text-dim)' }}>
+                  <td colSpan="5" style={{ padding: '48px', textAlign: 'center', color: 'var(--text-dim)' }}>
                     Cargando base de datos de prospectos...
                   </td>
                 </tr>
               ) : filteredProspects.length === 0 ? (
                 <tr>
-                  <td colSpan="7" style={{ padding: '48px', textAlign: 'center', color: 'var(--text-dim)', fontSize: '0.9rem' }}>
+                  <td colSpan="5" style={{ padding: '48px', textAlign: 'center', color: 'var(--text-dim)', fontSize: '0.9rem' }}>
                     No se encontraron prospectos registrados. ¡Haz clic en "Añadir Prospecto" para empezar!
                   </td>
                 </tr>
@@ -359,8 +357,6 @@ const Prospects = () => {
                   return (
                     <tr key={p.id} style={{ borderBottom: '1px solid var(--glass-border)', transition: 'background-color 0.2s' }}>
                       <td style={{ padding: '16px 24px', fontWeight: '700', color: 'var(--text-main)' }}>{p.name}</td>
-                      <td style={{ padding: '16px 24px', fontSize: '0.85rem' }}>{formatReadableDate(p.firstAppointmentDate)}</td>
-                      <td style={{ padding: '16px 24px', fontSize: '0.85rem' }}>{formatReadableDate(p.secondAppointmentDate)}</td>
                       <td style={{ padding: '16px 24px', fontSize: '0.85rem' }}>
                         {p.source ? (
                           <span style={{ background: 'rgba(255,255,255,0.04)', padding: '4px 8px', borderRadius: '6px', border: '1px solid var(--glass-border)' }}>
