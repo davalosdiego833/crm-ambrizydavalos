@@ -62,17 +62,20 @@ const Prospects = () => {
     loadProspects();
   }, []);
 
-  const loadProspects = () => {
-    setLoading(true);
+  // showLoader=false hace un refresco silencioso (sin reemplazar la tabla por
+  // el mensaje de "Cargando...", que colapsa la altura de la página y hace
+  // que se pierda la posición de scroll donde estabas trabajando).
+  const loadProspects = (showLoader = true) => {
+    if (showLoader) setLoading(true);
     authFetch('/api/prospects')
       .then(res => res.json())
       .then(data => {
         setProspects(Array.isArray(data) ? data : []);
-        setLoading(false);
+        if (showLoader) setLoading(false);
       })
       .catch(err => {
         console.error('Error cargando prospectos:', err);
-        setLoading(false);
+        if (showLoader) setLoading(false);
       });
   };
 
@@ -142,7 +145,16 @@ const Prospects = () => {
         if (data.success) {
           setShowModal(false);
           setProspectData(initialProspectData);
-          loadProspects();
+          // Actualiza la fila en el propio estado local (en vez de volver a
+          // pedir toda la lista) para no recargar/parpadear la tabla y así no
+          // perder la posición de scroll donde estabas trabajando.
+          if (editingId) {
+            setProspects(prev => prev.map(p => p.id === editingId ? data.prospect : p));
+          } else if (data.prospect) {
+            setProspects(prev => [...prev, data.prospect]);
+          } else {
+            loadProspects(false);
+          }
         } else {
           alert(data.error || 'Error al guardar el prospecto');
         }
@@ -159,7 +171,7 @@ const Prospects = () => {
       .then(res => res.json())
       .then(data => {
         if (data.success) {
-          loadProspects();
+          setProspects(prev => prev.filter(p => p.id !== id));
         } else {
           alert('Error al eliminar el prospecto');
         }
