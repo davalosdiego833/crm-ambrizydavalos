@@ -1164,7 +1164,7 @@ app.get('/api/prospects', authMiddleware, (req, res) => {
 
 // Crear prospecto
 app.post('/api/prospects', authMiddleware, (req, res) => {
-  const { name, firstAppointmentDate, secondAppointmentDate, source, searchCommitmentDate, comments } = req.body;
+  const { name, referredBy, phone, source, searchCommitmentDate, comments } = req.body;
   if (!name) return res.status(400).json({ error: 'El nombre del prospecto es requerido' });
 
   const prospects = req.user.prospects || [];
@@ -1173,8 +1173,8 @@ app.post('/api/prospects', authMiddleware, (req, res) => {
   const newProspect = {
     id: nextId,
     name,
-    firstAppointmentDate: firstAppointmentDate || '',
-    secondAppointmentDate: secondAppointmentDate || '',
+    referredBy: referredBy || '',
+    phone: phone || '',
     source: source || '',
     searchCommitmentDate: searchCommitmentDate || '',
     comments: comments || '',
@@ -1194,10 +1194,10 @@ app.put('/api/prospects/:prospectId', authMiddleware, (req, res) => {
   const index = prospects.findIndex(p => p.id == req.params.prospectId);
   if (index === -1) return res.status(404).json({ error: 'Prospecto no encontrado' });
 
-  const { name, firstAppointmentDate, secondAppointmentDate, source, searchCommitmentDate, comments } = req.body;
+  const { name, referredBy, phone, source, searchCommitmentDate, comments } = req.body;
   if (name) prospects[index].name = name;
-  prospects[index].firstAppointmentDate = firstAppointmentDate !== undefined ? firstAppointmentDate : prospects[index].firstAppointmentDate;
-  prospects[index].secondAppointmentDate = secondAppointmentDate !== undefined ? secondAppointmentDate : prospects[index].secondAppointmentDate;
+  prospects[index].referredBy = referredBy !== undefined ? referredBy : prospects[index].referredBy;
+  prospects[index].phone = phone !== undefined ? phone : prospects[index].phone;
   prospects[index].source = source !== undefined ? source : prospects[index].source;
   prospects[index].searchCommitmentDate = searchCommitmentDate !== undefined ? searchCommitmentDate : prospects[index].searchCommitmentDate;
   prospects[index].comments = comments !== undefined ? comments : prospects[index].comments;

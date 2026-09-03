@@ -49,9 +49,9 @@ const Prospects = () => {
   
   const initialProspectData = {
     name: '',
-    firstAppointmentDate: '',
-    secondAppointmentDate: '',
     source: '',
+    referredBy: '',
+    phone: '',
     searchCommitmentDate: '',
     comments: ''
   };
@@ -86,9 +86,9 @@ const Prospects = () => {
     setEditingId(p.id);
     setProspectData({
       name: p.name || '',
-      firstAppointmentDate: p.firstAppointmentDate || '',
-      secondAppointmentDate: p.secondAppointmentDate || '',
       source: p.source || '',
+      referredBy: p.referredBy || '',
+      phone: p.phone || '',
       searchCommitmentDate: p.searchCommitmentDate || '',
       comments: p.comments || ''
     });
@@ -168,9 +168,11 @@ const Prospects = () => {
   };
 
   // Filtrar por búsqueda
-  const filteredProspects = prospects.filter(p => 
+  const filteredProspects = prospects.filter(p =>
     (p.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
     (p.source || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (p.referredBy || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (p.phone || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
     (p.comments || '').toLowerCase().includes(searchTerm.toLowerCase())
   );
 
@@ -253,7 +255,7 @@ const Prospects = () => {
                     Compromiso para HOY: Buscar a <span style={{ color: 'var(--accent-gold)' }}>{p.name}</span>
                   </p>
                   <p style={{ fontSize: '0.75rem', color: 'var(--text-dim)', marginTop: '2px' }}>
-                    Fuente: {p.source || 'No especificada'} | Fecha de cita inicial: {formatReadableDate(p.firstAppointmentDate)}
+                    Fuente: {p.source || 'No especificada'} | Teléfono: {p.phone || 'No especificado'}
                   </p>
                 </div>
               </div>
@@ -273,7 +275,7 @@ const Prospects = () => {
                     Compromiso en 3 DÍAS: Buscar a <span style={{ color: '#ffaa00' }}>{p.name}</span> ({formatReadableDate(p.searchCommitmentDate)})
                   </p>
                   <p style={{ fontSize: '0.75rem', color: 'var(--text-dim)', marginTop: '2px' }}>
-                    Fuente: {p.source || 'No especificada'} | Segunda cita: {formatReadableDate(p.secondAppointmentDate)}
+                    Fuente: {p.source || 'No especificada'} | Referenciado por: {p.referredBy || 'No especificado'}
                   </p>
                 </div>
               </div>
@@ -293,7 +295,7 @@ const Prospects = () => {
             type="text"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="Buscar por nombre, fuente o comentarios..."
+            placeholder="Buscar por nombre, fuente, referido, teléfono o comentarios..."
             style={{
               padding: '10px 14px',
               borderRadius: '8px',
@@ -316,23 +318,25 @@ const Prospects = () => {
           <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
             <thead>
               <tr style={{ borderBottom: '1px solid var(--glass-border)', background: 'rgba(255,255,255,0.01)' }}>
-                <th style={{ padding: '16px 24px', color: 'var(--text-muted)', fontWeight: '600', fontSize: '0.85rem' }}>Nombre del Prospecto</th>
+                <th style={{ padding: '16px 24px', color: 'var(--text-muted)', fontWeight: '600', fontSize: '0.85rem' }}>Prospecto</th>
                 <th style={{ padding: '16px 24px', color: 'var(--text-muted)', fontWeight: '600', fontSize: '0.85rem' }}>Fuente</th>
+                <th style={{ padding: '16px 24px', color: 'var(--text-muted)', fontWeight: '600', fontSize: '0.85rem' }}>Referenciado por</th>
+                <th style={{ padding: '16px 24px', color: 'var(--text-muted)', fontWeight: '600', fontSize: '0.85rem' }}>Teléfono</th>
                 <th style={{ padding: '16px 24px', color: 'var(--text-muted)', fontWeight: '600', fontSize: '0.85rem' }}>Compromiso Búsqueda</th>
-                <th style={{ padding: '16px 24px', color: 'var(--text-muted)', fontWeight: '600', fontSize: '0.85rem', width: '30%' }}>Comentarios/Observaciones</th>
+                <th style={{ padding: '16px 24px', color: 'var(--text-muted)', fontWeight: '600', fontSize: '0.85rem', width: '25%' }}>Comentarios</th>
                 <th style={{ padding: '16px 24px', color: 'var(--text-muted)', fontWeight: '600', fontSize: '0.85rem', textAlign: 'center' }}>Acciones</th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan="5" style={{ padding: '48px', textAlign: 'center', color: 'var(--text-dim)' }}>
+                  <td colSpan="7" style={{ padding: '48px', textAlign: 'center', color: 'var(--text-dim)' }}>
                     Cargando base de datos de prospectos...
                   </td>
                 </tr>
               ) : filteredProspects.length === 0 ? (
                 <tr>
-                  <td colSpan="5" style={{ padding: '48px', textAlign: 'center', color: 'var(--text-dim)', fontSize: '0.9rem' }}>
+                  <td colSpan="7" style={{ padding: '48px', textAlign: 'center', color: 'var(--text-dim)', fontSize: '0.9rem' }}>
                     No se encontraron prospectos registrados. ¡Haz clic en "Añadir Prospecto" para empezar!
                   </td>
                 </tr>
@@ -364,6 +368,8 @@ const Prospects = () => {
                           </span>
                         ) : '—'}
                       </td>
+                      <td style={{ padding: '16px 24px', fontSize: '0.85rem', color: 'var(--text-muted)' }}>{p.referredBy || '—'}</td>
+                      <td style={{ padding: '16px 24px', fontSize: '0.85rem', color: 'var(--text-muted)' }}>{p.phone || '—'}</td>
                       <td style={{ padding: '16px 24px', fontSize: '0.85rem' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                           <span>{formatReadableDate(p.searchCommitmentDate)}</span>
@@ -458,26 +464,28 @@ const Prospects = () => {
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
                 <div>
                   <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '8px', display: 'block', fontWeight: '500' }}>
-                    Fecha de primera cita
+                    Fuente (de dónde salió)
                   </label>
-                  <input 
-                    type="date" 
-                    name="firstAppointmentDate" 
-                    value={prospectData.firstAppointmentDate} 
-                    onChange={handleInputChange} 
-                    style={inputStyle} 
+                  <input
+                    type="text"
+                    name="source"
+                    value={prospectData.source}
+                    onChange={handleInputChange}
+                    placeholder="Ej. Recomendado, Redes Sociales"
+                    style={inputStyle}
                   />
                 </div>
                 <div>
                   <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '8px', display: 'block', fontWeight: '500' }}>
-                    Fecha de segunda cita
+                    Referenciado por
                   </label>
-                  <input 
-                    type="date" 
-                    name="secondAppointmentDate" 
-                    value={prospectData.secondAppointmentDate} 
-                    onChange={handleInputChange} 
-                    style={inputStyle} 
+                  <input
+                    type="text"
+                    name="referredBy"
+                    value={prospectData.referredBy}
+                    onChange={handleInputChange}
+                    placeholder="Ej. Nombre de quien lo recomendó"
+                    style={inputStyle}
                   />
                 </div>
               </div>
@@ -485,37 +493,37 @@ const Prospects = () => {
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
                 <div>
                   <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '8px', display: 'block', fontWeight: '500' }}>
-                    Fuente (de dónde salió)
+                    Teléfono
                   </label>
-                  <input 
-                    type="text" 
-                    name="source" 
-                    value={prospectData.source} 
-                    onChange={handleInputChange} 
-                    placeholder="Ej. Recomendado, Redes Sociales" 
-                    style={inputStyle} 
+                  <input
+                    type="text"
+                    name="phone"
+                    value={prospectData.phone}
+                    onChange={handleInputChange}
+                    placeholder="Ej: 5512345678"
+                    style={inputStyle}
                   />
                 </div>
                 <div>
                   <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '8px', display: 'block', fontWeight: '500' }}>
                     Compromiso de búsqueda
                   </label>
-                  <input 
-                    type="date" 
-                    name="searchCommitmentDate" 
-                    value={prospectData.searchCommitmentDate} 
-                    onChange={handleInputChange} 
-                    style={inputStyle} 
+                  <input
+                    type="date"
+                    name="searchCommitmentDate"
+                    value={prospectData.searchCommitmentDate}
+                    onChange={handleInputChange}
+                    style={inputStyle}
                   />
                   <span style={{ fontSize: '0.65rem', color: 'var(--accent-gold)', marginTop: '4px', display: 'block' }}>
-                    💡 Tip: Para saltar rápido de año, haz clic en el mes y año en la cabecera del calendario.
+                    💡 En esa fecha te avisamos aquí mismo para buscarlo (ver "Avisos de Búsqueda" arriba).
                   </span>
                 </div>
               </div>
 
               <div>
                 <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '8px', display: 'block', fontWeight: '500' }}>
-                  Comentarios / Observaciones
+                  Comentarios
                 </label>
                 <textarea 
                   name="comments" 
