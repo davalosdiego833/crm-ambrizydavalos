@@ -204,14 +204,18 @@ const Prospects = () => {
   const { todayAlerts, in3DaysAlerts } = getAlerts();
   const hasAlerts = todayAlerts.length > 0 || in3DaysAlerts.length > 0;
 
-  // Estilos rápidos reutilizables
+  // Estilos rápidos reutilizables — el modal de Añadir/Editar Prospecto es
+  // siempre una tarjeta blanca (igual que en Clientes), sin importar el tema
+  // oscuro/claro de la app, así que estos inputs usan colores fijos claros
+  // en vez de las variables de tema (que en modo oscuro daban texto blanco
+  // sobre fondo blanco, invisible).
   const inputStyle = {
     width: '100%',
     padding: '10px 12px',
-    background: 'rgba(255,255,255,0.03)',
-    border: '1px solid var(--glass-border)',
+    background: '#ffffff',
+    border: '1px solid #cbd5e1',
     borderRadius: '10px',
-    color: 'var(--text-main)',
+    color: '#0f172a',
     fontSize: '0.9rem',
     outline: 'none',
     boxSizing: 'border-box',
@@ -451,7 +455,7 @@ const Prospects = () => {
             <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
               
               <div>
-                <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '8px', display: 'block', fontWeight: '500' }}>
+                <label style={{ fontSize: '0.8rem', color: '#334155', marginBottom: '8px', display: 'block', fontWeight: '500' }}>
                   Nombre del prospecto *
                 </label>
                 <input 
@@ -467,7 +471,7 @@ const Prospects = () => {
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
                 <div>
-                  <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '8px', display: 'block', fontWeight: '500' }}>
+                  <label style={{ fontSize: '0.8rem', color: '#334155', marginBottom: '8px', display: 'block', fontWeight: '500' }}>
                     Fuente (de dónde salió)
                   </label>
                   <input
@@ -480,7 +484,7 @@ const Prospects = () => {
                   />
                 </div>
                 <div>
-                  <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '8px', display: 'block', fontWeight: '500' }}>
+                  <label style={{ fontSize: '0.8rem', color: '#334155', marginBottom: '8px', display: 'block', fontWeight: '500' }}>
                     Referenciado por
                   </label>
                   <input
@@ -496,7 +500,7 @@ const Prospects = () => {
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
                 <div>
-                  <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '8px', display: 'block', fontWeight: '500' }}>
+                  <label style={{ fontSize: '0.8rem', color: '#334155', marginBottom: '8px', display: 'block', fontWeight: '500' }}>
                     Teléfono
                   </label>
                   <input
@@ -509,7 +513,7 @@ const Prospects = () => {
                   />
                 </div>
                 <div>
-                  <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '8px', display: 'block', fontWeight: '500' }}>
+                  <label style={{ fontSize: '0.8rem', color: '#334155', marginBottom: '8px', display: 'block', fontWeight: '500' }}>
                     Compromiso de búsqueda
                   </label>
                   <input
@@ -526,7 +530,7 @@ const Prospects = () => {
               </div>
 
               <div>
-                <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '8px', display: 'block', fontWeight: '500' }}>
+                <label style={{ fontSize: '0.8rem', color: '#334155', marginBottom: '8px', display: 'block', fontWeight: '500' }}>
                   Comentarios
                 </label>
                 <textarea 
@@ -539,13 +543,13 @@ const Prospects = () => {
               </div>
 
               <div style={{ display: 'flex', gap: '12px', marginTop: '12px', justifyContent: 'flex-end' }}>
-                <button 
-                  type="button" 
-                  onClick={() => setShowModal(false)} 
-                  style={{ 
-                    padding: '12px 24px', borderRadius: '10px', 
-                    background: 'rgba(255,255,255,0.05)', color: 'var(--text-main)', 
-                    border: '1px solid var(--glass-border)', cursor: 'pointer', fontWeight: '600' 
+                <button
+                  type="button"
+                  onClick={() => setShowModal(false)}
+                  style={{
+                    padding: '12px 24px', borderRadius: '10px',
+                    background: '#f1f5f9', color: '#0f172a',
+                    border: '1px solid #cbd5e1', cursor: 'pointer', fontWeight: '600'
                   }}
                 >
                   Cancelar
