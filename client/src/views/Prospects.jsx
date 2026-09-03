@@ -229,6 +229,10 @@ const Prospects = () => {
           </p>
         </div>
         <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+          <label className="glass-card" style={{ padding: '10px 20px', cursor: 'pointer', border: '1px solid var(--accent-gold)', color: 'var(--accent-gold)', fontSize: '0.85rem', fontWeight: '600', display: 'flex', alignItems: 'center' }}>
+            📊 Migrar Excel
+            <input type="file" accept=".xlsx,.xls" hidden onChange={(e) => { handleMigration(e.target.files[0]); e.target.value = ''; }} />
+          </label>
           <button onClick={openAddModal} className="btn-primary">
             + Añadir Prospecto
           </button>

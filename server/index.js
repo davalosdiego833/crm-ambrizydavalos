@@ -1229,13 +1229,15 @@ app.post('/api/migrate-prospects', authMiddleware, upload.single('file'), (req, 
     // Leemos el archivo en formato de objetos
     const rawRows = xlsx.utils.sheet_to_json(sheet);
 
-    // Mapeo de cabeceras tolerante
-    const possibleName = ['nombre del prospecto', 'prospecto', 'nombre'];
-    const possibleFirstCita = ['fecha primera cita', 'fecha 1ra cita', '1ra cita', 'primera cita'];
-    const possibleSecondCita = ['fecha segunda cita', 'fecha 2da cita', '2da cita', 'segunda cita'];
+    // Mapeo de cabeceras tolerante — si una columna no coincide con ninguno de
+    // estos alias, simplemente se ignora y el campo correspondiente queda en
+    // blanco en el prospecto migrado (no se rechaza la fila ni truena el import).
+    const possibleName = ['nombre del prospecto', 'prospecto', 'nombre', 'nombre completo'];
     const possibleSource = ['fuente', 'origen', 'de donde salio', 'de dónde salió'];
-    const possibleCommitment = ['fecha de compromiso de búsqueda', 'fecha de compromiso de busqueda', 'compromiso de busqueda', 'compromiso de búsqueda', 'compromiso'];
-    const possibleComments = ['observación', 'observacion', 'comentarios', 'comentario', 'comentarios/observacion', 'observaciones'];
+    const possibleReferredBy = ['referenciado por', 'referido por', 'referencia', 'quien lo refirio', 'quién lo refirió', 'recomendado por'];
+    const possiblePhone = ['celular', 'teléfono', 'telefono', 'tel', 'whatsapp', 'número', 'numero'];
+    const possibleCommitment = ['fecha de compromiso de búsqueda', 'fecha de compromiso de busqueda', 'compromiso de busqueda', 'compromiso de búsqueda', 'compromiso', 'fecha compromiso'];
+    const possibleComments = ['observación', 'observacion', 'comentarios', 'comentario', 'comentarios/observacion', 'observaciones', 'status', 'estatus', 'notas', 'nota'];
 
     const prospects = req.user.prospects || [];
     let nextId = prospects.length > 0 ? Math.max(...prospects.map(p => p.id)) + 1 : 1;
@@ -1258,18 +1260,18 @@ app.post('/api/migrate-prospects', authMiddleware, upload.single('file'), (req, 
       const name = String(rawName || '').trim();
       if (!name) return; // Si no tiene nombre, ignorar la fila
 
-      const rawFirstCita = getHeaderValue(row, possibleFirstCita);
-      const rawSecondCita = getHeaderValue(row, possibleSecondCita);
       const rawSource = getHeaderValue(row, possibleSource);
+      const rawReferredBy = getHeaderValue(row, possibleReferredBy);
+      const rawPhone = getHeaderValue(row, possiblePhone);
       const rawCommitment = getHeaderValue(row, possibleCommitment);
       const rawComments = getHeaderValue(row, possibleComments);
 
       const newProspect = {
         id: nextId++,
         name,
-        firstAppointmentDate: rawFirstCita ? parseDate(rawFirstCita) : '',
-        secondAppointmentDate: rawSecondCita ? parseDate(rawSecondCita) : '',
         source: String(rawSource || '').trim(),
+        referredBy: String(rawReferredBy || '').trim(),
+        phone: String(rawPhone || '').trim(),
         searchCommitmentDate: rawCommitment ? parseDate(rawCommitment) : '',
         comments: String(rawComments || '').trim(),
         createdAt: new Date().toISOString()
