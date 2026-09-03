@@ -1772,8 +1772,17 @@ app.get('/api/dashboard', authMiddleware, (req, res) => {
 
   const currentMonth = ('0' + (now.getMonth() + 1)).slice(-2);
   const currentYearInt = now.getFullYear();
+  // Mes siguiente (con su propio año, por si diciembre -> enero cruza de año),
+  // para poder avisar con anticipación a quien cumple justo al inicio del mes
+  // que sigue (antes solo se veía hasta que el calendario cruzaba ese mes).
+  const nextMonthDate = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+  const nextMonth = ('0' + (nextMonthDate.getMonth() + 1)).slice(-2);
+  const nextMonthYearInt = nextMonthDate.getFullYear();
+
   const birthdays = [];
+  const birthdaysNextMonth = [];
   const anniversaries = [];
+  const anniversariesNextMonth = [];
 
   clientsData.forEach(c => {
     if (c.status === 'Anulada') return; // Omitir pólizas anuladas
@@ -1785,14 +1794,14 @@ app.get('/api/dashboard', authMiddleware, (req, res) => {
       const bMonth = parts.length === 3 ? parts[1] : (parts.length === 2 ? parts[0] : '');
       const bDay = parts.length === 3 ? parts[2] : (parts.length === 2 ? parts[1] : '');
 
-      if (bMonth === currentMonth) {
-        birthdays.push({ 
-          name: cleanContractorName, 
-          type: `Contratante (Día ${bDay})`,
-          policy: c.policyNumber,
-          day: parseInt(bDay)
-        });
-      }
+      const entry = {
+        name: cleanContractorName,
+        type: `Contratante (Día ${bDay})`,
+        policy: c.policyNumber,
+        day: parseInt(bDay)
+      };
+      if (bMonth === currentMonth) birthdays.push(entry);
+      else if (bMonth === nextMonth) birthdaysNextMonth.push(entry);
     }
 
     // Revisar Cumpleaños de los Asegurados
@@ -1800,45 +1809,51 @@ app.get('/api/dashboard', authMiddleware, (req, res) => {
       if (ins.birthDate) {
         const cleanInsuredName = cleanPersonName(ins.name);
         // Evitar duplicados si el asegurado es la misma persona que el contratante en la misma póliza
-        const isSamePerson = (cleanInsuredName.toUpperCase() === cleanContractorName.toUpperCase()) || 
+        const isSamePerson = (cleanInsuredName.toUpperCase() === cleanContractorName.toUpperCase()) ||
                              (ins.birthDate === c.contractorBirthDate);
 
-        if (isSamePerson) return; 
+        if (isSamePerson) return;
 
         const parts = ins.birthDate.split('-');
         const bMonth = parts.length === 3 ? parts[1] : (parts.length === 2 ? parts[0] : '');
         const bDay = parts.length === 3 ? parts[2] : (parts.length === 2 ? parts[1] : '');
 
-        if (bMonth === currentMonth) {
-          birthdays.push({ 
-            name: cleanInsuredName, 
-            type: `Asegurado (Día ${bDay})`,
-            policy: c.policyNumber,
-            day: parseInt(bDay)
-          });
-        }
+        const entry = {
+          name: cleanInsuredName,
+          type: `Asegurado (Día ${bDay})`,
+          policy: c.policyNumber,
+          day: parseInt(bDay)
+        };
+        if (bMonth === currentMonth) birthdays.push(entry);
+        else if (bMonth === nextMonth) birthdaysNextMonth.push(entry);
       }
     });
 
     // Revisar Aniversarios de Pólizas (basado en emissionDate)
-    if (c.emissionDate && c.emissionDate.slice(5, 7) === currentMonth) {
+    if (c.emissionDate) {
+      const emissionMonth = c.emissionDate.slice(5, 7);
       const day = c.emissionDate.slice(8, 10);
       const emissionYear = parseInt(c.emissionDate.slice(0, 4));
-      const years = currentYearInt - emissionYear;
-      if (years > 0) {
-        anniversaries.push({
-          name: c.contractor,
-          policy: c.policyNumber,
-          day: parseInt(day),
-          years: years
-        });
+
+      if (emissionMonth === currentMonth) {
+        const years = currentYearInt - emissionYear;
+        if (years > 0) {
+          anniversaries.push({ name: c.contractor, policy: c.policyNumber, day: parseInt(day), years });
+        }
+      } else if (emissionMonth === nextMonth) {
+        const years = nextMonthYearInt - emissionYear;
+        if (years > 0) {
+          anniversariesNextMonth.push({ name: c.contractor, policy: c.policyNumber, day: parseInt(day), years });
+        }
       }
     }
   });
-  
+
   // Ordenar cumpleaños y aniversarios por día del mes
   birthdays.sort((a, b) => a.day - b.day);
+  birthdaysNextMonth.sort((a, b) => a.day - b.day);
   anniversaries.sort((a, b) => a.day - b.day);
+  anniversariesNextMonth.sort((a, b) => a.day - b.day);
 
   // Ordenar listas
   upcomingLists.hoy.sort((a, b) => a.days - b.days);
@@ -1852,7 +1867,9 @@ app.get('/api/dashboard', authMiddleware, (req, res) => {
     upcomingLists,
     collectedList,
     birthdays,
-    anniversaries
+    anniversaries,
+    birthdaysNextMonth,
+    anniversariesNextMonth
   });
 });
 
