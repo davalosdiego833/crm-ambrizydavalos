@@ -37,6 +37,22 @@ const formatReadableDate = (dateStr) => {
   return dateStr;
 };
 
+// Homogeniza el formato de teléfonos para que se vean parejos en la tabla
+// (algunos prospectos migrados de Excel venían como número puro "4431600083"
+// y otros ya traían espacios "33 1170 6130" — eso hacía que la columna los
+// envolviera distinto según el caso). No modifica el dato guardado, solo
+// cómo se muestra. Si no son exactamente 10 dígitos (el formato mexicano
+// estándar), se deja tal cual en vez de forzar un agrupado que podría ser
+// incorrecto.
+const formatPhoneDisplay = (phone) => {
+  if (!phone) return '—';
+  const digits = phone.replace(/\D/g, '');
+  if (digits.length === 10) {
+    return `${digits.slice(0, 2)} ${digits.slice(2, 6)} ${digits.slice(6)}`;
+  }
+  return phone;
+};
+
 const Prospects = () => {
   const { authFetch } = useAuth();
   const [prospects, setProspects] = useState([]);
@@ -388,8 +404,8 @@ const Prospects = () => {
                           </span>
                         ) : '—'}
                       </td>
-                      <td style={{ padding: '16px 24px', fontSize: '0.85rem', color: 'var(--text-muted)' }}>{p.referredBy || '—'}</td>
-                      <td style={{ padding: '16px 24px', fontSize: '0.85rem', color: 'var(--text-muted)' }}>{p.phone || '—'}</td>
+                      <td style={{ padding: '16px 24px', fontSize: '0.85rem', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>{p.referredBy || '—'}</td>
+                      <td style={{ padding: '16px 24px', fontSize: '0.85rem', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>{formatPhoneDisplay(p.phone)}</td>
                       <td style={{ padding: '16px 24px', fontSize: '0.85rem' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                           <span>{formatReadableDate(p.searchCommitmentDate)}</span>
