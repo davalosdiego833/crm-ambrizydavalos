@@ -204,13 +204,18 @@ const Prospects = () => {
     (p.comments || '').toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  // Calcular alertas basadas en la fecha de compromiso de búsqueda
+  // Calcular alertas basadas en la fecha de compromiso de búsqueda. Mismos
+  // rangos que el badge de cada fila en la tabla (Atrasado / Hoy / En 1-3d)
+  // — antes este aviso de arriba solo cachaba el día EXACTO 0 o EXACTO 3,
+  // así que un compromiso a 1 o 2 días (o ya vencido) nunca avisaba aquí,
+  // aunque la tabla sí lo mostrara correctamente.
   const getAlerts = () => {
     const todayStr = new Date().toISOString().slice(0, 10);
     const todayDate = new Date(todayStr + 'T00:00:00');
-    
+
+    const overdueAlerts = [];
     const todayAlerts = [];
-    const in3DaysAlerts = [];
+    const upcomingAlerts = [];
 
     prospects.forEach(p => {
       if (p.searchCommitmentDate) {
@@ -218,19 +223,21 @@ const Prospects = () => {
         const diffTime = commitmentDate.getTime() - todayDate.getTime();
         const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 
-        if (diffDays === 0) {
+        if (diffDays < 0) {
+          overdueAlerts.push({ ...p, diffDays });
+        } else if (diffDays === 0) {
           todayAlerts.push(p);
-        } else if (diffDays === 3) {
-          in3DaysAlerts.push(p);
+        } else if (diffDays <= 3) {
+          upcomingAlerts.push({ ...p, diffDays });
         }
       }
     });
 
-    return { todayAlerts, in3DaysAlerts };
+    return { overdueAlerts, todayAlerts, upcomingAlerts };
   };
 
-  const { todayAlerts, in3DaysAlerts } = getAlerts();
-  const hasAlerts = todayAlerts.length > 0 || in3DaysAlerts.length > 0;
+  const { overdueAlerts, todayAlerts, upcomingAlerts } = getAlerts();
+  const hasAlerts = overdueAlerts.length > 0 || todayAlerts.length > 0 || upcomingAlerts.length > 0;
 
   // Estilos rápidos reutilizables — el modal de Añadir/Editar Prospecto es
   // siempre una tarjeta blanca (igual que en Clientes), sin importar el tema
@@ -277,9 +284,29 @@ const Prospects = () => {
         
         {hasAlerts ? (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            {overdueAlerts.map(p => (
+              <div key={`overdue-${p.id}`} className="glass-card animate-up" style={{
+                borderLeft: '4px solid #ff4444',
+                background: 'rgba(255, 68, 68, 0.05)',
+                padding: '16px 20px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '12px'
+              }}>
+                <div>
+                  <p style={{ fontWeight: 'bold', fontSize: '0.95rem' }}>
+                    Compromiso ATRASADO ({Math.abs(p.diffDays)} {Math.abs(p.diffDays) === 1 ? 'día' : 'días'}): Buscar a <span style={{ color: '#ff4444' }}>{p.name}</span> ({formatReadableDate(p.searchCommitmentDate)})
+                  </p>
+                  <p style={{ fontSize: '0.75rem', color: 'var(--text-dim)', marginTop: '2px' }}>
+                    Fuente: {p.source || 'No especificada'} | Teléfono: {p.phone || 'No especificado'}
+                  </p>
+                </div>
+              </div>
+            ))}
+
             {todayAlerts.map(p => (
-              <div key={`today-${p.id}`} className="glass-card animate-up" style={{ 
-                borderLeft: '4px solid var(--accent-gold)', 
+              <div key={`today-${p.id}`} className="glass-card animate-up" style={{
+                borderLeft: '4px solid var(--accent-gold)',
                 background: 'rgba(226, 176, 66, 0.05)',
                 padding: '16px 20px',
                 display: 'flex',
@@ -297,10 +324,10 @@ const Prospects = () => {
               </div>
             ))}
 
-            {in3DaysAlerts.map(p => (
-              <div key={`in3-${p.id}`} className="glass-card animate-up" style={{ 
-                borderLeft: '4px solid #ffaa00', 
-                background: 'rgba(255, 170, 0, 0.03)',
+            {upcomingAlerts.map(p => (
+              <div key={`upcoming-${p.id}`} className="glass-card animate-up" style={{
+                borderLeft: '4px solid var(--accent-mint)',
+                background: 'rgba(0, 255, 170, 0.03)',
                 padding: '16px 20px',
                 display: 'flex',
                 alignItems: 'center',
@@ -308,7 +335,7 @@ const Prospects = () => {
               }}>
                 <div>
                   <p style={{ fontWeight: 'bold', fontSize: '0.95rem' }}>
-                    Compromiso en 3 DÍAS: Buscar a <span style={{ color: '#ffaa00' }}>{p.name}</span> ({formatReadableDate(p.searchCommitmentDate)})
+                    Compromiso en {p.diffDays} {p.diffDays === 1 ? 'DÍA' : 'DÍAS'}: Buscar a <span style={{ color: 'var(--accent-mint)' }}>{p.name}</span> ({formatReadableDate(p.searchCommitmentDate)})
                   </p>
                   <p style={{ fontSize: '0.75rem', color: 'var(--text-dim)', marginTop: '2px' }}>
                     Fuente: {p.source || 'No especificada'} | Referenciado por: {p.referredBy || 'No especificado'}
