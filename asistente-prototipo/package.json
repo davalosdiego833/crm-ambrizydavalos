@@ -1,0 +1,13 @@
+{
+  "name": "asistente-crm-prototipo",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Prototipo de chat en terminal: pregunta en lenguaje natural, Claude consulta la API real de CRM Ambriz.",
+  "type": "module",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "latest"
+  }
+}

@@ -2818,7 +2818,9 @@ app.get('/api/admin/users', authMiddleware, adminOnly, (req, res) => {
     company: u.company || 'ambriz',
     rawPassword: u.rawPassword,
     blocked: u.blocked || false,
-    totalClients: u.clients.length
+    totalClients: u.clients.length,
+    whatsappNumber: u.whatsappNumber || '',
+    whatsappBotEnabled: u.whatsappBotEnabled || false
   })));
 });
 
@@ -2849,6 +2851,8 @@ app.post('/api/admin/users', authMiddleware, adminOnly, (req, res) => {
     role: targetRole,
     company: targetCompany,
     blocked: false,
+    whatsappNumber: '',
+    whatsappBotEnabled: false,
     clients: []
   };
   users.push(newUser);
@@ -2870,7 +2874,7 @@ app.put('/api/admin/users/:id', authMiddleware, adminOnly, (req, res) => {
     return res.status(403).json({ error: 'No tienes permisos para modificar usuarios de otro despacho' });
   }
 
-  const { name, email, password, role } = req.body;
+  const { name, email, password, role, whatsappNumber, whatsappBotEnabled } = req.body;
   if (name) user.name = name;
   if (email) {
     const cleanEmail = String(email || '').trim();
@@ -2882,6 +2886,8 @@ app.put('/api/admin/users/:id', authMiddleware, adminOnly, (req, res) => {
     user.password = bcrypt.hashSync(password, 10);
     user.rawPassword = password;
   }
+  if (whatsappNumber !== undefined) user.whatsappNumber = String(whatsappNumber || '').trim();
+  if (whatsappBotEnabled !== undefined) user.whatsappBotEnabled = !!whatsappBotEnabled;
   if (role) {
     // Evitar que se asigne el rol 'admin' (Master) a otra cuenta por seguridad;
     // 'promotoria' solo lo puede asignar el Master.
@@ -2895,6 +2901,27 @@ app.put('/api/admin/users/:id', authMiddleware, adminOnly, (req, res) => {
   }
   saveDB();
   res.json({ success: true });
+});
+
+// Da un token de acceso de corta duración para actuar como un usuario
+// específico, SIN necesitar su contraseña — lo usa el bot de WhatsApp para
+// consultar/actuar en el CRM en nombre del asesor que le escribió. Solo un
+// admin puede pedirlo, y solo si ese usuario tiene el acceso al asistente
+// prendido (whatsappBotEnabled) — apagar el interruptor corta el acceso al
+// instante, aunque un token viejo ya emitido siga vigente unas horas más.
+app.post('/api/admin/users/:id/bot-token', authMiddleware, adminOnly, (req, res) => {
+  const user = users.find(u => u.id == req.params.id);
+  if (!user) return res.status(404).json({ error: 'Usuario no encontrado' });
+  if (!hasGlobalScope(req) && !inSameCompany(req, user)) {
+    return res.status(403).json({ error: 'No tienes permisos sobre usuarios de otro despacho' });
+  }
+  if (user.blocked) return res.status(403).json({ error: 'Ese usuario está bloqueado' });
+  if (!user.whatsappBotEnabled) {
+    return res.status(403).json({ error: 'Ese usuario no tiene encendido el acceso al Asistente de WhatsApp' });
+  }
+
+  const token = jwt.sign({ id: user.id, role: user.role, company: user.company || 'ambriz' }, JWT_SECRET, { expiresIn: '4h' });
+  res.json({ token, user: { id: user.id, name: user.name, role: user.role } });
 });
 
 // Bloquear / Desbloquear usuario

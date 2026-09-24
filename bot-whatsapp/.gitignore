@@ -1,0 +1,5 @@
+node_modules/
+.env
+*_crudo.json
+poliza_prueba.pdf
+poliza_prueba.txt

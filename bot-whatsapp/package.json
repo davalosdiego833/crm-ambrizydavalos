@@ -1,0 +1,14 @@
+{
+  "name": "bot-whatsapp-crm-ambriz",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Servidor que recibe mensajes de WhatsApp Business y responde usando Claude + CRM Ambriz.",
+  "type": "module",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "latest",
+    "express": "latest"
+  }
+}

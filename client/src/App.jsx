@@ -1193,6 +1193,7 @@ const AdminPanel = () => {
   const [editName, setEditName] = useState('');
   const [editEmail, setEditEmail] = useState('');
   const [editPassword, setEditPassword] = useState('');
+  const [editWhatsapp, setEditWhatsapp] = useState('');
   const [showPasswords, setShowPasswords] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [newRole, setNewRole] = useState('advisor');
@@ -1254,6 +1255,7 @@ const AdminPanel = () => {
     setEditEmail(u.email);
     setEditPassword('');
     setEditRole(u.role || 'advisor');
+    setEditWhatsapp(u.whatsappNumber || '');
   };
 
   const saveEdit = (id) => {
@@ -1262,6 +1264,7 @@ const AdminPanel = () => {
     if (editEmail) body.email = editEmail.trim();
     if (editPassword) body.password = editPassword;
     body.role = editRole;
+    body.whatsappNumber = editWhatsapp.trim();
 
     authFetch(`/api/admin/users/${id}`, {
       method: 'PUT',
@@ -1279,6 +1282,20 @@ const AdminPanel = () => {
 
   const toggleBlock = (id) => {
     authFetch(`/api/admin/users/${id}/toggle-block`, { method: 'PUT' })
+      .then(res => res.json())
+      .then(() => loadUsers());
+  };
+
+  const toggleWhatsappBot = (u) => {
+    if (!u.whatsappBotEnabled && !u.whatsappNumber) {
+      alert('Primero captúrale un número de WhatsApp a este usuario (botón Editar).');
+      return;
+    }
+    authFetch(`/api/admin/users/${u.id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ whatsappBotEnabled: !u.whatsappBotEnabled })
+    })
       .then(res => res.json())
       .then(() => loadUsers());
   };
@@ -1372,13 +1389,14 @@ const AdminPanel = () => {
                   <th style={{ padding: '16px' }}>Contraseña</th>
                   <th style={{ padding: '16px' }}>Clientes</th>
                   <th style={{ padding: '16px' }}>Estatus</th>
+                  <th style={{ padding: '16px' }}>Asistente WhatsApp</th>
                   <th style={{ padding: '16px' }}>Acciones</th>
                 </tr>
               </thead>
               <tbody>
                 {filteredUsers.length === 0 ? (
                   <tr>
-                    <td colSpan="7" style={{ padding: '32px', textAlign: 'center', color: 'var(--text-muted)' }}>
+                    <td colSpan="8" style={{ padding: '32px', textAlign: 'center', color: 'var(--text-muted)' }}>
                       No se encontraron usuarios
                     </td>
                   </tr>
@@ -1459,6 +1477,38 @@ const AdminPanel = () => {
                           <span style={{ fontSize: '0.7rem', padding: '4px 10px', borderRadius: '20px', background: 'rgba(255,68,68,0.15)', color: '#ff4444' }}>BLOQUEADO</span>
                         ) : (
                           <span style={{ fontSize: '0.7rem', padding: '4px 10px', borderRadius: '20px', background: 'rgba(0,255,170,0.1)', color: 'var(--accent-mint)' }}>ACTIVO</span>
+                        )}
+                      </td>
+                      <td style={{ padding: '16px' }}>
+                        {editingUser === u.id ? (
+                          <input
+                            value={editWhatsapp}
+                            onChange={(e) => setEditWhatsapp(e.target.value)}
+                            placeholder="+52 33 1234 5678"
+                            style={{ ...inputStyle, padding: '6px 8px', width: '150px' }}
+                          />
+                        ) : (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', alignItems: 'flex-start' }}>
+                            <span style={{ fontSize: '0.8rem', color: u.whatsappNumber ? 'var(--text-main)' : 'var(--text-dim)' }}>
+                              {u.whatsappNumber || 'Sin número'}
+                            </span>
+                            <button
+                              onClick={() => toggleWhatsappBot(u)}
+                              title={u.whatsappBotEnabled ? 'Apagar acceso al Asistente' : 'Prender acceso al Asistente'}
+                              style={{
+                                fontSize: '0.68rem',
+                                padding: '3px 10px',
+                                borderRadius: '20px',
+                                border: 'none',
+                                cursor: 'pointer',
+                                fontWeight: '600',
+                                background: u.whatsappBotEnabled ? 'rgba(0,255,170,0.15)' : 'rgba(255,255,255,0.06)',
+                                color: u.whatsappBotEnabled ? 'var(--accent-mint)' : 'var(--text-dim)'
+                              }}
+                            >
+                              {u.whatsappBotEnabled ? '● Asistente ON' : '○ Asistente OFF'}
+                            </button>
+                          </div>
                         )}
                       </td>
                       <td style={{ padding: '16px' }}>

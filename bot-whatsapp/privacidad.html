@@ -1,0 +1,145 @@
+<title>Privacidad de Asistente Ambriz</title>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+  :root{
+    --bg:#FAF8F3;
+    --surface:#FFFFFF;
+    --ink:#1D2420;
+    --ink-muted:#5C665F;
+    --border:#E1DCCC;
+    --accent:#0E6E58;
+    --accent-ink:#0A4B3C;
+    --accent-soft:#E3F1EA;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --bg:#121611;
+      --surface:#191F19;
+      --ink:#ECEFE9;
+      --ink-muted:#9AA79D;
+      --border:#2B332B;
+      --accent:#49C89A;
+      --accent-ink:#BFF0DC;
+      --accent-soft:#1A2F27;
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#121611;
+    --surface:#191F19;
+    --ink:#ECEFE9;
+    --ink-muted:#9AA79D;
+    --border:#2B332B;
+    --accent:#49C89A;
+    --accent-ink:#BFF0DC;
+    --accent-soft:#1A2F27;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:var(--bg);
+    color:var(--ink);
+    font-family:"IBM Plex Sans",system-ui,sans-serif;
+    line-height:1.65;
+    padding-inline:20px;
+  }
+  .page{max-width:680px;margin:0 auto;padding-block:52px 72px;}
+  h1{
+    font-family:"Fraunces",Georgia,serif;
+    font-weight:600;
+    font-size:clamp(1.7rem,4vw,2.2rem);
+    text-wrap:balance;
+    margin:0 0 6px;
+  }
+  .eyebrow{
+    font-family:"IBM Plex Mono",monospace;
+    font-size:12px;
+    letter-spacing:0.08em;
+    text-transform:uppercase;
+    color:var(--accent-ink);
+  }
+  .updated{color:var(--ink-muted);font-size:0.9rem;margin:6px 0 40px;}
+  section{margin-bottom:30px;}
+  h2{
+    font-family:"IBM Plex Sans";
+    font-size:1.05rem;
+    font-weight:600;
+    display:flex;
+    gap:10px;
+    align-items:baseline;
+    margin:0 0 10px;
+  }
+  h2 .n{
+    font-family:"IBM Plex Mono",monospace;
+    color:var(--accent-ink);
+    background:var(--accent-soft);
+    border-radius:6px;
+    padding:1px 7px;
+    font-size:0.85rem;
+  }
+  p,li{color:var(--ink);font-size:0.96rem;}
+  p{margin:0 0 10px;}
+  ul{margin:0 0 10px;padding-left:20px;}
+  li{margin-bottom:4px;}
+  strong{font-weight:600;}
+  .box{
+    background:var(--surface);
+    border:1px solid var(--border);
+    border-radius:12px;
+    padding:16px 18px;
+    margin-top:8px;
+  }
+  footer{
+    margin-top:40px;
+    padding-top:20px;
+    border-top:1px solid var(--border);
+    color:var(--ink-muted);
+    font-size:0.88rem;
+  }
+  a{color:var(--accent-ink);}
+</style>
+<div class="page">
+  <span class="eyebrow">Ambriz y Dávalos</span>
+  <h1>Privacidad de Asistente Ambriz</h1>
+  <p class="updated">Última actualización: 23 de septiembre de 2026</p>
+
+  <section>
+    <h2><span class="n">1</span>Qué es esta herramienta</h2>
+    <p><strong>Asistente Ambriz</strong> es una herramienta interna de Ambriz y Dávalos que permite a los asesores autorizados de la promotoría consultar, por WhatsApp, información de su propia cartera guardada en el CRM de la empresa (pólizas, cobranzas, prospectos). No es un producto público ni está dirigido a clientes finales ni al público en general — solo a personal autorizado de la promotoría.</p>
+  </section>
+
+  <section>
+    <h2><span class="n">2</span>Qué información se procesa</h2>
+    <ul>
+      <li>El texto de los mensajes que el asesor envía al número de WhatsApp del asistente.</li>
+      <li>Los datos de su propia cartera en el CRM necesarios para responder esa pregunta (por ejemplo: nombre del contratante, número de póliza, prima, fechas de cobro, estatus, o datos de prospectos).</li>
+    </ul>
+    <p>El asistente no accede a información de asesores distintos a quien está preguntando.</p>
+  </section>
+
+  <section>
+    <h2><span class="n">3</span>Cómo se usa esa información</h2>
+    <p>Exclusivamente para generar una respuesta a la pregunta del asesor. No se usa con fines publicitarios, no se vende, y no se comparte con terceros ajenos al funcionamiento del propio servicio.</p>
+  </section>
+
+  <section>
+    <h2><span class="n">4</span>Con quién se comparte</h2>
+    <div class="box">
+      <p><strong>Meta / WhatsApp Business Platform</strong> — para entregar el mensaje entre el asesor y el asistente.</p>
+      <p style="margin-bottom:0"><strong>Anthropic (API de Claude)</strong> — para interpretar la pregunta del asesor y redactar la respuesta.</p>
+    </div>
+    <p>Ambos procesan la información únicamente para prestar su servicio (mensajería y procesamiento de lenguaje, respectivamente), bajo sus propios términos de servicio.</p>
+  </section>
+
+  <section>
+    <h2><span class="n">5</span>Conservación y seguridad</h2>
+    <p>Los datos de la cartera permanecen en el CRM de Ambriz y Dávalos, con el mismo control de acceso que ya existe para cada asesor. El historial de conversación del asistente se conserva únicamente mientras el servidor está en ejecución, para dar continuidad a la conversación en curso.</p>
+  </section>
+
+  <section>
+    <h2><span class="n">6</span>Contacto</h2>
+    <p>Para dudas sobre esta herramienta o esta política, escribe a <a href="mailto:diegoand2003@hotmail.com">diegoand2003@hotmail.com</a>.</p>
+  </section>
+
+  <footer>Ambriz y Dávalos — herramienta de uso interno.</footer>
+</div>
