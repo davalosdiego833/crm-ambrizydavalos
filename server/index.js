@@ -1708,10 +1708,19 @@ app.get('/api/dashboard', authMiddleware, (req, res) => {
       }
       
       // Para pólizas Pagadas que tienen un próximo cobro cercano (dentro de 30 días),
-      // mostrarlas en la Cobranza Próxima SOLO si aún no han pagado este ciclo.
-      // Si ya tienen paymentDate, significa que este cobro ya se atendió y el rollover
-      // se encargará de mover la fecha al siguiente periodo.
-      if (c.collectionDate && !c.paymentDate) {
+      // mostrarlas en la Cobranza Próxima SOLO si aún no han pagado ESE ciclo.
+      // Antes se usaba "!c.paymentDate" a secas, pero paymentDate no se borra
+      // hasta que el rollover avanza collectionDate al siguiente periodo (eso
+      // solo pasa cuando collectionDate YA PASÓ) — así que una póliza recién
+      // emitida (Pagada con paymentDate = fecha de emisión) y con
+      // collectionDate ya apuntando al mes siguiente se quedaba invisible en
+      // Cobranza Próxima hasta que ese cobro ya hubiera pasado. Comparamos
+      // año-mes de paymentDate vs collectionDate: si son distintos, el pago
+      // registrado es de un ciclo anterior y el cobro que viene sigue sin
+      // atenderse.
+      const paymentCoversUpcomingCycle = c.paymentDate && c.collectionDate &&
+        c.paymentDate.slice(0, 7) === c.collectionDate.slice(0, 7);
+      if (c.collectionDate && !paymentCoversUpcomingCycle) {
         const colDate = new Date(c.collectionDate);
         colDate.setHours(23, 59, 59, 999);
         const diff = Math.ceil((colDate - now) / (1000 * 60 * 60 * 24));
