@@ -340,12 +340,37 @@ const PreContratosTab = ({ authFetch }) => {
 // ======================================
 // Tab: Cancelaciones (importadas del Excel de "Estatus de Pólizas")
 // ======================================
+// Límites de fecha (YYYY-MM-DD) para los presets del filtro — semana/mes son
+// desde el inicio del periodo actual (lunes / día 1) hasta hoy.
+const startOfWeekStr = () => {
+  const d = new Date();
+  const diffToMonday = d.getDay() === 0 ? 6 : d.getDay() - 1;
+  d.setDate(d.getDate() - diffToMonday);
+  return d.toISOString().slice(0, 10);
+};
+const startOfMonthStr = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`;
+};
+const todayStr = () => new Date().toISOString().slice(0, 10);
+
+const DATE_PRESETS = [
+  { id: 'hoy', label: 'Hoy' },
+  { id: 'semana', label: 'Esta semana' },
+  { id: 'mes', label: 'Este mes' },
+  { id: 'todo', label: 'Todo el historial' },
+  { id: 'personalizado', label: 'Rango personalizado' }
+];
+
 const CancelacionesTab = ({ authFetch }) => {
   const [data, setData] = useState({ importedAt: null, sourceFile: null, rows: [] });
   const [loading, setLoading] = useState(true);
   const [importing, setImporting] = useState(false);
   const [showAll, setShowAll] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  const [dateFilter, setDateFilter] = useState('hoy');
+  const [customFrom, setCustomFrom] = useState(todayStr());
+  const [customTo, setCustomTo] = useState(todayStr());
 
   const load = () => {
     setLoading(true);
@@ -372,9 +397,24 @@ const CancelacionesTab = ({ authFetch }) => {
       .catch(() => { setImporting(false); alert('Error al importar el archivo'); });
   };
 
+  const matchesDateFilter = (fechaDetectado) => {
+    if (dateFilter === 'todo') return true;
+    if (!fechaDetectado) return false;
+    if (dateFilter === 'hoy') return fechaDetectado === todayStr();
+    if (dateFilter === 'semana') return fechaDetectado >= startOfWeekStr();
+    if (dateFilter === 'mes') return fechaDetectado >= startOfMonthStr();
+    if (dateFilter === 'personalizado') {
+      if (customFrom && fechaDetectado < customFrom) return false;
+      if (customTo && fechaDetectado > customTo) return false;
+      return true;
+    }
+    return true;
+  };
+
   const rows = (data.rows || [])
     .filter(r => showAll || r.estatusNuevo === 'Anulada')
-    .filter(r => (r.asesor || '').toLowerCase().includes(searchTerm.toLowerCase()));
+    .filter(r => (r.asesor || '').toLowerCase().includes(searchTerm.toLowerCase()))
+    .filter(r => matchesDateFilter(r.fechaDetectado));
 
   return (
     <div>
@@ -392,20 +432,52 @@ const CancelacionesTab = ({ authFetch }) => {
         </label>
       </div>
 
-      <div className="glass-card" style={{ marginBottom: '24px', padding: '16px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '20px', flexWrap: 'wrap' }}>
-        <input
-          type="text"
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          placeholder="Buscar por asesor..."
-          style={{ padding: '10px 14px', borderRadius: '8px', background: '#ffffff', border: '1px solid #cbd5e1', color: '#0f172a', outline: 'none', minWidth: '220px' }}
-        />
-        <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem', color: 'var(--text-muted)', cursor: 'pointer' }}>
-          <input type="checkbox" checked={showAll} onChange={(e) => setShowAll(e.target.checked)} />
-          Ver historial completo (no solo Anuladas)
-        </label>
-        <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-          Total: <span style={{ color: 'var(--accent-gold)', fontWeight: 'bold' }}>{rows.length}</span>
+      <div className="glass-card" style={{ marginBottom: '24px', padding: '16px 24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+          {DATE_PRESETS.map(p => (
+            <button
+              key={p.id}
+              onClick={() => setDateFilter(p.id)}
+              style={{
+                padding: '8px 16px',
+                borderRadius: '20px',
+                fontSize: '0.8rem',
+                fontWeight: '600',
+                cursor: 'pointer',
+                border: dateFilter === p.id ? '1px solid var(--accent-gold)' : '1px solid var(--glass-border)',
+                background: dateFilter === p.id ? 'rgba(226,176,66,0.15)' : 'transparent',
+                color: dateFilter === p.id ? 'var(--accent-gold)' : 'var(--text-muted)'
+              }}
+            >
+              {p.label}
+            </button>
+          ))}
+        </div>
+
+        {dateFilter === 'personalizado' && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+            <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Desde</label>
+            <input type="date" value={customFrom} onChange={(e) => setCustomFrom(e.target.value)} style={{ padding: '8px 10px', borderRadius: '8px', background: '#ffffff', border: '1px solid #cbd5e1', color: '#0f172a', outline: 'none' }} />
+            <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Hasta</label>
+            <input type="date" value={customTo} onChange={(e) => setCustomTo(e.target.value)} style={{ padding: '8px 10px', borderRadius: '8px', background: '#ffffff', border: '1px solid #cbd5e1', color: '#0f172a', outline: 'none' }} />
+          </div>
+        )}
+
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '20px', flexWrap: 'wrap' }}>
+          <input
+            type="text"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            placeholder="Buscar por asesor..."
+            style={{ padding: '10px 14px', borderRadius: '8px', background: '#ffffff', border: '1px solid #cbd5e1', color: '#0f172a', outline: 'none', minWidth: '220px' }}
+          />
+          <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem', color: 'var(--text-muted)', cursor: 'pointer' }}>
+            <input type="checkbox" checked={showAll} onChange={(e) => setShowAll(e.target.checked)} />
+            Ver historial completo (no solo Anuladas)
+          </label>
+          <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+            Total: <span style={{ color: 'var(--accent-gold)', fontWeight: 'bold' }}>{rows.length}</span>
+          </div>
         </div>
       </div>
 
