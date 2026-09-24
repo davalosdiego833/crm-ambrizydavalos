@@ -4,6 +4,7 @@ import Clients from './views/Clients';
 import Analytics from './views/Analytics';
 import TemplatesPanel from './views/TemplatesPanel';
 import Prospects from './views/Prospects';
+import Promotoria from './views/Promotoria';
 import novarisLogo from './assets/logo.png';
 import ambrizLogo from './assets/ambriz_logo.png';
 
@@ -1198,6 +1199,8 @@ const AdminPanel = () => {
   const [editRole, setEditRole] = useState('advisor');
   const [newCompany, setNewCompany] = useState(user?.company === 'novaris' ? 'novaris' : 'ambriz');
   const isMasterAdmin = user?.role === 'admin';
+  // La cuenta de Promotoría también supervisa ambos despachos, igual que el Master.
+  const hasGlobalScope = user?.role === 'admin' || user?.role === 'promotoria';
   const companyLabel = (c) => (c === 'novaris' ? 'Novaris' : 'Ambriz & Dávalos');
 
   useEffect(() => { loadUsers(); }, []);
@@ -1226,7 +1229,7 @@ const AdminPanel = () => {
     // Un administrador de despacho (no Master) siempre crea dentro de su propio
     // despacho — el backend lo fuerza igual, pero aquí reflejamos lo mismo en
     // el mensaje de bienvenida.
-    const companyToUse = isMasterAdmin ? newCompany : (user?.company || 'ambriz');
+    const companyToUse = hasGlobalScope ? newCompany : (user?.company || 'ambriz');
     authFetch('/api/admin/users', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -1308,8 +1311,11 @@ const AdminPanel = () => {
             <select value={newRole} onChange={(e) => setNewRole(e.target.value)} style={inputStyle}>
               <option value="advisor" style={{ background: 'var(--bg-surface)' }}>Asesor</option>
               <option value="administrador" style={{ background: 'var(--bg-surface)' }}>Administrador</option>
+              {isMasterAdmin && (
+                <option value="promotoria" style={{ background: 'var(--bg-surface)' }}>Promotoría</option>
+              )}
             </select>
-            {isMasterAdmin ? (
+            {hasGlobalScope ? (
               <div>
                 <label style={{ fontSize: '0.75rem', color: 'var(--text-dim)', marginBottom: '6px', display: 'block' }}>Despacho</label>
                 <select value={newCompany} onChange={(e) => setNewCompany(e.target.value)} style={inputStyle}>
@@ -1391,6 +1397,9 @@ const AdminPanel = () => {
                               <select value={editRole} onChange={(e) => setEditRole(e.target.value)} style={{ ...inputStyle, padding: '4px 8px', fontSize: '0.75rem' }}>
                                 <option value="advisor" style={{ background: 'var(--bg-surface)' }}>Asesor</option>
                                 <option value="administrador" style={{ background: 'var(--bg-surface)' }}>Administrador</option>
+                                {isMasterAdmin && (
+                                  <option value="promotoria" style={{ background: 'var(--bg-surface)' }}>Promotoría</option>
+                                )}
                               </select>
                             )}
                           </div>
@@ -1407,7 +1416,12 @@ const AdminPanel = () => {
                                 ADMINISTRADOR
                               </span>
                             )}
-                            {u.role !== 'admin' && u.role !== 'administrador' && (
+                            {u.role === 'promotoria' && (
+                              <span style={{ fontSize: '0.65rem', padding: '2px 8px', borderRadius: '20px', background: 'rgba(37, 99, 235, 0.12)', color: '#2563eb' }}>
+                                PROMOTORÍA
+                              </span>
+                            )}
+                            {!['admin', 'administrador', 'promotoria'].includes(u.role) && (
                               <span style={{ fontSize: '0.65rem', padding: '2px 8px', borderRadius: '20px', background: 'rgba(255,255,255,0.05)', color: 'var(--text-dim)' }}>
                                 ASESOR
                               </span>
@@ -1546,6 +1560,15 @@ const AppContent = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [showProfileModal, setShowProfileModal] = useState(false);
 
+  // La cuenta de Promotoría no tiene Dashboard propio — al entrar, arranca
+  // directo en su sección de Promotoría en vez del 'Dashboard' por defecto.
+  useEffect(() => {
+    if (user?.role === 'promotoria' && currentView === 'Dashboard') {
+      setCurrentView('Promotoria');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user]);
+
   const [theme, setTheme] = useState(() => {
     return localStorage.getItem('crm_theme') || 'dark';
   });
@@ -1586,13 +1609,22 @@ const AppContent = () => {
   const firstName = user.name.split(' ')[0];
   const branding = COMPANY_BRANDING[user.company === 'ambriz' ? 'ambriz' : 'novaris'];
 
-  const navItems = [
-    { name: 'Dashboard', id: 'Dashboard' },
-    { name: 'Base de Datos', id: 'Database' },
-    { name: 'Prospección', id: 'Prospects' },
-    { name: 'Estadísticas', id: 'Analytics' },
-    { name: 'Plantillas', id: 'Templates' },
-  ];
+  // La cuenta de Promotoría tiene una estructura de CRM completamente
+  // distinta a la de un asesor: no maneja cartera propia, así que no ve
+  // Dashboard/Base de Datos/Prospección/Estadísticas/Plantillas — solo
+  // Administración (altas/bajas de asesores) y Promotoría.
+  const navItems = user.role === 'promotoria'
+    ? [
+        { name: 'Administración', id: 'Admin' },
+        { name: 'Promotoría', id: 'Promotoria' },
+      ]
+    : [
+        { name: 'Dashboard', id: 'Dashboard' },
+        { name: 'Base de Datos', id: 'Database' },
+        { name: 'Prospección', id: 'Prospects' },
+        { name: 'Estadísticas', id: 'Analytics' },
+        { name: 'Plantillas', id: 'Templates' },
+      ];
 
   if (user.role === 'admin' || user.role === 'administrador') {
     navItems.push({ name: 'Administración', id: 'Admin' });
@@ -1699,7 +1731,8 @@ const AppContent = () => {
               <p style={{ fontSize: '0.7rem', color: 'var(--text-dim)' }}>
                 {user.role === 'admin' && 'Cuenta Maestra'}
                 {user.role === 'administrador' && 'Administrador'}
-                {user.role !== 'admin' && user.role !== 'administrador' && 'Asesor'}
+                {user.role === 'promotoria' && 'Promotoría'}
+                {!['admin', 'administrador', 'promotoria'].includes(user.role) && 'Asesor'}
               </p>
             </div>
           </div>
@@ -1710,12 +1743,13 @@ const AppContent = () => {
       </aside>
 
       <main className="main-content" style={{ marginLeft: isSidebarOpen ? '280px' : '0', transition: 'margin-left 0.4s cubic-bezier(0.22, 1, 0.36, 1)' }}>
-        {currentView === 'Dashboard' && <Dashboard />}
-        {currentView === 'Database' && <Clients />}
-        {currentView === 'Prospects' && <Prospects />}
-        {currentView === 'Analytics' && <Analytics />}
-        {currentView === 'Templates' && <TemplatesPanel />}
-        {currentView === 'Admin' && (user.role === 'admin' || user.role === 'administrador') && <AdminPanel />}
+        {currentView === 'Dashboard' && user.role !== 'promotoria' && <Dashboard />}
+        {currentView === 'Database' && user.role !== 'promotoria' && <Clients />}
+        {currentView === 'Prospects' && user.role !== 'promotoria' && <Prospects />}
+        {currentView === 'Analytics' && user.role !== 'promotoria' && <Analytics />}
+        {currentView === 'Templates' && user.role !== 'promotoria' && <TemplatesPanel />}
+        {currentView === 'Admin' && (user.role === 'admin' || user.role === 'administrador' || user.role === 'promotoria') && <AdminPanel />}
+        {currentView === 'Promotoria' && (user.role === 'admin' || user.role === 'promotoria') && <Promotoria />}
       </main>
 
       {/* MODAL DE PERFIL DE USUARIO */}
@@ -1746,7 +1780,8 @@ const AppContent = () => {
               <p style={{ fontSize: '0.85rem', color: 'var(--accent-gold)', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '1px', margin: 0 }}>
                 {user.role === 'admin' && 'Cuenta Maestra'}
                 {user.role === 'administrador' && 'Administrador'}
-                {user.role !== 'admin' && user.role !== 'administrador' && 'Asesor Asociado'}
+                {user.role === 'promotoria' && 'Promotoría'}
+                {!['admin', 'administrador', 'promotoria'].includes(user.role) && 'Asesor Asociado'}
               </p>
               <p style={{ fontSize: '0.75rem', color: 'var(--text-dim)', marginTop: '4px', margin: 0 }}>{user.email}</p>
             </div>

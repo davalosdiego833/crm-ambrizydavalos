@@ -97,6 +97,7 @@ setInterval(fetchRates, 1000 * 60 * 60 * 1);
 // BASE DE DATOS PERSISTENTE DE USUARIOS
 // ======================================
 const DB_FILE = path.join(__dirname, 'db.json');
+const PROMOTORIA_FILE = path.join(__dirname, 'promotoria.json');
 
 const defaultUsers = [
   {
@@ -155,6 +156,20 @@ const loadDB = () => {
 
 const saveDB = () => {
   fs.writeFileSync(DB_FILE, JSON.stringify(users, null, 2));
+};
+
+const defaultPromotoria = { asesores: [], preContratos: [], cancelaciones: { importedAt: null, sourceFile: null, rows: [] } };
+
+const loadPromotoria = () => {
+  if (fs.existsSync(PROMOTORIA_FILE)) {
+    return JSON.parse(fs.readFileSync(PROMOTORIA_FILE, 'utf8'));
+  }
+  fs.writeFileSync(PROMOTORIA_FILE, JSON.stringify(defaultPromotoria, null, 2));
+  return JSON.parse(JSON.stringify(defaultPromotoria));
+};
+
+const savePromotoria = () => {
+  fs.writeFileSync(PROMOTORIA_FILE, JSON.stringify(promotoria, null, 2));
 };
 
 const backupDB = () => {
@@ -312,6 +327,8 @@ const runDatabaseMaintenance = (user) => {
 let users = loadDB();
 backupDB(); // Respaldo al arrancar el servidor
 setInterval(backupDB, 1000 * 60 * 60 * 24); // Respaldo automático diario
+
+let promotoria = loadPromotoria();
 
 // ======================================
 // INTELLECTUAL AND AUTONOMOUS HELPERS
@@ -868,9 +885,16 @@ app.get('/api/rates', authMiddleware, (req, res) => {
   res.json(exchangeRates);
 });
 
-// Middleware para verificar Admin
+// Middleware para verificar Admin (incluye la cuenta de Promotoría, que
+// también administra altas/bajas de asesores)
 const adminOnly = (req, res, next) => {
-  if (req.user.role !== 'admin' && req.user.role !== 'administrador') return res.status(403).json({ error: 'Acceso denegado' });
+  if (!['admin', 'administrador', 'promotoria'].includes(req.user.role)) return res.status(403).json({ error: 'Acceso denegado' });
+  next();
+};
+
+// Middleware exclusivo para la sección de Promotoría (Master + cuenta de Promotoría)
+const promotoriaAccess = (req, res, next) => {
+  if (!['admin', 'promotoria'].includes(req.user.role)) return res.status(403).json({ error: 'Acceso denegado' });
   next();
 };
 
@@ -2780,11 +2804,15 @@ app.post('/api/migrate', authMiddleware, upload.single('file'), (req, res) => {
 // Multi-tenant: la cuenta Master ('admin') supervisa ambos despachos; un
 // 'administrador' de despacho solo ve/gestiona usuarios de su propia company.
 const isMasterAdmin = (req) => req.user.role === 'admin';
+// La cuenta de Promotoría supervisa ambos despachos igual que el Master,
+// aunque no puede crear más cuentas Master ni de Promotoría (eso sigue
+// reservado a isMasterAdmin).
+const hasGlobalScope = (req) => req.user.role === 'admin' || req.user.role === 'promotoria';
 const inSameCompany = (req, targetUser) => (targetUser.company || 'ambriz') === (req.user.company || 'ambriz');
 
 // Listar usuarios (con contraseña visible para el admin)
 app.get('/api/admin/users', authMiddleware, adminOnly, (req, res) => {
-  const scoped = isMasterAdmin(req) ? users : users.filter(u => inSameCompany(req, u));
+  const scoped = hasGlobalScope(req) ? users : users.filter(u => inSameCompany(req, u));
   res.json(scoped.map(u => ({
     id: u.id, name: u.name, email: u.email, role: u.role,
     company: u.company || 'ambriz',
@@ -2803,10 +2831,13 @@ app.post('/api/admin/users', authMiddleware, adminOnly, (req, res) => {
   }
 
   // Permitir asignación de 'administrador' o 'advisor'. El rol 'admin' (Master) está bloqueado por seguridad.
-  const targetRole = (role === 'administrador') ? 'administrador' : 'advisor';
+  // 'promotoria' solo lo puede asignar el Master, nunca otro administrador ni otra cuenta de Promotoría.
+  const targetRole = (role === 'administrador') ? 'administrador'
+    : (role === 'promotoria' && isMasterAdmin(req)) ? 'promotoria'
+    : 'advisor';
   // Un administrador de despacho solo puede crear usuarios de su propio despacho;
-  // la cuenta Master puede elegir el despacho del nuevo usuario (validado contra COMPANIES).
-  const requestedCompany = isMasterAdmin(req) && COMPANIES[company] ? company : null;
+  // la cuenta Master y la de Promotoría pueden elegir el despacho del nuevo usuario (validado contra COMPANIES).
+  const requestedCompany = hasGlobalScope(req) && COMPANIES[company] ? company : null;
   const targetCompany = requestedCompany || req.user.company || 'ambriz';
 
   const newUser = {
@@ -2835,7 +2866,7 @@ app.put('/api/admin/users/:id', authMiddleware, adminOnly, (req, res) => {
     return res.status(403).json({ error: 'No tienes permisos para modificar al usuario Master' });
   }
   // Multi-tenant: un administrador de despacho no puede tocar usuarios de otro despacho
-  if (!isMasterAdmin(req) && !inSameCompany(req, user)) {
+  if (!hasGlobalScope(req) && !inSameCompany(req, user)) {
     return res.status(403).json({ error: 'No tienes permisos para modificar usuarios de otro despacho' });
   }
 
@@ -2852,9 +2883,12 @@ app.put('/api/admin/users/:id', authMiddleware, adminOnly, (req, res) => {
     user.rawPassword = password;
   }
   if (role) {
-    // Evitar que se asigne el rol 'admin' (Master) a otra cuenta por seguridad
+    // Evitar que se asigne el rol 'admin' (Master) a otra cuenta por seguridad;
+    // 'promotoria' solo lo puede asignar el Master.
     if (role !== 'admin') {
       if (role === 'administrador' || role === 'advisor') {
+        user.role = role;
+      } else if (role === 'promotoria' && isMasterAdmin(req)) {
         user.role = role;
       }
     }
@@ -2867,7 +2901,7 @@ app.put('/api/admin/users/:id', authMiddleware, adminOnly, (req, res) => {
 app.put('/api/admin/users/:id/toggle-block', authMiddleware, adminOnly, (req, res) => {
   const user = users.find(u => u.id == req.params.id && u.role !== 'admin');
   if (!user) return res.status(404).json({ error: 'No se puede bloquear esa cuenta' });
-  if (!isMasterAdmin(req) && !inSameCompany(req, user)) {
+  if (!hasGlobalScope(req) && !inSameCompany(req, user)) {
     return res.status(403).json({ error: 'No tienes permisos sobre usuarios de otro despacho' });
   }
   user.blocked = !user.blocked;
@@ -2879,13 +2913,139 @@ app.put('/api/admin/users/:id/toggle-block', authMiddleware, adminOnly, (req, re
 app.delete('/api/admin/users/:id', authMiddleware, adminOnly, (req, res) => {
   const target = users.find(u => u.id == req.params.id && u.role !== 'admin');
   if (!target) return res.status(404).json({ error: 'No se puede eliminar' });
-  if (!isMasterAdmin(req) && !inSameCompany(req, target)) {
+  if (!hasGlobalScope(req) && !inSameCompany(req, target)) {
     return res.status(403).json({ error: 'No tienes permisos sobre usuarios de otro despacho' });
   }
   const index = users.findIndex(u => u.id == req.params.id && u.role !== 'admin');
   users.splice(index, 1);
   saveDB();
   res.json({ success: true });
+});
+
+// ======================================
+// ENDPOINTS DE PROMOTORÍA (Master + cuenta de Promotoría)
+// ======================================
+const VIGENCIA_CLAVE_DIAS = 30;
+
+const diasTranscurridos = (fechaStr) => {
+  if (!fechaStr) return null;
+  const fecha = new Date(fechaStr + 'T00:00:00');
+  if (isNaN(fecha.getTime())) return null;
+  const hoy = new Date();
+  hoy.setHours(0, 0, 0, 0);
+  return Math.floor((hoy - fecha) / (1000 * 60 * 60 * 24));
+};
+
+// --- Asesores ---
+app.get('/api/promotoria/asesores', authMiddleware, promotoriaAccess, (req, res) => {
+  res.json(promotoria.asesores);
+});
+
+app.post('/api/promotoria/asesores', authMiddleware, promotoriaAccess, (req, res) => {
+  const { nombre, claveAgente, fechaNacimiento, fechaFirmaContrato } = req.body;
+  if (!nombre) return res.status(400).json({ error: 'El nombre es obligatorio' });
+  const nuevo = {
+    id: promotoria.asesores.length > 0 ? Math.max(...promotoria.asesores.map(a => a.id)) + 1 : 1,
+    nombre, claveAgente: claveAgente || '', fechaNacimiento: fechaNacimiento || '', fechaFirmaContrato: fechaFirmaContrato || ''
+  };
+  promotoria.asesores.push(nuevo);
+  savePromotoria();
+  res.json({ success: true, asesor: nuevo });
+});
+
+app.put('/api/promotoria/asesores/:id', authMiddleware, promotoriaAccess, (req, res) => {
+  const asesor = promotoria.asesores.find(a => a.id == req.params.id);
+  if (!asesor) return res.status(404).json({ error: 'Asesor no encontrado' });
+  const { nombre, claveAgente, fechaNacimiento, fechaFirmaContrato } = req.body;
+  if (nombre !== undefined) asesor.nombre = nombre;
+  if (claveAgente !== undefined) asesor.claveAgente = claveAgente;
+  if (fechaNacimiento !== undefined) asesor.fechaNacimiento = fechaNacimiento;
+  if (fechaFirmaContrato !== undefined) asesor.fechaFirmaContrato = fechaFirmaContrato;
+  savePromotoria();
+  res.json({ success: true, asesor });
+});
+
+app.delete('/api/promotoria/asesores/:id', authMiddleware, promotoriaAccess, (req, res) => {
+  promotoria.asesores = promotoria.asesores.filter(a => a.id != req.params.id);
+  savePromotoria();
+  res.json({ success: true });
+});
+
+// --- Pre-contratos ---
+app.get('/api/promotoria/pre-contratos', authMiddleware, promotoriaAccess, (req, res) => {
+  const conCountdown = promotoria.preContratos.map(p => {
+    const transcurridos = diasTranscurridos(p.fechaAperturaClave);
+    const diasRestantes = transcurridos === null ? null : VIGENCIA_CLAVE_DIAS - transcurridos;
+    return { ...p, diasRestantes, vencida: diasRestantes !== null && diasRestantes <= 0 };
+  });
+  res.json(conCountdown);
+});
+
+app.post('/api/promotoria/pre-contratos', authMiddleware, promotoriaAccess, (req, res) => {
+  const { nombre, clave, fechaAperturaClave } = req.body;
+  if (!nombre) return res.status(400).json({ error: 'El nombre es obligatorio' });
+  const nuevo = {
+    id: promotoria.preContratos.length > 0 ? Math.max(...promotoria.preContratos.map(p => p.id)) + 1 : 1,
+    nombre, clave: clave || '', fechaAperturaClave: fechaAperturaClave || ''
+  };
+  promotoria.preContratos.push(nuevo);
+  savePromotoria();
+  res.json({ success: true, preContrato: nuevo });
+});
+
+app.put('/api/promotoria/pre-contratos/:id', authMiddleware, promotoriaAccess, (req, res) => {
+  const preContrato = promotoria.preContratos.find(p => p.id == req.params.id);
+  if (!preContrato) return res.status(404).json({ error: 'Pre-contrato no encontrado' });
+  const { nombre, clave, fechaAperturaClave } = req.body;
+  if (nombre !== undefined) preContrato.nombre = nombre;
+  if (clave !== undefined) preContrato.clave = clave;
+  if (fechaAperturaClave !== undefined) preContrato.fechaAperturaClave = fechaAperturaClave;
+  savePromotoria();
+  res.json({ success: true, preContrato });
+});
+
+app.delete('/api/promotoria/pre-contratos/:id', authMiddleware, promotoriaAccess, (req, res) => {
+  promotoria.preContratos = promotoria.preContratos.filter(p => p.id != req.params.id);
+  savePromotoria();
+  res.json({ success: true });
+});
+
+// --- Cancelaciones (importadas del Excel de "Estatus de Pólizas") ---
+app.get('/api/promotoria/cancelaciones', authMiddleware, promotoriaAccess, (req, res) => {
+  res.json(promotoria.cancelaciones);
+});
+
+app.post('/api/promotoria/cancelaciones/import', authMiddleware, promotoriaAccess, upload.single('file'), (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'No se recibió ningún archivo' });
+  try {
+    const workbook = xlsx.readFile(req.file.path);
+    const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+    const data = xlsx.utils.sheet_to_json(worksheet);
+
+    const rows = data.map(r => ({
+      fechaDetectado: r['Fecha Detectado'] || '',
+      desde: r['Desde'] || '',
+      asesor: r['Asesor'] || '',
+      noAgente: String(r['No. Agente'] || ''),
+      noPoliza: String(r['No. Póliza'] || ''),
+      contratante: r['Contratante'] || '',
+      estatusAnterior: r['Estatus Anterior'] || '',
+      estatusNuevo: r['Estatus Nuevo'] || '',
+      tipo: r['Tipo'] || ''
+    }));
+
+    promotoria.cancelaciones = {
+      importedAt: new Date().toISOString(),
+      sourceFile: req.file.originalname,
+      rows
+    };
+    savePromotoria();
+    fs.unlinkSync(req.file.path);
+    res.json({ success: true, count: rows.length });
+  } catch (err) {
+    if (req.file && fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
+    res.status(500).json({ error: 'Error al procesar el archivo: ' + err.message });
+  }
 });
 
 // Webhook de Despliegue Automático (sin depender de SSH)
