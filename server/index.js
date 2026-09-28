@@ -2952,7 +2952,27 @@ app.delete('/api/admin/users/:id', authMiddleware, adminOnly, (req, res) => {
 // ======================================
 // ENDPOINTS DE PROMOTORÍA (Master + cuenta de Promotoría)
 // ======================================
-const VIGENCIA_CLAVE_DIAS = 30;
+const VIGENCIA_CLAVE_DIAS = 90;
+
+// Pólizas registradas bajo una clave temporal de pre-contrato: se cruzan con
+// el No. de Agente de las filas de Cancelaciones (el reporte de pólizas trae
+// el nombre genérico de la promotoría en vez del nombre real de la persona,
+// pero sí trae su clave temporal). Se agrupa por No. de Póliza y se deja solo
+// la fila más reciente de cada una, para no contar la misma póliza varias
+// veces si tuvo más de un cambio de estatus.
+const polizasDeClaveTemporal = (clave) => {
+  const claveNorm = String(clave || '').trim();
+  if (!claveNorm) return [];
+  const rows = (promotoria.cancelaciones.rows || []).filter(r => String(r.noAgente || '').trim() === claveNorm);
+  const porPoliza = {};
+  rows.forEach(r => {
+    const key = r.noPoliza || '';
+    if (!porPoliza[key] || (r.fechaDetectado || '') > (porPoliza[key].fechaDetectado || '')) {
+      porPoliza[key] = r;
+    }
+  });
+  return Object.values(porPoliza).sort((a, b) => (b.fechaDetectado || '').localeCompare(a.fechaDetectado || ''));
+};
 
 const diasTranscurridos = (fechaStr) => {
   if (!fechaStr) return null;
@@ -3003,7 +3023,8 @@ app.get('/api/promotoria/pre-contratos', authMiddleware, promotoriaAccess, (req,
   const conCountdown = promotoria.preContratos.map(p => {
     const transcurridos = diasTranscurridos(p.fechaAperturaClave);
     const diasRestantes = transcurridos === null ? null : VIGENCIA_CLAVE_DIAS - transcurridos;
-    return { ...p, diasRestantes, vencida: diasRestantes !== null && diasRestantes <= 0 };
+    const polizas = polizasDeClaveTemporal(p.clave);
+    return { ...p, diasRestantes, vencida: diasRestantes !== null && diasRestantes <= 0, polizas };
   });
   res.json(conCountdown);
 });

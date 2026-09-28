@@ -307,6 +307,7 @@ const PreContratosTab = ({ authFetch }) => {
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [editingId, setEditingId] = useState(null);
+  const [viewingPolizas, setViewingPolizas] = useState(null);
   const initialForm = { nombre: '', clave: '', fechaAperturaClave: '' };
   const [form, setForm] = useState(initialForm);
 
@@ -363,31 +364,53 @@ const PreContratosTab = ({ authFetch }) => {
                 <th style={{ padding: '16px 24px', color: 'var(--text-muted)', fontSize: '0.85rem' }}>Clave</th>
                 <th style={{ padding: '16px 24px', color: 'var(--text-muted)', fontSize: '0.85rem' }}>Apertura de Clave</th>
                 <th style={{ padding: '16px 24px', color: 'var(--text-muted)', fontSize: '0.85rem' }}>Vencimiento</th>
+                <th style={{ padding: '16px 24px', color: 'var(--text-muted)', fontSize: '0.85rem' }}>Pólizas</th>
                 <th style={{ padding: '16px 24px', color: 'var(--text-muted)', fontSize: '0.85rem', textAlign: 'center' }}>Acciones</th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
-                <tr><td colSpan="5" style={{ padding: '40px', textAlign: 'center', color: 'var(--text-dim)' }}>Cargando...</td></tr>
+                <tr><td colSpan="6" style={{ padding: '40px', textAlign: 'center', color: 'var(--text-dim)' }}>Cargando...</td></tr>
               ) : sorted.length === 0 ? (
-                <tr><td colSpan="5" style={{ padding: '40px', textAlign: 'center', color: 'var(--text-dim)' }}>No hay pre-contratos registrados todavía.</td></tr>
+                <tr><td colSpan="6" style={{ padding: '40px', textAlign: 'center', color: 'var(--text-dim)' }}>No hay pre-contratos registrados todavía.</td></tr>
               ) : sorted.map(p => {
                 let badge = null;
+                const vencida = p.vencida;
+                const critico = !vencida && p.diasRestantes <= 5;
                 if (p.diasRestantes !== null && p.diasRestantes !== undefined) {
-                  const vencida = p.vencida;
-                  const critico = !vencida && p.diasRestantes <= 5;
                   badge = (
                     <span style={{ padding: '4px 10px', borderRadius: '20px', fontSize: '0.7rem', fontWeight: 'bold', background: vencida ? 'rgba(255,68,68,0.15)' : critico ? 'rgba(226,176,66,0.15)' : 'rgba(0,255,170,0.1)', color: vencida ? '#ff4444' : critico ? 'var(--accent-gold)' : 'var(--accent-mint)' }}>
                       {vencida ? 'Vencida' : `${p.diasRestantes} días restantes`}
                     </span>
                   );
                 }
+                const polizas = p.polizas || [];
+                const enRiesgo = (vencida || critico) && polizas.length > 0;
                 return (
                   <tr key={p.id} style={{ borderBottom: '1px solid var(--glass-border)' }}>
-                    <td style={{ padding: '16px 24px', fontWeight: '700' }}>{p.nombre}</td>
+                    <td style={{ padding: '16px 24px' }}>
+                      <div style={{ fontWeight: '700' }}>{p.nombre}</div>
+                      {enRiesgo && (
+                        <div style={{ fontSize: '0.7rem', color: '#ff4444', marginTop: '4px', fontWeight: '600' }}>
+                          ⚠️ Riesgo: {polizas.length} {polizas.length === 1 ? 'póliza queda' : 'pólizas quedan'} sin asesor si no firma
+                        </div>
+                      )}
+                    </td>
                     <td style={{ padding: '16px 24px', fontSize: '0.85rem', color: 'var(--text-muted)' }}>{p.clave || '—'}</td>
                     <td style={{ padding: '16px 24px', fontSize: '0.85rem', color: 'var(--text-muted)' }}>{formatReadableDate(p.fechaAperturaClave)}</td>
                     <td style={{ padding: '16px 24px' }}>{badge || '—'}</td>
+                    <td style={{ padding: '16px 24px' }}>
+                      {polizas.length === 0 ? (
+                        <span style={{ fontSize: '0.8rem', color: 'var(--text-dim)' }}>—</span>
+                      ) : (
+                        <button
+                          onClick={() => setViewingPolizas(p)}
+                          style={{ padding: '4px 12px', borderRadius: '20px', fontSize: '0.75rem', fontWeight: 'bold', border: '1px solid var(--glass-border)', background: 'rgba(255,255,255,0.04)', color: 'var(--text-main)', cursor: 'pointer' }}
+                        >
+                          {polizas.length} {polizas.length === 1 ? 'póliza' : 'pólizas'} · Ver
+                        </button>
+                      )}
+                    </td>
                     <td style={{ padding: '16px 24px', textAlign: 'center' }}>
                       <div style={{ display: 'flex', gap: '12px', justifyContent: 'center' }}>
                         <button onClick={() => openEdit(p)} style={{ background: 'none', border: 'none', color: 'var(--accent-gold)', fontSize: '0.8rem', cursor: 'pointer', fontWeight: 'bold' }}>Editar</button>
@@ -417,7 +440,7 @@ const PreContratosTab = ({ authFetch }) => {
               <label style={labelStyle}>Fecha de apertura de la clave</label>
               <input type="date" style={inputStyle} value={form.fechaAperturaClave} onChange={(e) => setForm(prev => ({ ...prev, fechaAperturaClave: e.target.value }))} />
               <span style={{ fontSize: '0.65rem', color: 'var(--accent-gold)', marginTop: '4px', display: 'block' }}>
-                💡 La clave vence 30 días después de esta fecha.
+                💡 La clave vence 90 días después de esta fecha.
               </span>
             </div>
             <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', marginTop: '8px' }}>
@@ -425,6 +448,43 @@ const PreContratosTab = ({ authFetch }) => {
               <button type="submit" className="btn-primary">{editingId ? 'Guardar Cambios' : 'Añadir Pre-contrato'}</button>
             </div>
           </form>
+        </ModalShell>
+      )}
+
+      {viewingPolizas && (
+        <ModalShell title={`Pólizas de ${viewingPolizas.nombre}`} onClose={() => setViewingPolizas(null)}>
+          <p style={{ fontSize: '0.8rem', color: '#334155', marginBottom: '16px' }}>
+            Registradas bajo la clave temporal <strong>{viewingPolizas.clave}</strong>. Si no firma antes de que venza, usa esta lista para tramitar el cambio de agente.
+          </p>
+          <div style={{ maxHeight: '360px', overflowY: 'auto', border: '1px solid #e2e8f0', borderRadius: '10px' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.8rem' }}>
+              <thead style={{ position: 'sticky', top: 0, background: '#f8fafc' }}>
+                <tr>
+                  <th style={{ padding: '10px 12px', color: '#334155' }}>Fecha</th>
+                  <th style={{ padding: '10px 12px', color: '#334155' }}>No. Póliza</th>
+                  <th style={{ padding: '10px 12px', color: '#334155' }}>Contratante</th>
+                  <th style={{ padding: '10px 12px', color: '#334155' }}>Estatus</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(viewingPolizas.polizas || []).map((pz, i) => (
+                  <tr key={i} style={{ borderTop: '1px solid #e2e8f0' }}>
+                    <td style={{ padding: '10px 12px', color: '#475569' }}>{pz.fechaDetectado}</td>
+                    <td style={{ padding: '10px 12px', color: '#0f172a', fontWeight: '600' }}>{pz.noPoliza}</td>
+                    <td style={{ padding: '10px 12px', color: '#0f172a' }}>{pz.contratante}</td>
+                    <td style={{ padding: '10px 12px' }}>
+                      <span style={{ padding: '3px 8px', borderRadius: '20px', fontSize: '0.7rem', fontWeight: 'bold', background: pz.estatusNuevo === 'Anulada' ? 'rgba(255,68,68,0.15)' : 'rgba(0,150,90,0.12)', color: pz.estatusNuevo === 'Anulada' ? '#dc2626' : '#059669' }}>
+                        {pz.estatusNuevo}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '20px' }}>
+            <button type="button" onClick={() => setViewingPolizas(null)} className="btn-primary">Cerrar</button>
+          </div>
         </ModalShell>
       )}
     </div>
