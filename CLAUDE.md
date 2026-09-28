@@ -135,10 +135,47 @@ Producto, Último Estatus) cuando existe — probado con datos sintéticos
 antes de desplegar. Con esto queda cerrado el objetivo original de
 Pre-contratos: no perder la info de pólizas cuando alguien no firma.
 
-**Pendiente real**: del lado de Pólizas, conectar la subida automática de
-este archivo nuevo al reporte diario (ya dijeron que es un cambio de una
-línea con `crm_upload.subir_excel_al_crm()`) — por ahora solo existe la
-importación manual desde el botón del CRM.
+✅ **Ya conectada la subida automática** (2026-09-29) — `crm_upload.subir_excel_al_crm()`
+se agregó a `procesar_claves_temporales()`/`procesar_temporales_karen()`, se
+sube solo cada corrida junto con los demás. Ya no hace falta el botón manual
+para el uso normal (se puede dejar como respaldo).
+
+## ✅ Detalle de pólizas de claves ACTIVAS — LISTO en ambos lados (2026-09-29)
+
+Diego encontró el hueco directo en el modal "Ver historial" del CRM — el
+texto ahí mismo lo decía: *"no el detalle línea por línea... mientras la
+clave sigue activa"*. Ya está conectado en ambos lados.
+
+**Diferencia importante con "Pólizas para reasignar" de arriba**: ese es un
+**historial que acumula** (solo crece, guarda el momento en que cada clave
+desapareció). Este nuevo es una **foto del día que se reemplaza completa**
+en cada corrida — trae el detalle de **TODAS** las claves temporales que
+sigan activas hoy (no solo las que desaparecieron), así que cada importación
+debe **reemplazar todo**, no acumular (si acumulas, vas a duplicar las
+mismas pólizas de una clave activa día tras día).
+
+Archivos (ya se generan y se suben solos cada corrida):
+- `descargas/detalle_polizas_temporales.xlsx` (Promotoría) →
+  `POST /api/promotoria/pre-contratos/detalle-activas/import`
+- `descargas/detalle_polizas_temporales_karen.xlsx` (Karen) →
+  `POST /api/karen/pre-contratos/detalle-activas/import`
+
+Columnas: `Nombre | No. Agente | No. Póliza | Contratante | Producto |
+Estatus` (sin fecha — es del día que se sube, no un historial de fechas).
+`exportar_detalle_polizas_activas()` en `claves_temporales.py`, probado con
+datos sintéticos antes de avisar aquí.
+
+**Del lado del CRM**: se usaron los endpoints sugeridos tal cual —
+`POST /api/promotoria/pre-contratos/detalle-activas/import` y su
+equivalente de Karen (multipart, **reemplaza todo** el dataset en cada
+import, sin acumular — distinto del patrón de los demás importadores de
+esta sección). `parseDetalleActivasExcel()` en `server/index.js`, cruzado
+por `No. Agente` con el helper genérico `filasDeClave()` (el mismo que ya
+se usaba para `polizasReasignar`, renombrado de `polizasReasignarDeClave`
+porque ahora lo usan dos datasets). En el modal "Ver historial" hay una
+sección nueva **"Pólizas actuales"**, separada de "Pólizas a reasignar"
+(esa sigue siendo solo para claves ya desaparecidas) — probado con datos
+sintéticos antes de desplegar.
 
 ## ⚠️ Hallazgo de seguridad (2026-09-18, sin resolver todavía)
 

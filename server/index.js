@@ -161,7 +161,8 @@ const saveDB = () => {
 
 const defaultClavesTemporales = { importedAt: null, sourceFile: null, rows: [] };
 const defaultPolizasReasignar = { importedAt: null, sourceFile: null, rows: [] };
-const defaultPromotoria = { asesores: [], preContratos: [], cancelaciones: { importedAt: null, sourceFile: null, rows: [] }, clavesTemporales: { ...defaultClavesTemporales }, polizasReasignar: { ...defaultPolizasReasignar } };
+const defaultDetalleActivas = { importedAt: null, sourceFile: null, rows: [] };
+const defaultPromotoria = { asesores: [], preContratos: [], cancelaciones: { importedAt: null, sourceFile: null, rows: [] }, clavesTemporales: { ...defaultClavesTemporales }, polizasReasignar: { ...defaultPolizasReasignar }, detalleActivas: { ...defaultDetalleActivas } };
 
 const loadPromotoria = () => {
   if (fs.existsSync(PROMOTORIA_FILE)) {
@@ -180,7 +181,7 @@ const savePromotoria = () => {
 // Gerencia de Karen: otra cuenta del mismo portal, asesores distintos a los
 // de la Promotoría de Diego. Datos completamente separados — nunca se
 // combinan con los de promotoria.json.
-const defaultKaren = { preContratos: [], cancelaciones: { importedAt: null, sourceFile: null, rows: [] }, clavesTemporales: { ...defaultClavesTemporales }, polizasReasignar: { ...defaultPolizasReasignar } };
+const defaultKaren = { preContratos: [], cancelaciones: { importedAt: null, sourceFile: null, rows: [] }, clavesTemporales: { ...defaultClavesTemporales }, polizasReasignar: { ...defaultPolizasReasignar }, detalleActivas: { ...defaultDetalleActivas } };
 
 const loadKaren = () => {
   if (fs.existsSync(KAREN_FILE)) {
@@ -3063,10 +3064,31 @@ const parsePolizasReasignarExcel = (filePath) => {
   }));
 };
 
-const polizasReasignarDeClave = (rowsSource, clave) => {
+// Filtra cualquier dataset con noAgente por clave (se reusa para pólizas a
+// reasignar y para el detalle de claves activas — misma forma de fila).
+const filasDeClave = (rowsSource, clave) => {
   const claveNorm = String(clave || '').trim();
   if (!claveNorm) return [];
   return (rowsSource || []).filter(r => String(r.noAgente || '').trim() === claveNorm);
+};
+
+// Detalle de pólizas de claves temporales ACTIVAS (no solo las que
+// desaparecieron) — a diferencia de los demás historiales, este es una
+// "foto del día" que se REEMPLAZA completa en cada import (no se acumula):
+// trae a TODAS las claves activas de hoy, así que acumular duplicaría la
+// misma póliza día tras día. Ver detalle_polizas_temporales.xlsx.
+const parseDetalleActivasExcel = (filePath) => {
+  const workbook = xlsx.readFile(filePath);
+  const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+  const data = xlsx.utils.sheet_to_json(worksheet);
+  return data.map(r => ({
+    nombre: r['Nombre'] || '',
+    noAgente: String(r['No. Agente'] || ''),
+    noPoliza: String(r['No. Póliza'] || ''),
+    contratante: r['Contratante'] || '',
+    producto: r['Producto'] || '',
+    estatus: r['Estatus'] || ''
+  }));
 };
 
 const diasTranscurridos = (fechaStr) => {
@@ -3119,8 +3141,9 @@ app.get('/api/promotoria/pre-contratos', authMiddleware, promotoriaAccess, (req,
     const transcurridos = diasTranscurridos(p.fechaAperturaClave);
     const diasRestantes = transcurridos === null ? null : VIGENCIA_CLAVE_DIAS - transcurridos;
     const estado = estadoClaveTemporal(promotoria.clavesTemporales.rows, p.clave);
-    const polizasReasignar = polizasReasignarDeClave(promotoria.polizasReasignar.rows, p.clave);
-    return { ...p, diasRestantes, vencida: diasRestantes !== null && diasRestantes <= 0, ...estado, polizasReasignar };
+    const polizasReasignar = filasDeClave(promotoria.polizasReasignar.rows, p.clave);
+    const detalleActivo = filasDeClave(promotoria.detalleActivas.rows, p.clave);
+    return { ...p, diasRestantes, vencida: diasRestantes !== null && diasRestantes <= 0, ...estado, polizasReasignar, detalleActivo };
   });
   res.json(conCountdown);
 });
@@ -3156,6 +3179,26 @@ app.post('/api/promotoria/pre-contratos/polizas-reasignar/import', authMiddlewar
   try {
     const rows = parsePolizasReasignarExcel(req.file.path);
     promotoria.polizasReasignar = {
+      importedAt: new Date().toISOString(),
+      sourceFile: req.file.originalname,
+      rows
+    };
+    savePromotoria();
+    fs.unlinkSync(req.file.path);
+    res.json({ success: true, count: rows.length });
+  } catch (err) {
+    if (req.file && fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
+    res.status(500).json({ error: 'Error al procesar el archivo: ' + err.message });
+  }
+});
+
+// Detalle de claves ACTIVAS (foto del día, se reemplaza completa cada vez —
+// no se acumula, a diferencia de los demás importadores de esta sección).
+app.post('/api/promotoria/pre-contratos/detalle-activas/import', authMiddleware, promotoriaAccess, upload.single('file'), (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'No se recibió ningún archivo' });
+  try {
+    const rows = parseDetalleActivasExcel(req.file.path);
+    promotoria.detalleActivas = {
       importedAt: new Date().toISOString(),
       sourceFile: req.file.originalname,
       rows
@@ -3253,8 +3296,9 @@ app.get('/api/karen/pre-contratos', authMiddleware, promotoriaAccess, (req, res)
     const transcurridos = diasTranscurridos(p.fechaAperturaClave);
     const diasRestantes = transcurridos === null ? null : VIGENCIA_CLAVE_DIAS - transcurridos;
     const estado = estadoClaveTemporal(karen.clavesTemporales.rows, p.clave);
-    const polizasReasignar = polizasReasignarDeClave(karen.polizasReasignar.rows, p.clave);
-    return { ...p, diasRestantes, vencida: diasRestantes !== null && diasRestantes <= 0, ...estado, polizasReasignar };
+    const polizasReasignar = filasDeClave(karen.polizasReasignar.rows, p.clave);
+    const detalleActivo = filasDeClave(karen.detalleActivas.rows, p.clave);
+    return { ...p, diasRestantes, vencida: diasRestantes !== null && diasRestantes <= 0, ...estado, polizasReasignar, detalleActivo };
   });
   res.json(conCountdown);
 });
@@ -3283,6 +3327,24 @@ app.post('/api/karen/pre-contratos/polizas-reasignar/import', authMiddleware, pr
   try {
     const rows = parsePolizasReasignarExcel(req.file.path);
     karen.polizasReasignar = {
+      importedAt: new Date().toISOString(),
+      sourceFile: req.file.originalname,
+      rows
+    };
+    saveKaren();
+    fs.unlinkSync(req.file.path);
+    res.json({ success: true, count: rows.length });
+  } catch (err) {
+    if (req.file && fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
+    res.status(500).json({ error: 'Error al procesar el archivo: ' + err.message });
+  }
+});
+
+app.post('/api/karen/pre-contratos/detalle-activas/import', authMiddleware, promotoriaAccess, upload.single('file'), (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'No se recibió ningún archivo' });
+  try {
+    const rows = parseDetalleActivasExcel(req.file.path);
+    karen.detalleActivas = {
       importedAt: new Date().toISOString(),
       sourceFile: req.file.originalname,
       rows

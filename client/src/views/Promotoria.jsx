@@ -307,6 +307,7 @@ const PreContratosTab = ({ authFetch, apiBase }) => {
   const [loading, setLoading] = useState(true);
   const [importing, setImporting] = useState(false);
   const [importingReasignar, setImportingReasignar] = useState(false);
+  const [importingActivas, setImportingActivas] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [viewingEventos, setViewingEventos] = useState(null);
@@ -353,6 +354,21 @@ const PreContratosTab = ({ authFetch, apiBase }) => {
       .catch(() => { setImportingReasignar(false); alert('Error al importar el archivo'); });
   };
 
+  const handleImportActivas = (file) => {
+    if (!file) return;
+    setImportingActivas(true);
+    const formData = new FormData();
+    formData.append('file', file);
+    authFetch(`${apiBase}/pre-contratos/detalle-activas/import`, { method: 'POST', body: formData })
+      .then(res => res.json())
+      .then(d => {
+        setImportingActivas(false);
+        if (d.success) { alert(`Se importaron ${d.count} pólizas activas.`); load(); }
+        else alert(d.error || 'Error al importar el archivo');
+      })
+      .catch(() => { setImportingActivas(false); alert('Error al importar el archivo'); });
+  };
+
   const openAdd = () => { setEditingId(null); setForm(initialForm); setShowModal(true); };
   const openEdit = (p) => {
     setEditingId(p.id);
@@ -387,7 +403,7 @@ const PreContratosTab = ({ authFetch, apiBase }) => {
 
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginBottom: '20px' }}>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', flexWrap: 'wrap', gap: '12px', marginBottom: '20px' }}>
         <label className="glass-card" style={{ padding: '10px 20px', cursor: 'pointer', border: '1px solid var(--glass-border)', color: 'var(--text-main)', fontSize: '0.85rem', fontWeight: '600' }}>
           {importing ? 'Importando...' : 'Importar Excel de claves temporales'}
           <input type="file" accept=".xlsx,.xls" hidden disabled={importing} onChange={(e) => { handleImport(e.target.files[0]); e.target.value = ''; }} />
@@ -395,6 +411,10 @@ const PreContratosTab = ({ authFetch, apiBase }) => {
         <label className="glass-card" style={{ padding: '10px 20px', cursor: 'pointer', border: '1px solid var(--glass-border)', color: 'var(--text-main)', fontSize: '0.85rem', fontWeight: '600' }}>
           {importingReasignar ? 'Importando...' : 'Importar Excel de pólizas a reasignar'}
           <input type="file" accept=".xlsx,.xls" hidden disabled={importingReasignar} onChange={(e) => { handleImportReasignar(e.target.files[0]); e.target.value = ''; }} />
+        </label>
+        <label className="glass-card" style={{ padding: '10px 20px', cursor: 'pointer', border: '1px solid var(--glass-border)', color: 'var(--text-main)', fontSize: '0.85rem', fontWeight: '600' }}>
+          {importingActivas ? 'Importando...' : 'Importar Excel de pólizas activas'}
+          <input type="file" accept=".xlsx,.xls" hidden disabled={importingActivas} onChange={(e) => { handleImportActivas(e.target.files[0]); e.target.value = ''; }} />
         </label>
         <button onClick={openAdd} className="btn-primary">+ Añadir Pre-contrato</button>
       </div>
@@ -429,7 +449,8 @@ const PreContratosTab = ({ authFetch, apiBase }) => {
                 }
                 const eventos = p.eventos || [];
                 const polizasReasignar = p.polizasReasignar || [];
-                const tieneHistorial = eventos.length > 0 || polizasReasignar.length > 0;
+                const detalleActivo = p.detalleActivo || [];
+                const tieneHistorial = eventos.length > 0 || polizasReasignar.length > 0 || detalleActivo.length > 0;
                 return (
                   <tr key={p.id} style={{ borderBottom: '1px solid var(--glass-border)' }}>
                     <td style={{ padding: '16px 24px' }}>
@@ -529,6 +550,37 @@ const PreContratosTab = ({ authFetch, apiBase }) => {
               </tbody>
             </table>
           </div>
+
+          {(viewingEventos.detalleActivo || []).length > 0 && (
+            <div style={{ marginTop: '24px' }}>
+              <h3 style={{ fontSize: '0.95rem', color: '#0f172a', marginBottom: '8px' }}>Pólizas actuales</h3>
+              <p style={{ fontSize: '0.75rem', color: '#334155', marginBottom: '12px' }}>
+                Detalle de hoy, mientras la clave sigue activa — se actualiza completo en cada corrida.
+              </p>
+              <div style={{ maxHeight: '280px', overflowY: 'auto', border: '1px solid #e2e8f0', borderRadius: '10px' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.8rem' }}>
+                  <thead style={{ position: 'sticky', top: 0, background: '#f8fafc' }}>
+                    <tr>
+                      <th style={{ padding: '10px 12px', color: '#334155' }}>No. Póliza</th>
+                      <th style={{ padding: '10px 12px', color: '#334155' }}>Contratante</th>
+                      <th style={{ padding: '10px 12px', color: '#334155' }}>Producto</th>
+                      <th style={{ padding: '10px 12px', color: '#334155' }}>Estatus</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {viewingEventos.detalleActivo.map((pz, i) => (
+                      <tr key={i} style={{ borderTop: '1px solid #e2e8f0' }}>
+                        <td style={{ padding: '10px 12px', color: '#0f172a', fontWeight: '600' }}>{pz.noPoliza}</td>
+                        <td style={{ padding: '10px 12px', color: '#0f172a' }}>{pz.contratante}</td>
+                        <td style={{ padding: '10px 12px', color: '#475569' }}>{pz.producto}</td>
+                        <td style={{ padding: '10px 12px', color: '#475569' }}>{pz.estatus}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
 
           {(viewingEventos.polizasReasignar || []).length > 0 && (
             <div style={{ marginTop: '24px' }}>
