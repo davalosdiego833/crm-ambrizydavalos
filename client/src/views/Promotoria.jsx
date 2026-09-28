@@ -752,6 +752,7 @@ const CancelacionesTab = ({ authFetch, apiBase }) => {
               <tr style={{ borderBottom: '1px solid var(--glass-border)' }}>
                 <th style={{ padding: '16px 24px', color: 'var(--text-muted)', fontSize: '0.85rem' }}>Fecha Detectado</th>
                 <th style={{ padding: '16px 24px', color: 'var(--text-muted)', fontSize: '0.85rem' }}>Asesor</th>
+                <th style={{ padding: '16px 24px', color: 'var(--text-muted)', fontSize: '0.85rem' }}>No. Agente</th>
                 <th style={{ padding: '16px 24px', color: 'var(--text-muted)', fontSize: '0.85rem' }}>No. Póliza</th>
                 <th style={{ padding: '16px 24px', color: 'var(--text-muted)', fontSize: '0.85rem' }}>Contratante</th>
                 <th style={{ padding: '16px 24px', color: 'var(--text-muted)', fontSize: '0.85rem' }}>Estatus Anterior</th>
@@ -760,13 +761,14 @@ const CancelacionesTab = ({ authFetch, apiBase }) => {
             </thead>
             <tbody>
               {loading ? (
-                <tr><td colSpan="6" style={{ padding: '40px', textAlign: 'center', color: 'var(--text-dim)' }}>Cargando...</td></tr>
+                <tr><td colSpan="7" style={{ padding: '40px', textAlign: 'center', color: 'var(--text-dim)' }}>Cargando...</td></tr>
               ) : rows.length === 0 ? (
-                <tr><td colSpan="6" style={{ padding: '40px', textAlign: 'center', color: 'var(--text-dim)' }}>Sin registros para mostrar.</td></tr>
+                <tr><td colSpan="7" style={{ padding: '40px', textAlign: 'center', color: 'var(--text-dim)' }}>Sin registros para mostrar.</td></tr>
               ) : rows.map((r, i) => (
                 <tr key={i} style={{ borderBottom: '1px solid var(--glass-border)' }}>
                   <td style={{ padding: '16px 24px', fontSize: '0.85rem', color: 'var(--text-muted)' }}>{r.fechaDetectado}</td>
                   <td style={{ padding: '16px 24px', fontSize: '0.85rem' }}>{r.asesor}</td>
+                  <td style={{ padding: '16px 24px', fontSize: '0.85rem', color: 'var(--text-muted)' }}>{r.noAgente}</td>
                   <td style={{ padding: '16px 24px', fontSize: '0.85rem', color: 'var(--text-muted)' }}>{r.noPoliza}</td>
                   <td style={{ padding: '16px 24px', fontSize: '0.85rem' }}>{r.contratante}</td>
                   <td style={{ padding: '16px 24px', fontSize: '0.85rem', color: 'var(--text-muted)' }}>{r.estatusAnterior}</td>
