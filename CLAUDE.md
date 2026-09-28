@@ -109,17 +109,36 @@ historial — el Excel de origen ya es el acumulado completo).
   (`backupFile()`, mismo esquema de 30 respaldos) — precisamente para no
   perder esta información.
 
-**Hueco de datos que sigue pendiente, pedir del lado de Pólizas cuando se
-pueda**: mientras una clave sigue activa, el historial solo trae el
-*conteo* de pólizas, no el detalle (No. Póliza, Contratante, Producto,
-Estatus). Ese detalle completo sí existe del lado de Pólizas, pero solo
-para el momento exacto en que una clave desaparece (hoja "Reasignar" del
-reporte del día) — y hoy esa hoja no se sube a ningún lado, vive nada más
-en el archivo local de ese día. Para que el CRM pueda mostrar el detalle
-real de pólizas a reasignar (no solo el conteo) cuando aparece
-`DESAPARECIDA`, hay que agregar esas columnas al historial que sí se sube
-(o subir esa hoja aparte) — avisar en esta conversación cuando esté listo
-del lado de Pólizas para conectar el importador.
+## ✅ Detalle de pólizas para reasignar — LISTO en ambos lados (2026-09-29)
+
+Del lado de Pólizas: archivo nuevo aparte (no tocaron
+`historial_claves_temporales.xlsx`):
+
+- `descargas/historial_polizas_reasignar.xlsx` (Promotoría)
+- `descargas/historial_polizas_reasignar_karen.xlsx` (Karen)
+
+Columnas: `Fecha Detectado | Nombre | No. Agente | No. Póliza | Contratante
+| Producto | Último Estatus`. Una fila por póliza (no por evento) — solo se
+agregan filas cuando hay una clave `DESAPARECIDA` ese día. Se acumula para
+siempre. `actualizar_historial_polizas_reasignar()` en `claves_temporales.py`.
+
+Del lado del CRM: se confirmaron y ya están conectados los endpoints
+sugeridos — `POST /api/promotoria/pre-contratos/polizas-reasignar/import` y
+`POST /api/karen/pre-contratos/polizas-reasignar/import` (multipart,
+reemplaza todo el historial, mismo patrón que los demás importadores).
+`parsePolizasReasignarExcel()`/`polizasReasignarDeClave()` en
+`server/index.js` cruzan por `No. Agente` y agregan `polizasReasignar` a
+cada pre-contrato en el GET. En la pestaña Pre-contratos: botón "Importar
+Excel de pólizas a reasignar", y el modal "Ver historial" ahora muestra una
+sección "Pólizas a reasignar" con el detalle real (No. Póliza, Contratante,
+Producto, Último Estatus) cuando existe — probado con datos sintéticos
+antes de desplegar. Con esto queda cerrado el objetivo original de
+Pre-contratos: no perder la info de pólizas cuando alguien no firma.
+
+**Pendiente real**: del lado de Pólizas, conectar la subida automática de
+este archivo nuevo al reporte diario (ya dijeron que es un cambio de una
+línea con `crm_upload.subir_excel_al_crm()`) — por ahora solo existe la
+importación manual desde el botón del CRM.
 
 ## ⚠️ Hallazgo de seguridad (2026-09-18, sin resolver todavía)
 
