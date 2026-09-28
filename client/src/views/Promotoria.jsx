@@ -69,11 +69,29 @@ const ModalShell = ({ title, onClose, children }) => createPortal(
 // ======================================
 // Tab: Asesores (cumpleaños + firma de contrato)
 // ======================================
+const MESES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+
+// ¿Cae en el mes actual? (año se ignora, mismo criterio que daysUntilNextAnniversary)
+const isCurrentMonth = (dateStr) => {
+  if (!dateStr || !/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return false;
+  const month = parseInt(dateStr.split('-')[1], 10);
+  return month === new Date().getMonth() + 1;
+};
+const dayOfMonth = (dateStr) => parseInt(dateStr.split('-')[2], 10);
+
+const ASESOR_FILTERS = [
+  { id: 'todos', label: 'Todos' },
+  { id: 'cumpleMes', label: 'Cumpleaños de este mes' },
+  { id: 'aniversarioMes', label: 'Aniversarios de este mes' }
+];
+
 const AsesoresTab = ({ authFetch }) => {
   const [asesores, setAsesores] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [editingId, setEditingId] = useState(null);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [monthFilter, setMonthFilter] = useState('todos');
   const initialForm = { nombre: '', claveAgente: '', fechaNacimiento: '', fechaFirmaContrato: '' };
   const [form, setForm] = useState(initialForm);
 
@@ -122,9 +140,85 @@ const AsesoresTab = ({ authFetch }) => {
     return da - db;
   });
 
+  const cumpleMes = asesores
+    .filter(a => isCurrentMonth(a.fechaNacimiento))
+    .sort((a, b) => dayOfMonth(a.fechaNacimiento) - dayOfMonth(b.fechaNacimiento));
+  const aniversarioMes = asesores
+    .filter(a => isCurrentMonth(a.fechaFirmaContrato))
+    .sort((a, b) => dayOfMonth(a.fechaFirmaContrato) - dayOfMonth(b.fechaFirmaContrato));
+
+  const filtered = sorted
+    .filter(a => (a.nombre || '').toLowerCase().includes(searchTerm.toLowerCase()))
+    .filter(a => {
+      if (monthFilter === 'cumpleMes') return isCurrentMonth(a.fechaNacimiento);
+      if (monthFilter === 'aniversarioMes') return isCurrentMonth(a.fechaFirmaContrato);
+      return true;
+    });
+
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '20px' }}>
+      {/* Alertas del mes en curso: cumpleaños y aniversarios, bien arriba */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '20px', marginBottom: '28px' }}>
+        <div className="glass-card" style={{ padding: '20px 24px', borderLeft: '4px solid var(--accent-gold)' }}>
+          <h3 style={{ fontSize: '1rem', marginBottom: '14px' }}>🎂 Cumpleaños de {MESES[new Date().getMonth()]}</h3>
+          {cumpleMes.length === 0 ? (
+            <p style={{ color: 'var(--text-dim)', fontSize: '0.85rem', margin: 0 }}>Nadie cumple años este mes.</p>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              {cumpleMes.map(a => (
+                <div key={a.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.85rem' }}>
+                  <span style={{ fontWeight: '600' }}>{a.nombre}</span>
+                  <span style={{ color: 'var(--accent-gold)', fontWeight: '700', whiteSpace: 'nowrap', marginLeft: '12px' }}>{formatReadableDate(a.fechaNacimiento)}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+        <div className="glass-card" style={{ padding: '20px 24px', borderLeft: '4px solid var(--accent-mint)' }}>
+          <h3 style={{ fontSize: '1rem', marginBottom: '14px' }}>🎉 Aniversarios de {MESES[new Date().getMonth()]}</h3>
+          {aniversarioMes.length === 0 ? (
+            <p style={{ color: 'var(--text-dim)', fontSize: '0.85rem', margin: 0 }}>Nadie cumple aniversario este mes.</p>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              {aniversarioMes.map(a => (
+                <div key={a.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.85rem' }}>
+                  <span style={{ fontWeight: '600' }}>{a.nombre}</span>
+                  <span style={{ color: 'var(--accent-mint)', fontWeight: '700', whiteSpace: 'nowrap', marginLeft: '12px' }}>{formatReadableDate(a.fechaFirmaContrato)}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div className="glass-card" style={{ marginBottom: '20px', padding: '16px 24px', display: 'flex', flexWrap: 'wrap', gap: '16px', alignItems: 'center', justifyContent: 'space-between' }}>
+        <input
+          type="text"
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          placeholder="Buscar por nombre..."
+          style={{ padding: '10px 14px', borderRadius: '8px', background: '#ffffff', border: '1px solid #cbd5e1', color: '#0f172a', outline: 'none', minWidth: '220px' }}
+        />
+        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+          {ASESOR_FILTERS.map(f => (
+            <button
+              key={f.id}
+              onClick={() => setMonthFilter(f.id)}
+              style={{
+                padding: '8px 16px',
+                borderRadius: '20px',
+                fontSize: '0.8rem',
+                fontWeight: '600',
+                cursor: 'pointer',
+                border: monthFilter === f.id ? '1px solid var(--accent-gold)' : '1px solid var(--glass-border)',
+                background: monthFilter === f.id ? 'rgba(226,176,66,0.15)' : 'transparent',
+                color: monthFilter === f.id ? 'var(--accent-gold)' : 'var(--text-muted)'
+              }}
+            >
+              {f.label}
+            </button>
+          ))}
+        </div>
         <button onClick={openAdd} className="btn-primary">+ Añadir Asesor</button>
       </div>
       <div className="glass-card" style={{ padding: 0, overflow: 'hidden' }}>
@@ -142,9 +236,9 @@ const AsesoresTab = ({ authFetch }) => {
             <tbody>
               {loading ? (
                 <tr><td colSpan="5" style={{ padding: '40px', textAlign: 'center', color: 'var(--text-dim)' }}>Cargando...</td></tr>
-              ) : sorted.length === 0 ? (
-                <tr><td colSpan="5" style={{ padding: '40px', textAlign: 'center', color: 'var(--text-dim)' }}>No hay asesores registrados todavía.</td></tr>
-              ) : sorted.map(a => {
+              ) : filtered.length === 0 ? (
+                <tr><td colSpan="5" style={{ padding: '40px', textAlign: 'center', color: 'var(--text-dim)' }}>{asesores.length === 0 ? 'No hay asesores registrados todavía.' : 'Ningún asesor coincide con el filtro.'}</td></tr>
+              ) : filtered.map(a => {
                 const dias = daysUntilNextAnniversary(a.fechaNacimiento);
                 return (
                   <tr key={a.id} style={{ borderBottom: '1px solid var(--glass-border)' }}>
