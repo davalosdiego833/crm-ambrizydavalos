@@ -302,7 +302,7 @@ const AsesoresTab = ({ authFetch }) => {
 // ======================================
 // Tab: Pre-contratos (claves con countdown de vencimiento)
 // ======================================
-const PreContratosTab = ({ authFetch }) => {
+const PreContratosTab = ({ authFetch, apiBase }) => {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
@@ -313,7 +313,7 @@ const PreContratosTab = ({ authFetch }) => {
 
   const load = () => {
     setLoading(true);
-    authFetch('/api/promotoria/pre-contratos')
+    authFetch(`${apiBase}/pre-contratos`)
       .then(res => res.json())
       .then(data => { setItems(Array.isArray(data) ? data : []); setLoading(false); })
       .catch(() => setLoading(false));
@@ -332,7 +332,7 @@ const PreContratosTab = ({ authFetch }) => {
     e.preventDefault();
     if (!form.nombre.trim()) return alert('El nombre es obligatorio');
     const method = editingId ? 'PUT' : 'POST';
-    const url = editingId ? `/api/promotoria/pre-contratos/${editingId}` : '/api/promotoria/pre-contratos';
+    const url = editingId ? `${apiBase}/pre-contratos/${editingId}` : `${apiBase}/pre-contratos`;
     authFetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form) })
       .then(res => res.json())
       .then(data => {
@@ -343,7 +343,7 @@ const PreContratosTab = ({ authFetch }) => {
 
   const handleDelete = (id) => {
     if (!window.confirm('¿Eliminar este pre-contrato?')) return;
-    authFetch(`/api/promotoria/pre-contratos/${id}`, { method: 'DELETE' })
+    authFetch(`${apiBase}/pre-contratos/${id}`, { method: 'DELETE' })
       .then(res => res.json())
       .then(() => setItems(prev => prev.filter(p => p.id !== id)));
   };
@@ -523,7 +523,7 @@ const PRODUCTO_PRESETS = [
   { id: 'GM', label: 'GMM (GM)' }
 ];
 
-const CancelacionesTab = ({ authFetch }) => {
+const CancelacionesTab = ({ authFetch, apiBase }) => {
   const [data, setData] = useState({ importedAt: null, sourceFile: null, rows: [] });
   const [loading, setLoading] = useState(true);
   const [importing, setImporting] = useState(false);
@@ -536,7 +536,7 @@ const CancelacionesTab = ({ authFetch }) => {
 
   const load = () => {
     setLoading(true);
-    authFetch('/api/promotoria/cancelaciones')
+    authFetch(`${apiBase}/cancelaciones`)
       .then(res => res.json())
       .then(d => { setData(d || { importedAt: null, sourceFile: null, rows: [] }); setLoading(false); })
       .catch(() => setLoading(false));
@@ -549,7 +549,7 @@ const CancelacionesTab = ({ authFetch }) => {
     setImporting(true);
     const formData = new FormData();
     formData.append('file', file);
-    authFetch('/api/promotoria/cancelaciones/import', { method: 'POST', body: formData })
+    authFetch(`${apiBase}/cancelaciones/import`, { method: 'POST', body: formData })
       .then(res => res.json())
       .then(d => {
         setImporting(false);
@@ -709,22 +709,67 @@ const CancelacionesTab = ({ authFetch }) => {
 // ======================================
 // Vista principal
 // ======================================
+// Organizaciones que administra este CRM, cada una con datos completamente
+// separados en el servidor. Karen no tiene pestaña de Asesores: sus
+// asesores se detectan automáticamente en el portal, no hay una lista
+// curada con cumpleaños/firma como la de Promotoría.
+const ORGS = [
+  { id: 'promotoria', label: 'PROMOTORÍA AMBRIZ', apiBase: '/api/promotoria', accent: 'var(--accent-gold)', accentGlow: 'rgba(226,176,66,0.12)' },
+  { id: 'karen', label: 'GERENCIA KAREN', apiBase: '/api/karen', accent: '#2563eb', accentGlow: 'rgba(37,99,235,0.10)' }
+];
+
 const Promotoria = () => {
   const { authFetch } = useAuth();
+  const [org, setOrg] = useState('promotoria');
   const [tab, setTab] = useState('asesores');
 
-  const tabs = [
-    { id: 'asesores', label: 'Asesores' },
-    { id: 'cancelaciones', label: 'Cancelaciones' },
-    { id: 'preContratos', label: 'Pre-contratos' }
-  ];
+  const currentOrg = ORGS.find(o => o.id === org) || ORGS[0];
+
+  const tabs = org === 'karen'
+    ? [
+        { id: 'cancelaciones', label: 'Cancelaciones' },
+        { id: 'preContratos', label: 'Pre-contratos' }
+      ]
+    : [
+        { id: 'asesores', label: 'Asesores' },
+        { id: 'cancelaciones', label: 'Cancelaciones' },
+        { id: 'preContratos', label: 'Pre-contratos' }
+      ];
+
+  const handleOrgChange = (id) => {
+    setOrg(id);
+    if (id === 'karen' && tab === 'asesores') setTab('cancelaciones');
+  };
 
   return (
     <div className="animate-up">
-      <header style={{ marginBottom: '32px' }}>
+      <header style={{ marginBottom: '24px' }}>
         <h1 style={{ fontSize: '2.5rem', fontWeight: '800' }}>Panel de <span className="text-gradient-gold">Promotoría</span></h1>
-        <p style={{ color: 'var(--text-muted)', marginTop: '8px' }}>Panorama de toda la promotoría: asesores, cancelaciones y pre-contratos.</p>
+        <p style={{ color: 'var(--text-muted)', marginTop: '8px' }}>Panorama de asesores, cancelaciones y pre-contratos.</p>
       </header>
+
+      <div style={{ display: 'flex', gap: '12px', marginBottom: '28px', flexWrap: 'wrap' }}>
+        {ORGS.map(o => (
+          <button
+            key={o.id}
+            onClick={() => handleOrgChange(o.id)}
+            style={{
+              padding: '14px 28px',
+              borderRadius: '12px',
+              fontSize: '0.9rem',
+              fontWeight: '700',
+              letterSpacing: '0.4px',
+              cursor: 'pointer',
+              border: org === o.id ? `2px solid ${o.accent}` : '2px solid var(--glass-border)',
+              background: org === o.id ? o.accentGlow : 'transparent',
+              color: org === o.id ? o.accent : 'var(--text-muted)',
+              transition: 'all 0.2s'
+            }}
+          >
+            {o.label}
+          </button>
+        ))}
+      </div>
 
       <div style={{ display: 'flex', gap: '8px', marginBottom: '28px', borderBottom: '1px solid var(--glass-border)' }}>
         {tabs.map(t => (
@@ -735,7 +780,7 @@ const Promotoria = () => {
               padding: '12px 20px',
               background: 'none',
               border: 'none',
-              borderBottom: tab === t.id ? '2px solid var(--accent-gold)' : '2px solid transparent',
+              borderBottom: tab === t.id ? `2px solid ${currentOrg.accent}` : '2px solid transparent',
               color: tab === t.id ? 'var(--text-main)' : 'var(--text-muted)',
               fontWeight: tab === t.id ? '700' : '500',
               cursor: 'pointer',
@@ -747,9 +792,9 @@ const Promotoria = () => {
         ))}
       </div>
 
-      {tab === 'asesores' && <AsesoresTab authFetch={authFetch} />}
-      {tab === 'cancelaciones' && <CancelacionesTab authFetch={authFetch} />}
-      {tab === 'preContratos' && <PreContratosTab authFetch={authFetch} />}
+      {tab === 'asesores' && org === 'promotoria' && <AsesoresTab authFetch={authFetch} />}
+      {tab === 'cancelaciones' && <CancelacionesTab key={currentOrg.id} authFetch={authFetch} apiBase={currentOrg.apiBase} />}
+      {tab === 'preContratos' && <PreContratosTab key={currentOrg.id} authFetch={authFetch} apiBase={currentOrg.apiBase} />}
     </div>
   );
 };

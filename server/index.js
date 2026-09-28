@@ -98,6 +98,7 @@ setInterval(fetchRates, 1000 * 60 * 60 * 1);
 // ======================================
 const DB_FILE = path.join(__dirname, 'db.json');
 const PROMOTORIA_FILE = path.join(__dirname, 'promotoria.json');
+const KAREN_FILE = path.join(__dirname, 'karen.json');
 
 const defaultUsers = [
   {
@@ -170,6 +171,23 @@ const loadPromotoria = () => {
 
 const savePromotoria = () => {
   fs.writeFileSync(PROMOTORIA_FILE, JSON.stringify(promotoria, null, 2));
+};
+
+// Gerencia de Karen: otra cuenta del mismo portal, asesores distintos a los
+// de la Promotoría de Diego. Datos completamente separados — nunca se
+// combinan con los de promotoria.json.
+const defaultKaren = { preContratos: [], cancelaciones: { importedAt: null, sourceFile: null, rows: [] } };
+
+const loadKaren = () => {
+  if (fs.existsSync(KAREN_FILE)) {
+    return JSON.parse(fs.readFileSync(KAREN_FILE, 'utf8'));
+  }
+  fs.writeFileSync(KAREN_FILE, JSON.stringify(defaultKaren, null, 2));
+  return JSON.parse(JSON.stringify(defaultKaren));
+};
+
+const saveKaren = () => {
+  fs.writeFileSync(KAREN_FILE, JSON.stringify(karen, null, 2));
 };
 
 const backupDB = () => {
@@ -329,6 +347,7 @@ backupDB(); // Respaldo al arrancar el servidor
 setInterval(backupDB, 1000 * 60 * 60 * 24); // Respaldo automático diario
 
 let promotoria = loadPromotoria();
+let karen = loadKaren();
 
 // ======================================
 // INTELLECTUAL AND AUTONOMOUS HELPERS
@@ -2960,10 +2979,10 @@ const VIGENCIA_CLAVE_DIAS = 90;
 // pero sí trae su clave temporal). Se agrupa por No. de Póliza y se deja solo
 // la fila más reciente de cada una, para no contar la misma póliza varias
 // veces si tuvo más de un cambio de estatus.
-const polizasDeClaveTemporal = (clave) => {
+const polizasDeClaveTemporalEn = (rowsSource, clave) => {
   const claveNorm = String(clave || '').trim();
   if (!claveNorm) return [];
-  const rows = (promotoria.cancelaciones.rows || []).filter(r => String(r.noAgente || '').trim() === claveNorm);
+  const rows = (rowsSource || []).filter(r => String(r.noAgente || '').trim() === claveNorm);
   const porPoliza = {};
   rows.forEach(r => {
     const key = r.noPoliza || '';
@@ -2973,6 +2992,7 @@ const polizasDeClaveTemporal = (clave) => {
   });
   return Object.values(porPoliza).sort((a, b) => (b.fechaDetectado || '').localeCompare(a.fechaDetectado || ''));
 };
+const polizasDeClaveTemporal = (clave) => polizasDeClaveTemporalEn(promotoria.cancelaciones.rows, clave);
 
 const diasTranscurridos = (fechaStr) => {
   if (!fechaStr) return null;
@@ -3063,31 +3083,105 @@ app.get('/api/promotoria/cancelaciones', authMiddleware, promotoriaAccess, (req,
   res.json(promotoria.cancelaciones);
 });
 
+// Parsea un Excel de "cambios de estatus" (mismo formato para Promotoría y
+// para Gerencia Karen) a filas normalizadas.
+const parseCancelacionesExcel = (filePath) => {
+  const workbook = xlsx.readFile(filePath);
+  const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+  const data = xlsx.utils.sheet_to_json(worksheet);
+  return data.map(r => ({
+    fechaDetectado: r['Fecha Detectado'] || '',
+    desde: r['Desde'] || '',
+    asesor: r['Asesor'] || '',
+    noAgente: String(r['No. Agente'] || ''),
+    noPoliza: String(r['No. Póliza'] || ''),
+    contratante: r['Contratante'] || '',
+    estatusAnterior: r['Estatus Anterior'] || '',
+    estatusNuevo: r['Estatus Nuevo'] || '',
+    tipo: r['Tipo'] || ''
+  }));
+};
+
 app.post('/api/promotoria/cancelaciones/import', authMiddleware, promotoriaAccess, upload.single('file'), (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No se recibió ningún archivo' });
   try {
-    const workbook = xlsx.readFile(req.file.path);
-    const worksheet = workbook.Sheets[workbook.SheetNames[0]];
-    const data = xlsx.utils.sheet_to_json(worksheet);
-
-    const rows = data.map(r => ({
-      fechaDetectado: r['Fecha Detectado'] || '',
-      desde: r['Desde'] || '',
-      asesor: r['Asesor'] || '',
-      noAgente: String(r['No. Agente'] || ''),
-      noPoliza: String(r['No. Póliza'] || ''),
-      contratante: r['Contratante'] || '',
-      estatusAnterior: r['Estatus Anterior'] || '',
-      estatusNuevo: r['Estatus Nuevo'] || '',
-      tipo: r['Tipo'] || ''
-    }));
-
+    const rows = parseCancelacionesExcel(req.file.path);
     promotoria.cancelaciones = {
       importedAt: new Date().toISOString(),
       sourceFile: req.file.originalname,
       rows
     };
     savePromotoria();
+    fs.unlinkSync(req.file.path);
+    res.json({ success: true, count: rows.length });
+  } catch (err) {
+    if (req.file && fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
+    res.status(500).json({ error: 'Error al procesar el archivo: ' + err.message });
+  }
+});
+
+// ======================================
+// ENDPOINTS DE GERENCIA KAREN (Master + cuenta de Promotoría)
+// ======================================
+// Mismo patrón que Promotoría — datos completamente separados en karen.json.
+// Sin "Asesores": del lado de Karen no hay una lista curada con
+// cumpleaños/firma, sus asesores se detectan automáticamente en el portal.
+
+// --- Pre-contratos (Karen) ---
+app.get('/api/karen/pre-contratos', authMiddleware, promotoriaAccess, (req, res) => {
+  const conCountdown = karen.preContratos.map(p => {
+    const transcurridos = diasTranscurridos(p.fechaAperturaClave);
+    const diasRestantes = transcurridos === null ? null : VIGENCIA_CLAVE_DIAS - transcurridos;
+    const polizas = polizasDeClaveTemporalEn(karen.cancelaciones.rows, p.clave);
+    return { ...p, diasRestantes, vencida: diasRestantes !== null && diasRestantes <= 0, polizas };
+  });
+  res.json(conCountdown);
+});
+
+app.post('/api/karen/pre-contratos', authMiddleware, promotoriaAccess, (req, res) => {
+  const { nombre, clave, fechaAperturaClave } = req.body;
+  if (!nombre) return res.status(400).json({ error: 'El nombre es obligatorio' });
+  const nuevo = {
+    id: karen.preContratos.length > 0 ? Math.max(...karen.preContratos.map(p => p.id)) + 1 : 1,
+    nombre, clave: clave || '', fechaAperturaClave: fechaAperturaClave || ''
+  };
+  karen.preContratos.push(nuevo);
+  saveKaren();
+  res.json({ success: true, preContrato: nuevo });
+});
+
+app.put('/api/karen/pre-contratos/:id', authMiddleware, promotoriaAccess, (req, res) => {
+  const preContrato = karen.preContratos.find(p => p.id == req.params.id);
+  if (!preContrato) return res.status(404).json({ error: 'Pre-contrato no encontrado' });
+  const { nombre, clave, fechaAperturaClave } = req.body;
+  if (nombre !== undefined) preContrato.nombre = nombre;
+  if (clave !== undefined) preContrato.clave = clave;
+  if (fechaAperturaClave !== undefined) preContrato.fechaAperturaClave = fechaAperturaClave;
+  saveKaren();
+  res.json({ success: true, preContrato });
+});
+
+app.delete('/api/karen/pre-contratos/:id', authMiddleware, promotoriaAccess, (req, res) => {
+  karen.preContratos = karen.preContratos.filter(p => p.id != req.params.id);
+  saveKaren();
+  res.json({ success: true });
+});
+
+// --- Cancelaciones (Karen) ---
+app.get('/api/karen/cancelaciones', authMiddleware, promotoriaAccess, (req, res) => {
+  res.json(karen.cancelaciones);
+});
+
+app.post('/api/karen/cancelaciones/import', authMiddleware, promotoriaAccess, upload.single('file'), (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'No se recibió ningún archivo' });
+  try {
+    const rows = parseCancelacionesExcel(req.file.path);
+    karen.cancelaciones = {
+      importedAt: new Date().toISOString(),
+      sourceFile: req.file.originalname,
+      rows
+    };
+    saveKaren();
     fs.unlinkSync(req.file.path);
     res.json({ success: true, count: rows.length });
   } catch (err) {
