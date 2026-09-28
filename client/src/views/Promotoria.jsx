@@ -456,6 +456,13 @@ const DATE_PRESETS = [
   { id: 'personalizado', label: 'Rango personalizado' }
 ];
 
+// No. de Póliza: VI = Vida, GM = GMM (Gastos Médicos Mayores)
+const PRODUCTO_PRESETS = [
+  { id: 'todos', label: 'Todos' },
+  { id: 'VI', label: 'Vida (VI)' },
+  { id: 'GM', label: 'GMM (GM)' }
+];
+
 const CancelacionesTab = ({ authFetch }) => {
   const [data, setData] = useState({ importedAt: null, sourceFile: null, rows: [] });
   const [loading, setLoading] = useState(true);
@@ -465,6 +472,7 @@ const CancelacionesTab = ({ authFetch }) => {
   const [dateFilter, setDateFilter] = useState('hoy');
   const [customFrom, setCustomFrom] = useState(todayStr());
   const [customTo, setCustomTo] = useState(todayStr());
+  const [productoFilter, setProductoFilter] = useState('todos');
 
   const load = () => {
     setLoading(true);
@@ -508,7 +516,8 @@ const CancelacionesTab = ({ authFetch }) => {
   const rows = (data.rows || [])
     .filter(r => showAll || r.estatusNuevo === 'Anulada')
     .filter(r => (r.asesor || '').toLowerCase().includes(searchTerm.toLowerCase()))
-    .filter(r => matchesDateFilter(r.fechaDetectado));
+    .filter(r => matchesDateFilter(r.fechaDetectado))
+    .filter(r => productoFilter === 'todos' || (r.noPoliza || '').toUpperCase().startsWith(productoFilter));
 
   return (
     <div>
@@ -541,6 +550,28 @@ const CancelacionesTab = ({ authFetch }) => {
                 border: dateFilter === p.id ? '1px solid var(--accent-gold)' : '1px solid var(--glass-border)',
                 background: dateFilter === p.id ? 'rgba(226,176,66,0.15)' : 'transparent',
                 color: dateFilter === p.id ? 'var(--accent-gold)' : 'var(--text-muted)'
+              }}
+            >
+              {p.label}
+            </button>
+          ))}
+        </div>
+
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', alignItems: 'center' }}>
+          <span style={{ fontSize: '0.75rem', color: 'var(--text-dim)', marginRight: '4px' }}>Producto:</span>
+          {PRODUCTO_PRESETS.map(p => (
+            <button
+              key={p.id}
+              onClick={() => setProductoFilter(p.id)}
+              style={{
+                padding: '8px 16px',
+                borderRadius: '20px',
+                fontSize: '0.8rem',
+                fontWeight: '600',
+                cursor: 'pointer',
+                border: productoFilter === p.id ? '1px solid var(--accent-mint)' : '1px solid var(--glass-border)',
+                background: productoFilter === p.id ? 'rgba(0,255,170,0.1)' : 'transparent',
+                color: productoFilter === p.id ? 'var(--accent-mint)' : 'var(--text-muted)'
               }}
             >
               {p.label}
