@@ -159,11 +159,14 @@ const saveDB = () => {
   fs.writeFileSync(DB_FILE, JSON.stringify(users, null, 2));
 };
 
-const defaultPromotoria = { asesores: [], preContratos: [], cancelaciones: { importedAt: null, sourceFile: null, rows: [] } };
+const defaultClavesTemporales = { importedAt: null, sourceFile: null, rows: [] };
+const defaultPromotoria = { asesores: [], preContratos: [], cancelaciones: { importedAt: null, sourceFile: null, rows: [] }, clavesTemporales: { ...defaultClavesTemporales } };
 
 const loadPromotoria = () => {
   if (fs.existsSync(PROMOTORIA_FILE)) {
-    return JSON.parse(fs.readFileSync(PROMOTORIA_FILE, 'utf8'));
+    // merge con defaultPromotoria por si el archivo es de antes de agregar
+    // alguna sección nueva (ej. clavesTemporales) — evita que falte la llave.
+    return { ...JSON.parse(JSON.stringify(defaultPromotoria)), ...JSON.parse(fs.readFileSync(PROMOTORIA_FILE, 'utf8')) };
   }
   fs.writeFileSync(PROMOTORIA_FILE, JSON.stringify(defaultPromotoria, null, 2));
   return JSON.parse(JSON.stringify(defaultPromotoria));
@@ -176,11 +179,11 @@ const savePromotoria = () => {
 // Gerencia de Karen: otra cuenta del mismo portal, asesores distintos a los
 // de la Promotoría de Diego. Datos completamente separados — nunca se
 // combinan con los de promotoria.json.
-const defaultKaren = { preContratos: [], cancelaciones: { importedAt: null, sourceFile: null, rows: [] } };
+const defaultKaren = { preContratos: [], cancelaciones: { importedAt: null, sourceFile: null, rows: [] }, clavesTemporales: { ...defaultClavesTemporales } };
 
 const loadKaren = () => {
   if (fs.existsSync(KAREN_FILE)) {
-    return JSON.parse(fs.readFileSync(KAREN_FILE, 'utf8'));
+    return { ...JSON.parse(JSON.stringify(defaultKaren)), ...JSON.parse(fs.readFileSync(KAREN_FILE, 'utf8')) };
   }
   fs.writeFileSync(KAREN_FILE, JSON.stringify(defaultKaren, null, 2));
   return JSON.parse(JSON.stringify(defaultKaren));
@@ -190,35 +193,44 @@ const saveKaren = () => {
   fs.writeFileSync(KAREN_FILE, JSON.stringify(karen, null, 2));
 };
 
-const backupDB = () => {
+// Respalda un archivo de datos (db.json / promotoria.json / karen.json) con
+// su propio prefijo, manteniendo los últimos 30 respaldos de cada uno. Los
+// datos de pre-contratos (pólizas de claves temporales) son justo lo que no
+// se debe perder si desaparece una clave, así que van respaldados igual que
+// db.json, no solo confiando en el archivo vivo.
+const backupFile = (sourceFile, prefix) => {
   try {
+    if (!fs.existsSync(sourceFile)) return;
     const backupDir = path.join(__dirname, 'backups');
     if (!fs.existsSync(backupDir)) {
       fs.mkdirSync(backupDir, { recursive: true });
     }
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-    const backupFile = path.join(backupDir, `db-backup-${timestamp}.json`);
-    
-    if (fs.existsSync(DB_FILE)) {
-      fs.copyFileSync(DB_FILE, backupFile);
-      console.log(`💾 Respaldo de base de datos creado exitosamente: ${backupFile}`);
-      
-      // Limpieza: mantener solo los últimos 30 respaldos
-      const files = fs.readdirSync(backupDir)
-        .filter(f => f.startsWith('db-backup-') && f.endsWith('.json'))
-        .map(f => ({ name: f, time: fs.statSync(path.join(backupDir, f)).mtime.getTime() }))
-        .sort((a, b) => b.time - a.time);
-        
-      if (files.length > 30) {
-        files.slice(30).forEach(f => {
-          fs.unlinkSync(path.join(backupDir, f.name));
-          console.log(`🗑️ Respaldo antiguo eliminado: ${f.name}`);
-        });
-      }
+    const dest = path.join(backupDir, `${prefix}-backup-${timestamp}.json`);
+    fs.copyFileSync(sourceFile, dest);
+    console.log(`💾 Respaldo de ${prefix} creado exitosamente: ${dest}`);
+
+    // Limpieza: mantener solo los últimos 30 respaldos de este prefijo
+    const files = fs.readdirSync(backupDir)
+      .filter(f => f.startsWith(`${prefix}-backup-`) && f.endsWith('.json'))
+      .map(f => ({ name: f, time: fs.statSync(path.join(backupDir, f)).mtime.getTime() }))
+      .sort((a, b) => b.time - a.time);
+
+    if (files.length > 30) {
+      files.slice(30).forEach(f => {
+        fs.unlinkSync(path.join(backupDir, f.name));
+        console.log(`🗑️ Respaldo antiguo eliminado: ${f.name}`);
+      });
     }
   } catch (error) {
-    console.error('❌ Error al realizar el respaldo de la base de datos:', error);
+    console.error(`❌ Error al realizar el respaldo de ${prefix}:`, error);
   }
+};
+
+const backupDB = () => {
+  backupFile(DB_FILE, 'db');
+  backupFile(PROMOTORIA_FILE, 'promotoria');
+  backupFile(KAREN_FILE, 'karen');
 };
 
 
@@ -2973,26 +2985,65 @@ app.delete('/api/admin/users/:id', authMiddleware, adminOnly, (req, res) => {
 // ======================================
 const VIGENCIA_CLAVE_DIAS = 90;
 
-// Pólizas registradas bajo una clave temporal de pre-contrato: se cruzan con
-// el No. de Agente de las filas de Cancelaciones (el reporte de pólizas trae
-// el nombre genérico de la promotoría en vez del nombre real de la persona,
-// pero sí trae su clave temporal). Se agrupa por No. de Póliza y se deja solo
-// la fila más reciente de cada una, para no contar la misma póliza varias
-// veces si tuvo más de un cambio de estatus.
-const polizasDeClaveTemporalEn = (rowsSource, clave) => {
+// Estado de una clave temporal a partir del historial de claves temporales
+// (NO de Cancelaciones — ese archivo solo trae a los asesores de la lista
+// fija, las claves puramente temporales nunca aparecen ahí). Cada evento
+// trae Pólizas Antes/Ahora (un conteo, no el detalle línea por línea — el
+// detalle completo solo existe del lado de Pólizas para el momento exacto
+// en que una clave desaparece, todavía no se sube al CRM).
+const estadoClaveTemporal = (rowsSource, clave) => {
   const claveNorm = String(clave || '').trim();
-  if (!claveNorm) return [];
-  const rows = (rowsSource || []).filter(r => String(r.noAgente || '').trim() === claveNorm);
-  const porPoliza = {};
-  rows.forEach(r => {
-    const key = r.noPoliza || '';
-    if (!porPoliza[key] || (r.fechaDetectado || '') > (porPoliza[key].fechaDetectado || '')) {
-      porPoliza[key] = r;
-    }
-  });
-  return Object.values(porPoliza).sort((a, b) => (b.fechaDetectado || '').localeCompare(a.fechaDetectado || ''));
+  if (!claveNorm) return { eventos: [], polizasActuales: null, desaparecida: false, eventoDesaparicion: null };
+  const eventos = (rowsSource || [])
+    .filter(r => String(r.noAgente || '').trim() === claveNorm)
+    .sort((a, b) => (a.fechaDetectado || '').localeCompare(b.fechaDetectado || ''));
+  const ultimo = eventos.length ? eventos[eventos.length - 1] : null;
+  const eventoDesaparicion = [...eventos].reverse().find(e => e.tipo === 'DESAPARECIDA') || null;
+  return {
+    eventos,
+    polizasActuales: ultimo ? ultimo.polizasAhora : null,
+    desaparecida: !!eventoDesaparicion,
+    eventoDesaparicion
+  };
 };
-const polizasDeClaveTemporal = (clave) => polizasDeClaveTemporalEn(promotoria.cancelaciones.rows, clave);
+
+// Da de alta en automático los pre-contratos de claves temporales nuevas que
+// no estén todavía registradas (nombre genérico, sin fechas — el portal no
+// las trae; Diego las completa a mano después). Nunca duplica por clave.
+const altaAutomaticaPreContratos = (org) => {
+  const clavesExistentes = new Set(org.preContratos.map(p => String(p.clave || '').trim()).filter(Boolean));
+  const vistos = new Set();
+  (org.clavesTemporales.rows || []).forEach(r => {
+    const clave = String(r.noAgente || '').trim();
+    if (!clave || clavesExistentes.has(clave) || vistos.has(clave)) return;
+    vistos.add(clave);
+    const nuevoId = org.preContratos.length > 0 ? Math.max(...org.preContratos.map(p => p.id)) + 1 : 1;
+    org.preContratos.push({
+      id: nuevoId,
+      nombre: r.nombre || `Clave ${clave}`,
+      clave,
+      fechaAperturaClave: ''
+    });
+    clavesExistentes.add(clave);
+  });
+};
+
+// Parsea el Excel de "claves temporales" (mismo formato para Promotoría y
+// Gerencia Karen).
+const parseClavesTemporalesExcel = (filePath) => {
+  const workbook = xlsx.readFile(filePath);
+  const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+  const data = xlsx.utils.sheet_to_json(worksheet);
+  return data.map(r => ({
+    fechaDetectado: r['Fecha Detectado'] || '',
+    desde: r['Desde'] || '',
+    tipo: r['Tipo'] || '',
+    nombre: r['Nombre'] || '',
+    noAgente: String(r['No. Agente'] || ''),
+    polizasAntes: r['Pólizas Antes'] ?? null,
+    polizasAhora: r['Pólizas Ahora'] ?? null
+  }));
+};
 
 const diasTranscurridos = (fechaStr) => {
   if (!fechaStr) return null;
@@ -3043,10 +3094,33 @@ app.get('/api/promotoria/pre-contratos', authMiddleware, promotoriaAccess, (req,
   const conCountdown = promotoria.preContratos.map(p => {
     const transcurridos = diasTranscurridos(p.fechaAperturaClave);
     const diasRestantes = transcurridos === null ? null : VIGENCIA_CLAVE_DIAS - transcurridos;
-    const polizas = polizasDeClaveTemporal(p.clave);
-    return { ...p, diasRestantes, vencida: diasRestantes !== null && diasRestantes <= 0, polizas };
+    const estado = estadoClaveTemporal(promotoria.clavesTemporales.rows, p.clave);
+    return { ...p, diasRestantes, vencida: diasRestantes !== null && diasRestantes <= 0, ...estado };
   });
   res.json(conCountdown);
+});
+
+// Importa el historial de claves temporales (pre-contratos). Reemplaza todo
+// el historial (igual que Cancelaciones — el Excel de origen ya es el
+// acumulado completo) y da de alta en automático cualquier clave nueva que
+// no esté todavía en la lista de pre-contratos.
+app.post('/api/promotoria/pre-contratos/import', authMiddleware, promotoriaAccess, upload.single('file'), (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'No se recibió ningún archivo' });
+  try {
+    const rows = parseClavesTemporalesExcel(req.file.path);
+    promotoria.clavesTemporales = {
+      importedAt: new Date().toISOString(),
+      sourceFile: req.file.originalname,
+      rows
+    };
+    altaAutomaticaPreContratos(promotoria);
+    savePromotoria();
+    fs.unlinkSync(req.file.path);
+    res.json({ success: true, count: rows.length, preContratosTotal: promotoria.preContratos.length });
+  } catch (err) {
+    if (req.file && fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
+    res.status(500).json({ error: 'Error al procesar el archivo: ' + err.message });
+  }
 });
 
 app.post('/api/promotoria/pre-contratos', authMiddleware, promotoriaAccess, (req, res) => {
@@ -3132,10 +3206,29 @@ app.get('/api/karen/pre-contratos', authMiddleware, promotoriaAccess, (req, res)
   const conCountdown = karen.preContratos.map(p => {
     const transcurridos = diasTranscurridos(p.fechaAperturaClave);
     const diasRestantes = transcurridos === null ? null : VIGENCIA_CLAVE_DIAS - transcurridos;
-    const polizas = polizasDeClaveTemporalEn(karen.cancelaciones.rows, p.clave);
-    return { ...p, diasRestantes, vencida: diasRestantes !== null && diasRestantes <= 0, polizas };
+    const estado = estadoClaveTemporal(karen.clavesTemporales.rows, p.clave);
+    return { ...p, diasRestantes, vencida: diasRestantes !== null && diasRestantes <= 0, ...estado };
   });
   res.json(conCountdown);
+});
+
+app.post('/api/karen/pre-contratos/import', authMiddleware, promotoriaAccess, upload.single('file'), (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'No se recibió ningún archivo' });
+  try {
+    const rows = parseClavesTemporalesExcel(req.file.path);
+    karen.clavesTemporales = {
+      importedAt: new Date().toISOString(),
+      sourceFile: req.file.originalname,
+      rows
+    };
+    altaAutomaticaPreContratos(karen);
+    saveKaren();
+    fs.unlinkSync(req.file.path);
+    res.json({ success: true, count: rows.length, preContratosTotal: karen.preContratos.length });
+  } catch (err) {
+    if (req.file && fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
+    res.status(500).json({ error: 'Error al procesar el archivo: ' + err.message });
+  }
 });
 
 app.post('/api/karen/pre-contratos', authMiddleware, promotoriaAccess, (req, res) => {

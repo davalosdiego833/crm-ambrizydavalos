@@ -305,9 +305,10 @@ const AsesoresTab = ({ authFetch }) => {
 const PreContratosTab = ({ authFetch, apiBase }) => {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [importing, setImporting] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [editingId, setEditingId] = useState(null);
-  const [viewingPolizas, setViewingPolizas] = useState(null);
+  const [viewingEventos, setViewingEventos] = useState(null);
   const initialForm = { nombre: '', clave: '', fechaAperturaClave: '' };
   const [form, setForm] = useState(initialForm);
 
@@ -320,6 +321,21 @@ const PreContratosTab = ({ authFetch, apiBase }) => {
   };
 
   useEffect(() => { load(); }, []);
+
+  const handleImport = (file) => {
+    if (!file) return;
+    setImporting(true);
+    const formData = new FormData();
+    formData.append('file', file);
+    authFetch(`${apiBase}/pre-contratos/import`, { method: 'POST', body: formData })
+      .then(res => res.json())
+      .then(d => {
+        setImporting(false);
+        if (d.success) { alert(`Se importaron ${d.count} eventos. Total de pre-contratos: ${d.preContratosTotal}.`); load(); }
+        else alert(d.error || 'Error al importar el archivo');
+      })
+      .catch(() => { setImporting(false); alert('Error al importar el archivo'); });
+  };
 
   const openAdd = () => { setEditingId(null); setForm(initialForm); setShowModal(true); };
   const openEdit = (p) => {
@@ -348,11 +364,18 @@ const PreContratosTab = ({ authFetch, apiBase }) => {
       .then(() => setItems(prev => prev.filter(p => p.id !== id)));
   };
 
-  const sorted = [...items].sort((a, b) => (a.diasRestantes ?? 999) - (b.diasRestantes ?? 999));
+  const sorted = [...items].sort((a, b) => {
+    if (a.desaparecida !== b.desaparecida) return a.desaparecida ? -1 : 1;
+    return (a.diasRestantes ?? 999) - (b.diasRestantes ?? 999);
+  });
 
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '20px' }}>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginBottom: '20px' }}>
+        <label className="glass-card" style={{ padding: '10px 20px', cursor: 'pointer', border: '1px solid var(--glass-border)', color: 'var(--text-main)', fontSize: '0.85rem', fontWeight: '600' }}>
+          {importing ? 'Importando...' : 'Importar Excel de claves temporales'}
+          <input type="file" accept=".xlsx,.xls" hidden disabled={importing} onChange={(e) => { handleImport(e.target.files[0]); e.target.value = ''; }} />
+        </label>
         <button onClick={openAdd} className="btn-primary">+ Añadir Pre-contrato</button>
       </div>
       <div className="glass-card" style={{ padding: 0, overflow: 'hidden' }}>
@@ -384,15 +407,17 @@ const PreContratosTab = ({ authFetch, apiBase }) => {
                     </span>
                   );
                 }
-                const polizas = p.polizas || [];
-                const enRiesgo = (vencida || critico) && polizas.length > 0;
+                const eventos = p.eventos || [];
+                const tieneHistorial = eventos.length > 0;
                 return (
                   <tr key={p.id} style={{ borderBottom: '1px solid var(--glass-border)' }}>
                     <td style={{ padding: '16px 24px' }}>
                       <div style={{ fontWeight: '700' }}>{p.nombre}</div>
-                      {enRiesgo && (
+                      {p.desaparecida && (
                         <div style={{ fontSize: '0.7rem', color: '#ff4444', marginTop: '4px', fontWeight: '600' }}>
-                          ⚠️ Riesgo: {polizas.length} {polizas.length === 1 ? 'póliza queda' : 'pólizas quedan'} sin asesor si no firma
+                          Alerta: la clave desapareció del portal el {p.eventoDesaparicion?.fechaDetectado || '—'}
+                          {p.eventoDesaparicion?.polizasAntes != null ? ` con ${p.eventoDesaparicion.polizasAntes} póliza(s) registradas` : ''}.
+                          Confirma si firmó (elimina este registro) o gestiona la reasignación.
                         </div>
                       )}
                     </td>
@@ -400,14 +425,14 @@ const PreContratosTab = ({ authFetch, apiBase }) => {
                     <td style={{ padding: '16px 24px', fontSize: '0.85rem', color: 'var(--text-muted)' }}>{formatReadableDate(p.fechaAperturaClave)}</td>
                     <td style={{ padding: '16px 24px' }}>{badge || '—'}</td>
                     <td style={{ padding: '16px 24px' }}>
-                      {polizas.length === 0 ? (
+                      {!tieneHistorial ? (
                         <span style={{ fontSize: '0.8rem', color: 'var(--text-dim)' }}>—</span>
                       ) : (
                         <button
-                          onClick={() => setViewingPolizas(p)}
+                          onClick={() => setViewingEventos(p)}
                           style={{ padding: '4px 12px', borderRadius: '20px', fontSize: '0.75rem', fontWeight: 'bold', border: '1px solid var(--glass-border)', background: 'rgba(255,255,255,0.04)', color: 'var(--text-main)', cursor: 'pointer' }}
                         >
-                          {polizas.length} {polizas.length === 1 ? 'póliza' : 'pólizas'} · Ver
+                          {p.polizasActuales ?? 0} {p.polizasActuales === 1 ? 'póliza' : 'pólizas'} · Ver historial
                         </button>
                       )}
                     </td>
@@ -451,39 +476,39 @@ const PreContratosTab = ({ authFetch, apiBase }) => {
         </ModalShell>
       )}
 
-      {viewingPolizas && (
-        <ModalShell title={`Pólizas de ${viewingPolizas.nombre}`} onClose={() => setViewingPolizas(null)}>
+      {viewingEventos && (
+        <ModalShell title={`Historial de clave de ${viewingEventos.nombre}`} onClose={() => setViewingEventos(null)}>
           <p style={{ fontSize: '0.8rem', color: '#334155', marginBottom: '16px' }}>
-            Registradas bajo la clave temporal <strong>{viewingPolizas.clave}</strong>. Si no firma antes de que venza, usa esta lista para tramitar el cambio de agente.
+            Clave temporal <strong>{viewingEventos.clave}</strong>. Este historial trae el conteo de pólizas de cada corrida, no el detalle línea por línea (número de póliza, contratante) mientras la clave sigue activa — ese detalle solo se conserva completo cuando la clave desaparece.
           </p>
           <div style={{ maxHeight: '360px', overflowY: 'auto', border: '1px solid #e2e8f0', borderRadius: '10px' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.8rem' }}>
               <thead style={{ position: 'sticky', top: 0, background: '#f8fafc' }}>
                 <tr>
-                  <th style={{ padding: '10px 12px', color: '#334155' }}>Fecha</th>
-                  <th style={{ padding: '10px 12px', color: '#334155' }}>No. Póliza</th>
-                  <th style={{ padding: '10px 12px', color: '#334155' }}>Contratante</th>
-                  <th style={{ padding: '10px 12px', color: '#334155' }}>Estatus</th>
+                  <th style={{ padding: '10px 12px', color: '#334155' }}>Fecha Detectado</th>
+                  <th style={{ padding: '10px 12px', color: '#334155' }}>Tipo</th>
+                  <th style={{ padding: '10px 12px', color: '#334155' }}>Pólizas Antes</th>
+                  <th style={{ padding: '10px 12px', color: '#334155' }}>Pólizas Ahora</th>
                 </tr>
               </thead>
               <tbody>
-                {(viewingPolizas.polizas || []).map((pz, i) => (
+                {[...(viewingEventos.eventos || [])].reverse().map((ev, i) => (
                   <tr key={i} style={{ borderTop: '1px solid #e2e8f0' }}>
-                    <td style={{ padding: '10px 12px', color: '#475569' }}>{pz.fechaDetectado}</td>
-                    <td style={{ padding: '10px 12px', color: '#0f172a', fontWeight: '600' }}>{pz.noPoliza}</td>
-                    <td style={{ padding: '10px 12px', color: '#0f172a' }}>{pz.contratante}</td>
+                    <td style={{ padding: '10px 12px', color: '#475569' }}>{ev.fechaDetectado}</td>
                     <td style={{ padding: '10px 12px' }}>
-                      <span style={{ padding: '3px 8px', borderRadius: '20px', fontSize: '0.7rem', fontWeight: 'bold', background: pz.estatusNuevo === 'Anulada' ? 'rgba(255,68,68,0.15)' : 'rgba(0,150,90,0.12)', color: pz.estatusNuevo === 'Anulada' ? '#dc2626' : '#059669' }}>
-                        {pz.estatusNuevo}
+                      <span style={{ padding: '3px 8px', borderRadius: '20px', fontSize: '0.7rem', fontWeight: 'bold', background: ev.tipo === 'DESAPARECIDA' ? 'rgba(255,68,68,0.15)' : ev.tipo === 'NUEVA' ? 'rgba(0,150,90,0.12)' : 'rgba(226,176,66,0.15)', color: ev.tipo === 'DESAPARECIDA' ? '#dc2626' : ev.tipo === 'NUEVA' ? '#059669' : '#92400e' }}>
+                        {ev.tipo}
                       </span>
                     </td>
+                    <td style={{ padding: '10px 12px', color: '#0f172a' }}>{ev.polizasAntes ?? '—'}</td>
+                    <td style={{ padding: '10px 12px', color: '#0f172a', fontWeight: '600' }}>{ev.polizasAhora ?? '—'}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
           <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '20px' }}>
-            <button type="button" onClick={() => setViewingPolizas(null)} className="btn-primary">Cerrar</button>
+            <button type="button" onClick={() => setViewingEventos(null)} className="btn-primary">Cerrar</button>
           </div>
         </ModalShell>
       )}

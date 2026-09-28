@@ -39,12 +39,9 @@ Datos en `server/promotoria.json` (aparte de `db.json`), rutas
    effort: si falla, solo avisa, no rompe el reporte diario.
 3. **Pre-contratos**: personas con clave, fecha de apertura, countdown de
    vencimiento fijo a **90 días** (calculado en el servidor —
-   `VIGENCIA_CLAVE_DIAS` en `server/index.js`). Cada pre-contrato también
-   trae sus **pólizas registradas**: se cruza su `clave` contra el
-   `No. de Agente` de las filas de Cancelaciones (el reporte de pólizas trae
-   el nombre genérico de la promotoría, no el nombre real de la persona,
-   pero sí su clave temporal) — así se sabe, si no firma a tiempo, qué
-   pólizas/clientes hay que reasignar a otro asesor.
+   `VIGENCIA_CLAVE_DIAS` en `server/index.js`). Se alimenta del historial de
+   claves temporales, no de Cancelaciones (ver sección de abajo — el diseño
+   original de cruzar contra Cancelaciones estaba mal y ya se corrigió).
 
 La pestaña Asesores también tiene, arriba de la tabla, dos tarjetas con
 quién cumple años y quién cumple aniversario de firma **este mes**, más
@@ -76,13 +73,53 @@ profesional (aplica al selector de organización y a lo que se agregue de
 aquí en adelante en Karen — no se tocó retroactivamente el resto de
 Promotoría, que ya traía emojis de antes).
 
-Pendiente (coordinar con la conversación de Pólizas cuando Diego avise):
-agregar ahí una función tipo `subir_historial_al_crm()` pero para Karen,
-apuntando a `POST /api/karen/cancelaciones/import` con
-`historial_cambios_karen.xlsx`. Los pre-contratos de Karen
-(`historial_claves_temporales_karen.xlsx`) todavía no tienen importador —
-mismo pendiente que el de Diego (ver abajo): falta ver la estructura real
-de columnas de ese archivo para diseñar el cruce/alta automática por clave.
+✅ **Hecho (2026-09-29)**: `historial_cambios_karen.xlsx` ya se sube solo,
+igual que el de Diego — `crm_upload.subir_excel_al_crm()` en
+`scripts/crm_upload.py` (Pólizas), lógica compartida entre las dos, solo
+cambia el endpoint.
+
+## Pre-contratos (Diego y Karen) — corregido con la estructura real (2026-09-29)
+
+El diseño original (cruzar la clave del pre-contrato contra el `No. de
+Agente` de Cancelaciones) estaba mal: Cancelaciones solo trae a los 27
+asesores fijos, las claves temporales nunca aparecen ahí. Ya se corrigió.
+
+**Fuente correcta**: `historial_claves_temporales.xlsx` /
+`historial_claves_temporales_karen.xlsx` (`HISTORIAL_ENCABEZADOS` en
+`claves_temporales.py`), columnas: `Fecha Detectado | Desde | Tipo | Nombre
+| No. Agente | Pólizas Antes | Pólizas Ahora`. `Tipo` ∈ `NUEVA` / `CAMBIO` /
+`DESAPARECIDA` (dejó de aparecer en el portal — no firmó). Se sube igual
+que Cancelaciones: `POST /api/promotoria/pre-contratos/import` y
+`POST /api/karen/pre-contratos/import` (multipart, reemplaza todo el
+historial — el Excel de origen ya es el acumulado completo).
+
+**Cómo quedó en el CRM** (`estadoClaveTemporal` en `server/index.js`):
+- Al importar, cualquier clave que aparezca en el historial y **no** esté
+  todavía en la tabla de pre-contratos se da de alta sola (nombre genérico
+  del reporte, sin fecha de apertura — el portal no la trae; Diego la
+  completa a mano). Nunca duplica por clave (`altaAutomaticaPreContratos`).
+- Cada pre-contrato muestra el conteo de pólizas de su evento más reciente
+  (`Pólizas Ahora`) y su historial completo de eventos (modal "Ver
+  historial": fecha, tipo, antes/ahora).
+- Si algún evento es `DESAPARECIDA`, se marca con una alerta roja arriba de
+  todo en la tabla (se ordenan primero) — trae la fecha y el conteo de
+  pólizas que tenía en ese momento (`Pólizas Antes` de ese evento), para no
+  perder ese número aunque no haya llegado el detalle línea por línea.
+- `promotoria.json`/`karen.json` ahora se respaldan igual que `db.json`
+  (`backupFile()`, mismo esquema de 30 respaldos) — precisamente para no
+  perder esta información.
+
+**Hueco de datos que sigue pendiente, pedir del lado de Pólizas cuando se
+pueda**: mientras una clave sigue activa, el historial solo trae el
+*conteo* de pólizas, no el detalle (No. Póliza, Contratante, Producto,
+Estatus). Ese detalle completo sí existe del lado de Pólizas, pero solo
+para el momento exacto en que una clave desaparece (hoja "Reasignar" del
+reporte del día) — y hoy esa hoja no se sube a ningún lado, vive nada más
+en el archivo local de ese día. Para que el CRM pueda mostrar el detalle
+real de pólizas a reasignar (no solo el conteo) cuando aparece
+`DESAPARECIDA`, hay que agregar esas columnas al historial que sí se sube
+(o subir esa hoja aparte) — avisar en esta conversación cuando esté listo
+del lado de Pólizas para conectar el importador.
 
 ## ⚠️ Hallazgo de seguridad (2026-09-18, sin resolver todavía)
 
