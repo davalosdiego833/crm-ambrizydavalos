@@ -503,7 +503,16 @@ export function construirHerramientas(token, role, claveAgente) {
             'va en minúsculas y sin acentos, ej. "mdrt", "camino_cumbre", "convenciones", ' +
             '"legion_centurion", "graduacion", "educar_es_creer", "poder_elegirte" — si no estás ' +
             'seguro de cuál es o el asesor la nombra distinto (ej. "Camino a la Cumbre"), pregúntale a ' +
-            'qué campaña exacta se refiere antes de adivinar la clave.',
+            'qué campaña exacta se refiere antes de adivinar la clave.\n' +
+            'Si la campaña es "convenciones" (o "convenciones_promotores"/"convenciones_gerente"), los ' +
+            'datos vienen así — repórtalos con estos nombres exactos, nunca inventes otra etiqueta para ' +
+            'ellos: "Lugar" = posición actual en el ranking. "Lugar_480" (o "Lugar_495") = PA que se ' +
+            'necesita para el nivel "1 Diamante" (viaje a Los Cabos). "Lugar_228" = "2 Diamantes" ' +
+            '(Vancouver). "Lugar_108" = "3 Diamantes" (Estambul). "Lugar_28" = "Gran Diamante" (Japón). ' +
+            'SIEMPRE menciona primero el campo "Califica" (true/false) — es el veredicto oficial de si ' +
+            'la persona ya calificó a algún nivel de Convenciones; "Cumple_Polizas" y "Cumple_Creditos" ' +
+            'son los dos requisitos que se evalúan para ese veredicto. No des la posición/PA sin decir ' +
+            'antes si "Califica" es true o false.',
           input_schema: {
             type: 'object',
             properties: {
@@ -984,11 +993,40 @@ export function construirHerramientas(token, role, claveAgente) {
         spec: {
           name: 'consultar_kpis_asesores_promotoria',
           description:
-            'Da el reporte "Resumen de Asesores" del panel de campañas: KPIs, métricas y detalle por ' +
-            'campaña de cada asesor de la promotoría. Solo para directivos.',
+            'Da el reporte "Resumen de Asesores" del panel de campañas — el avance de CADA asesor (uno ' +
+            'por fila, búscalo por nombre) en: "mdrt", "legion_centurion", "camino_cumbre", ' +
+            '"graduacion", "educar_es_creer", "poder_elegirte" (PA acumulada, lugar) y "convenciones" ' +
+            '(ranking de Diamantes — "Lugar_480/495"=1 Diamante/Los Cabos, "Lugar_228"=2 Diamantes/ ' +
+            'Vancouver, "Lugar_108"=3 Diamantes/Estambul, "Lugar_28"=Gran Diamante/Japón; cada fila ya ' +
+            'trae "Cumple_Polizas", "Cumple_Creditos", "Califica" y "destino_alcanzado" calculados — ' +
+            'usa siempre esos, nunca los recalcules tú). Esta es la herramienta correcta cuando ' +
+            'pregunten por el avance de UN asesor específico en cualquier campaña — nunca ' +
+            '"convenciones_promotores" ni "convenciones_gerente".\n' +
+            '"convenciones_promotores" y "convenciones_gerente" son un reporte TOTALMENTE distinto: la ' +
+            'calificación de "Camino 1/2/3" de TODA la promotoría o de toda la Gerencia Karen como ' +
+            'bloque (no de un asesor individual) — solo úsalos si preguntan explícitamente por eso a ' +
+            'nivel promotoría/gerencia, nunca como respuesta a "cómo va fulano en convenciones".\n' +
+            'Solo para directivos.',
           input_schema: { type: 'object', properties: {} },
         },
-        run: () => campanasGet('/api/admin/summary'),
+        run: async () => {
+          const data = await campanasGet('/api/admin/summary');
+          const conCalificacion = (rows) => (rows || []).map((r) => {
+            const cumplePolizas = r.Cumple_Polizas !== undefined ? !!r.Cumple_Polizas : Number(r.Polizas || 0) >= 30;
+            const cumpleCreditos = r.Cumple_Creditos !== undefined ? !!r.Cumple_Creditos : Number(r.PA_Total || 0) >= 620000;
+            const califica = r.Califica !== undefined ? !!r.Califica : (cumplePolizas && cumpleCreditos);
+            const lugar = Number(r.Lugar || 0);
+            let destino = null;
+            if (califica) {
+              if (lugar <= 28) destino = 'Gran Diamante (Japón)';
+              else if (lugar <= 108) destino = '3 Diamantes (Estambul)';
+              else if (lugar <= 228) destino = '2 Diamantes (Vancouver)';
+              else if (lugar <= 495) destino = '1 Diamante (Los Cabos)';
+            }
+            return { ...r, Cumple_Polizas: cumplePolizas, Cumple_Creditos: cumpleCreditos, Califica: califica, destino_alcanzado: destino };
+          });
+          return { ...data, convenciones: conCalificacion(data.convenciones) };
+        },
       },
       {
         spec: {
@@ -1039,6 +1077,15 @@ Reglas:
 - Responde en español, tono directo y profesional, breve, con viñetas o negritas cuando ayude, sin relleno.
 - Si la pregunta es ambigua (ej. hay varios clientes con nombre parecido), pide que precise en vez
   de adivinar cuál.
+- Nunca hagas afirmaciones comparativas ("es de los más altos", "va mejor que fulano", "está por
+  debajo de zutano") a menos que hayas consultado realmente los datos de esas otras personas en
+  ESTA conversación. Un solo dato de una sola persona no te da base para compararla con nadie más
+  — repórtalo tal cual, sin agregar un ranking o comparación que no verificaste.
+- No inventes nombres de niveles, tramos o campos que no vengan explícitos en los datos de la
+  herramienta (ej. no le pongas tu propio nombre a un campo como "Lugar_28" si no sabes con certeza
+  qué representa) — si una herramienta te explica el significado de sus campos en su descripción,
+  úsalo tal cual; si no lo sabes, repórtalo con el nombre técnico del dato en vez de adivinarle un
+  significado.
 - Si tienes herramientas de promotoría disponibles (asesores, pre-contratos, cancelaciones), son
   datos de TODOS los asesores de la promotoría, no de la cartera personal de quien pregunta — no los
   mezcles. El sistema YA verificó que quien te escribe es directivo antes de dártelas — si estas
