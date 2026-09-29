@@ -907,8 +907,9 @@ export function construirHerramientas(token, role, claveAgente) {
             'proactivosADiciembre, noProactivosADiciembre) y las listas ya filtradas ' +
             '"asesores_proactivos_mes" / "asesores_no_proactivos_mes" / "asesores_proactivos_dic" / ' +
             '"asesores_no_proactivos_dic" — no cuentes ni filtres tú mismo el arreglo "proactivos".\n' +
-            '- "comparativo_vida", "qsq_vida", "qsq_gmm": comparativos y quality score de Vida/GMM.\n' +
-            '- "convenciones_promotores" y "convenciones_gerente": calificación de Convenciones.\n' +
+            '- "convenciones_promotores" y "convenciones_gerente": calificación de "Camino 1/2/3" de ' +
+            'TODA la promotoría o de toda la Gerencia Karen como bloque (no de un asesor individual) — ' +
+            'para el avance de un asesor específico en Convenciones usa consultar_kpis_asesores_promotoria.\n' +
             '- "historico_metas": histórico de la Meta Anual 2026.\n' +
             'Sucursal 2043 = Promotoría General, sucursal 2856 = Gerencia Karen — filtra por "Sucursal" ' +
             'si preguntan específicamente por una de las dos (los totales precalculados son de TODOS, no ' +
@@ -986,6 +987,11 @@ export function construirHerramientas(token, role, claveAgente) {
                 asesores_sin_emision_por_sucursal: (data.asesores_sin_emision || {}).summaryBySucursal || [],
               };
             })(),
+            // Fuera de alcance por ahora (a petición explícita) — se quitan del todo para que el
+            // bot ni se entere de que existen, no solo para que "no los use".
+            comparativo_vida: undefined,
+            qsq_vida: undefined,
+            qsq_gmm: undefined,
           };
         },
       },
@@ -1002,6 +1008,12 @@ export function construirHerramientas(token, role, claveAgente) {
             'usa siempre esos, nunca los recalcules tú). Esta es la herramienta correcta cuando ' +
             'pregunten por el avance de UN asesor específico en cualquier campaña — nunca ' +
             '"convenciones_promotores" ni "convenciones_gerente".\n' +
+            'En "educar_es_creer" y "poder_elegirte": "Kits_Ganados_Nacional" y "Kits_Restantes_Nacional" ' +
+            'son un TOTAL NACIONAL igual para todos los asesores — NUNCA los presentes como algo ' +
+            'personal del asesor que preguntó; lo personal de cada quien es "Puntos_Doble", ' +
+            '"Polizas_Detalle" y "Clientes_Kits".\n' +
+            'En "legion_centurion": "EnMeta" (true/false) y "Nivel" son el dato oficial de calificación ' +
+            '— repórtalos tal cual, no los infieras de "Total_Polizas".\n' +
             '"convenciones_promotores" y "convenciones_gerente" son un reporte TOTALMENTE distinto: la ' +
             'calificación de "Camino 1/2/3" de TODA la promotoría o de toda la Gerencia Karen como ' +
             'bloque (no de un asesor individual) — solo úsalos si preguntan explícitamente por eso a ' +
