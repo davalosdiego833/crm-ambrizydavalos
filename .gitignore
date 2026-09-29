@@ -5,4 +5,6 @@ server/node_modules/
 .env
 server/uploads/
 server/db.json
+server/promotoria.json
+server/karen.json
 server/backups/

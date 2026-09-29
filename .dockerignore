@@ -1,0 +1,11 @@
+REFERENCIAS/
+client/
+server/
+crm asesores/
+empresa/
+LOGO/
+*.zip
+*.mp4
+*.pdf
+bot-whatsapp/node_modules/
+asistente-prototipo/node_modules/

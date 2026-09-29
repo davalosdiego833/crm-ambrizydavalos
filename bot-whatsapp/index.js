@@ -88,7 +88,7 @@ async function obtenerSesion(numeroWhatsapp) {
     role: asesor.role,
     token,
     obtenidoEn: Date.now(),
-    herramientas: construirHerramientas(token, asesor.role),
+    herramientas: construirHerramientas(token, asesor.role, asesor.claveAgente),
     messages: existente?.messages || [],
   };
   sesiones.set(numeroWhatsapp, sesion);

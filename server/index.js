@@ -2853,7 +2853,8 @@ app.get('/api/admin/users', authMiddleware, adminOnly, (req, res) => {
     blocked: u.blocked || false,
     totalClients: u.clients.length,
     whatsappNumber: u.whatsappNumber || '',
-    whatsappBotEnabled: u.whatsappBotEnabled || false
+    whatsappBotEnabled: u.whatsappBotEnabled || false,
+    claveAgente: u.claveAgente || ''
   })));
 });
 
@@ -2886,6 +2887,7 @@ app.post('/api/admin/users', authMiddleware, adminOnly, (req, res) => {
     blocked: false,
     whatsappNumber: '',
     whatsappBotEnabled: false,
+    claveAgente: '',
     clients: []
   };
   users.push(newUser);
@@ -2907,7 +2909,7 @@ app.put('/api/admin/users/:id', authMiddleware, adminOnly, (req, res) => {
     return res.status(403).json({ error: 'No tienes permisos para modificar usuarios de otro despacho' });
   }
 
-  const { name, email, password, role, whatsappNumber, whatsappBotEnabled } = req.body;
+  const { name, email, password, role, whatsappNumber, whatsappBotEnabled, claveAgente } = req.body;
   if (name) user.name = name;
   if (email) {
     const cleanEmail = String(email || '').trim();
@@ -2921,6 +2923,7 @@ app.put('/api/admin/users/:id', authMiddleware, adminOnly, (req, res) => {
   }
   if (whatsappNumber !== undefined) user.whatsappNumber = String(whatsappNumber || '').trim();
   if (whatsappBotEnabled !== undefined) user.whatsappBotEnabled = !!whatsappBotEnabled;
+  if (claveAgente !== undefined) user.claveAgente = String(claveAgente || '').trim();
   if (role) {
     // Evitar que se asigne el rol 'admin' (Master) a otra cuenta por seguridad;
     // 'promotoria' solo lo puede asignar el Master.

@@ -3,6 +3,11 @@
 // de WhatsApp — es "el cerebro", el canal por el que se llega a él es aparte.
 
 const CRM_URL = process.env.CRM_URL || 'http://localhost:5001';
+// Sistema aparte del CRM: campañas, premios y estatus de pólizas de la
+// promotoría. Sin login propio — sus endpoints de datos son de solo lectura
+// y no requieren token (ver nota en la conversación: la "clave" de esa
+// página solo protege la pantalla, no la API).
+const PANEL_CAMPANAS_URL = process.env.PANEL_CAMPANAS_URL || 'https://panel.ambrizydavalos.com';
 
 export function normalizar(texto) {
   return String(texto || '')
@@ -98,12 +103,32 @@ async function crmDelete(token, path) {
   return res.json();
 }
 
+async function campanasGet(path) {
+  const res = await fetch(`${PANEL_CAMPANAS_URL}${path}`);
+  if (!res.ok) throw new Error(`Error consultando panel de campañas ${path}: ${res.status}`);
+  return res.json();
+}
+
 // Todas las acciones que escriben identifican la póliza por su número exacto
 // (nunca por nombre, para no arriesgarse a tocar la póliza equivocada entre
 // clientes con nombres parecidos).
 async function buscarClientePorPoliza(token, numeroPoliza) {
   const clientes = await crmGet(token, '/api/clients');
   return clientes.find((c) => c.policyNumber === numeroPoliza);
+}
+
+// Para las listas de promotoría (asesores, pre-contratos), que no tienen un
+// identificador tan exacto como el número de póliza: busca por nombre
+// (parcial, sin acentos) o por el campo exacto que se le indique (clave de
+// agente, clave de pre-contrato). Regresa TODAS las coincidencias — así, si
+// hay más de una, la herramienta que llama puede pedir que se precise en vez
+// de adivinar cuál.
+async function buscarEnLista(token, path, identificador, campoClaveExacta) {
+  const lista = await crmGet(token, path);
+  const q = normalizar(identificador);
+  return lista.filter(
+    (item) => normalizar(item.nombre).includes(q) || normalizar(item[campoClaveExacta]) === q
+  );
 }
 
 // Sube el PDF de una póliza al extractor que ya existe en el CRM (mismo que
@@ -123,7 +148,7 @@ export async function leerPolizaPDF(token, bytesPDF, filename) {
 
 // Cada herramienta golpea la API real del CRM. Nada se inventa ni se guarda:
 // son consultas de solo lectura, tal como acordamos para el piloto.
-export function construirHerramientas(token, role) {
+export function construirHerramientas(token, role, claveAgente) {
   const herramientas = [
     {
       spec: {
@@ -452,6 +477,45 @@ export function construirHerramientas(token, role) {
     },
   ];
 
+  // Compensación/campañas del propio asesor en el panel de campañas (sistema
+  // aparte del CRM). Usa SIEMPRE la clave de agente que el directivo ya
+  // registró en su perfil — nunca una que el asesor escriba en el chat, para
+  // que sea imposible que alguien consulte la compensación de otro asesor.
+  if (role === 'advisor' && claveAgente) {
+    herramientas.push(
+      {
+        spec: {
+          name: 'consultar_mi_compensacion',
+          description:
+            'Da los premios/compensación del asesor que está preguntando, del panel de campañas de la ' +
+            'promotoría (sistema aparte del CRM). Solo trae SU propia información — no la de otros ' +
+            'asesores, no acepta que se le pida consultar a alguien más.',
+          input_schema: { type: 'object', properties: {} },
+        },
+        run: () => campanasGet(`/api/premios/${encodeURIComponent(claveAgente)}`),
+      },
+      {
+        spec: {
+          name: 'consultar_mi_campana',
+          description:
+            'Da el avance del asesor que está preguntando en una campaña específica del panel de ' +
+            'campañas (ej. "Camino a la Cumbre", "MDRT", "Proactiva Tech") — solo SU propio avance, ' +
+            'nunca el de otro asesor. Usa consultar_campanas_promotoria primero si no sabes el nombre ' +
+            'exacto de la campaña (esa herramienta es solo para directivos; si el asesor pregunta por ' +
+            'una campaña de la que no tienes el nombre exacto, pídele que te diga cómo se llama).',
+          input_schema: {
+            type: 'object',
+            properties: {
+              campana: { type: 'string', description: 'Nombre/identificador de la campaña, tal como aparece en el panel.' },
+            },
+            required: ['campana'],
+          },
+        },
+        run: ({ campana }) => campanasGet(`/api/campaign/${encodeURIComponent(campana)}/data/${encodeURIComponent(claveAgente)}`),
+      }
+    );
+  }
+
   // Datos de TODA la promotoría (todos los asesores) — solo para admin/promotoría,
   // nunca para un asesor normal viendo su propia cartera.
   if (role === 'admin' || role === 'promotoria') {
@@ -468,14 +532,151 @@ export function construirHerramientas(token, role) {
       },
       {
         spec: {
+          name: 'dar_de_alta_asesor_promotoria',
+          description:
+            'Da de alta un asesor nuevo en la base de datos de promotoría (nombre, clave de agente, ' +
+            'fecha de nacimiento, fecha de firma de contrato). ES UNA ACCIÓN QUE ESCRIBE — solo tras ' +
+            'confirmación explícita del directivo con los datos ya mostrados. Solo para directivos.',
+          input_schema: {
+            type: 'object',
+            properties: {
+              nombre: { type: 'string' },
+              claveAgente: { type: 'string' },
+              fechaNacimiento: { type: 'string', description: 'YYYY-MM-DD' },
+              fechaFirmaContrato: { type: 'string', description: 'YYYY-MM-DD' },
+            },
+            required: ['nombre'],
+          },
+        },
+        run: (datos) => crmPost(token, '/api/promotoria/asesores', datos),
+      },
+      {
+        spec: {
+          name: 'editar_asesor_promotoria',
+          description:
+            'Edita los datos de un asesor ya existente en la base de promotoría (nombre, clave, fecha ' +
+            'de nacimiento o de firma). Identifícalo por su nombre o su clave de agente — si hay más de ' +
+            'un asesor que coincide, pide que precise cuál en vez de adivinar. ES UNA ACCIÓN QUE ESCRIBE ' +
+            '— solo tras confirmación explícita, mostrando antes qué va a cambiar. Solo para directivos.',
+          input_schema: {
+            type: 'object',
+            properties: {
+              identificador: { type: 'string', description: 'Nombre (completo o parcial) o clave de agente del asesor a editar.' },
+              nombre: { type: 'string' },
+              claveAgente: { type: 'string' },
+              fechaNacimiento: { type: 'string', description: 'YYYY-MM-DD' },
+              fechaFirmaContrato: { type: 'string', description: 'YYYY-MM-DD' },
+            },
+            required: ['identificador'],
+          },
+        },
+        run: async ({ identificador, ...cambios }) => {
+          const encontrados = await buscarEnLista(token, '/api/promotoria/asesores', identificador, 'claveAgente');
+          if (encontrados.length === 0) return { error: `No encontré ningún asesor que coincida con "${identificador}".` };
+          if (encontrados.length > 1) return { multiples_coincidencias: encontrados.map((a) => ({ nombre: a.nombre, claveAgente: a.claveAgente })) };
+          return crmPut(token, `/api/promotoria/asesores/${encontrados[0].id}`, cambios);
+        },
+      },
+      {
+        spec: {
+          name: 'eliminar_asesor_promotoria',
+          description:
+            'ELIMINA PERMANENTEMENTE a un asesor de la base de datos de promotoría — no se puede ' +
+            'deshacer. Antes de llamarla, muestra al directivo exactamente a quién se va a borrar y ' +
+            'dile que es permanente; solo procede con una confirmación clara. Solo para directivos.',
+          input_schema: {
+            type: 'object',
+            properties: {
+              identificador: { type: 'string', description: 'Nombre (completo o parcial) o clave de agente del asesor a eliminar.' },
+            },
+            required: ['identificador'],
+          },
+        },
+        run: async ({ identificador }) => {
+          const encontrados = await buscarEnLista(token, '/api/promotoria/asesores', identificador, 'claveAgente');
+          if (encontrados.length === 0) return { error: `No encontré ningún asesor que coincida con "${identificador}".` };
+          if (encontrados.length > 1) return { multiples_coincidencias: encontrados.map((a) => ({ nombre: a.nombre, claveAgente: a.claveAgente })) };
+          return crmDelete(token, `/api/promotoria/asesores/${encontrados[0].id}`);
+        },
+      },
+      {
+        spec: {
           name: 'consultar_pre_contratos',
           description:
             'Lista las claves en pre-contrato de la promotoría: nombre, clave, fecha de apertura, y ' +
             'días restantes antes de que la clave venza (ya viene calculado en "diasRestantes" y ' +
-            '"vencida" — úsalos directo, no los recalcules). Solo para directivos.',
+            '"vencida" — úsalos directo, no los recalcules). Cada pre-contrato también trae su ' +
+            'historial de pólizas: "polizasReasignar" y "detalleActivo" (pólizas asociadas a esa clave) ' +
+            'y "eventos"/"polizasActuales"/"desaparecida" (historial de la clave temporal en el portal). ' +
+            'Solo para directivos.',
           input_schema: { type: 'object', properties: {} },
         },
         run: () => crmGet(token, '/api/promotoria/pre-contratos'),
+      },
+      {
+        spec: {
+          name: 'dar_de_alta_pre_contrato',
+          description:
+            'Da de alta un pre-contrato nuevo (nombre, clave, fecha de apertura de la clave). ES UNA ' +
+            'ACCIÓN QUE ESCRIBE — solo tras confirmación explícita del directivo. Solo para directivos.',
+          input_schema: {
+            type: 'object',
+            properties: {
+              nombre: { type: 'string' },
+              clave: { type: 'string' },
+              fechaAperturaClave: { type: 'string', description: 'YYYY-MM-DD' },
+            },
+            required: ['nombre'],
+          },
+        },
+        run: (datos) => crmPost(token, '/api/promotoria/pre-contratos', datos),
+      },
+      {
+        spec: {
+          name: 'editar_pre_contrato',
+          description:
+            'Edita un pre-contrato existente (nombre, clave, o fecha de apertura). Identifícalo por ' +
+            'nombre o clave — si hay más de una coincidencia, pide que precise cuál. ES UNA ACCIÓN QUE ' +
+            'ESCRIBE — solo tras confirmación explícita, mostrando antes qué va a cambiar. Solo para directivos.',
+          input_schema: {
+            type: 'object',
+            properties: {
+              identificador: { type: 'string', description: 'Nombre (completo o parcial) o clave del pre-contrato a editar.' },
+              nombre: { type: 'string' },
+              clave: { type: 'string' },
+              fechaAperturaClave: { type: 'string', description: 'YYYY-MM-DD' },
+            },
+            required: ['identificador'],
+          },
+        },
+        run: async ({ identificador, ...cambios }) => {
+          const encontrados = await buscarEnLista(token, '/api/promotoria/pre-contratos', identificador, 'clave');
+          if (encontrados.length === 0) return { error: `No encontré ningún pre-contrato que coincida con "${identificador}".` };
+          if (encontrados.length > 1) return { multiples_coincidencias: encontrados.map((p) => ({ nombre: p.nombre, clave: p.clave })) };
+          return crmPut(token, `/api/promotoria/pre-contratos/${encontrados[0].id}`, cambios);
+        },
+      },
+      {
+        spec: {
+          name: 'eliminar_pre_contrato',
+          description:
+            'ELIMINA PERMANENTEMENTE un pre-contrato — no se puede deshacer. Antes de llamarla, muestra ' +
+            'al directivo exactamente cuál se va a borrar y dile que es permanente; solo procede con una ' +
+            'confirmación clara. Solo para directivos.',
+          input_schema: {
+            type: 'object',
+            properties: {
+              identificador: { type: 'string', description: 'Nombre (completo o parcial) o clave del pre-contrato a eliminar.' },
+            },
+            required: ['identificador'],
+          },
+        },
+        run: async ({ identificador }) => {
+          const encontrados = await buscarEnLista(token, '/api/promotoria/pre-contratos', identificador, 'clave');
+          if (encontrados.length === 0) return { error: `No encontré ningún pre-contrato que coincida con "${identificador}".` };
+          if (encontrados.length > 1) return { multiples_coincidencias: encontrados.map((p) => ({ nombre: p.nombre, clave: p.clave })) };
+          return crmDelete(token, `/api/promotoria/pre-contratos/${encontrados[0].id}`);
+        },
       },
       {
         spec: {
@@ -483,10 +684,196 @@ export function construirHerramientas(token, role) {
           description:
             'Da el último reporte importado de cancelaciones de pólizas de TODA la promotoría (pólizas ' +
             'que pasaron a estatus Anulada): fecha detectada, asesor, número de póliza, contratante, ' +
-            'estatus anterior y nuevo. Solo para directivos.',
+            'estatus anterior y nuevo. Se puede filtrar por asesor, contratante y/o tipo — si el ' +
+            'directivo pide algo específico (ej. "las de Fernando"), usa el filtro en vez de traer todo ' +
+            'y buscarlo tú. Solo para directivos.',
+          input_schema: {
+            type: 'object',
+            properties: {
+              asesor: { type: 'string', description: 'Filtra por nombre (completo o parcial) del asesor.' },
+              contratante: { type: 'string', description: 'Filtra por nombre (completo o parcial) del contratante.' },
+              tipo: { type: 'string', description: 'Filtra por tipo de cancelación, tal como viene en el reporte.' },
+            },
+          },
+        },
+        run: async ({ asesor, contratante, tipo } = {}) => {
+          const reporte = await crmGet(token, '/api/promotoria/cancelaciones');
+          let rows = reporte.rows || [];
+          if (asesor) rows = rows.filter((r) => normalizar(r.asesor).includes(normalizar(asesor)));
+          if (contratante) rows = rows.filter((r) => normalizar(r.contratante).includes(normalizar(contratante)));
+          if (tipo) rows = rows.filter((r) => normalizar(r.tipo).includes(normalizar(tipo)));
+          return { importedAt: reporte.importedAt, sourceFile: reporte.sourceFile, total_encontradas: rows.length, rows };
+        },
+      },
+
+      // Gerencia de Karen: mismo tipo de datos que la promotoría (pre-contratos y
+      // cancelaciones), pero en su propia base separada (karen.json en el servidor).
+      // Nunca se mezcla con los datos de la promotoría de arriba.
+      {
+        spec: {
+          name: 'consultar_pre_contratos_karen',
+          description:
+            'Lista las claves en pre-contrato de la Gerencia de Karen (base separada de la promotoría): ' +
+            'nombre, clave, fecha de apertura, y días restantes antes de que la clave venza ("diasRestantes" ' +
+            'y "vencida" ya vienen calculados). Cada pre-contrato también trae su historial de pólizas: ' +
+            '"polizasReasignar" y "detalleActivo", y "eventos"/"polizasActuales"/"desaparecida" (historial ' +
+            'de la clave temporal). Solo para directivos.',
           input_schema: { type: 'object', properties: {} },
         },
-        run: () => crmGet(token, '/api/promotoria/cancelaciones'),
+        run: () => crmGet(token, '/api/karen/pre-contratos'),
+      },
+      {
+        spec: {
+          name: 'dar_de_alta_pre_contrato_karen',
+          description:
+            'Da de alta un pre-contrato nuevo en la Gerencia de Karen (nombre, clave, fecha de apertura ' +
+            'de la clave). ES UNA ACCIÓN QUE ESCRIBE — solo tras confirmación explícita del directivo. ' +
+            'Solo para directivos.',
+          input_schema: {
+            type: 'object',
+            properties: {
+              nombre: { type: 'string' },
+              clave: { type: 'string' },
+              fechaAperturaClave: { type: 'string', description: 'YYYY-MM-DD' },
+            },
+            required: ['nombre'],
+          },
+        },
+        run: (datos) => crmPost(token, '/api/karen/pre-contratos', datos),
+      },
+      {
+        spec: {
+          name: 'editar_pre_contrato_karen',
+          description:
+            'Edita un pre-contrato existente de la Gerencia de Karen (nombre, clave, o fecha de apertura). ' +
+            'Identifícalo por nombre o clave — si hay más de una coincidencia, pide que precise cuál. ES ' +
+            'UNA ACCIÓN QUE ESCRIBE — solo tras confirmación explícita, mostrando antes qué va a cambiar. ' +
+            'Solo para directivos.',
+          input_schema: {
+            type: 'object',
+            properties: {
+              identificador: { type: 'string', description: 'Nombre (completo o parcial) o clave del pre-contrato a editar.' },
+              nombre: { type: 'string' },
+              clave: { type: 'string' },
+              fechaAperturaClave: { type: 'string', description: 'YYYY-MM-DD' },
+            },
+            required: ['identificador'],
+          },
+        },
+        run: async ({ identificador, ...cambios }) => {
+          const encontrados = await buscarEnLista(token, '/api/karen/pre-contratos', identificador, 'clave');
+          if (encontrados.length === 0) return { error: `No encontré ningún pre-contrato de Karen que coincida con "${identificador}".` };
+          if (encontrados.length > 1) return { multiples_coincidencias: encontrados.map((p) => ({ nombre: p.nombre, clave: p.clave })) };
+          return crmPut(token, `/api/karen/pre-contratos/${encontrados[0].id}`, cambios);
+        },
+      },
+      {
+        spec: {
+          name: 'eliminar_pre_contrato_karen',
+          description:
+            'ELIMINA PERMANENTEMENTE un pre-contrato de la Gerencia de Karen — no se puede deshacer. ' +
+            'Antes de llamarla, muestra al directivo exactamente cuál se va a borrar y dile que es ' +
+            'permanente; solo procede con una confirmación clara. Solo para directivos.',
+          input_schema: {
+            type: 'object',
+            properties: {
+              identificador: { type: 'string', description: 'Nombre (completo o parcial) o clave del pre-contrato a eliminar.' },
+            },
+            required: ['identificador'],
+          },
+        },
+        run: async ({ identificador }) => {
+          const encontrados = await buscarEnLista(token, '/api/karen/pre-contratos', identificador, 'clave');
+          if (encontrados.length === 0) return { error: `No encontré ningún pre-contrato de Karen que coincida con "${identificador}".` };
+          if (encontrados.length > 1) return { multiples_coincidencias: encontrados.map((p) => ({ nombre: p.nombre, clave: p.clave })) };
+          return crmDelete(token, `/api/karen/pre-contratos/${encontrados[0].id}`);
+        },
+      },
+      {
+        spec: {
+          name: 'consultar_cancelaciones_karen',
+          description:
+            'Da el último reporte importado de cancelaciones de pólizas de la Gerencia de Karen (base ' +
+            'separada de la promotoría): fecha detectada, asesor, número de póliza, contratante, estatus ' +
+            'anterior y nuevo. Se puede filtrar por asesor, contratante y/o tipo — si el directivo pide ' +
+            'algo específico, usa el filtro en vez de traer todo y buscarlo tú. Solo para directivos.',
+          input_schema: {
+            type: 'object',
+            properties: {
+              asesor: { type: 'string', description: 'Filtra por nombre (completo o parcial) del asesor.' },
+              contratante: { type: 'string', description: 'Filtra por nombre (completo o parcial) del contratante.' },
+              tipo: { type: 'string', description: 'Filtra por tipo de cancelación, tal como viene en el reporte.' },
+            },
+          },
+        },
+        run: async ({ asesor, contratante, tipo } = {}) => {
+          const reporte = await crmGet(token, '/api/karen/cancelaciones');
+          let rows = reporte.rows || [];
+          if (asesor) rows = rows.filter((r) => normalizar(r.asesor).includes(normalizar(asesor)));
+          if (contratante) rows = rows.filter((r) => normalizar(r.contratante).includes(normalizar(contratante)));
+          if (tipo) rows = rows.filter((r) => normalizar(r.tipo).includes(normalizar(tipo)));
+          return { importedAt: reporte.importedAt, sourceFile: reporte.sourceFile, total_encontradas: rows.length, rows };
+        },
+      },
+
+      // Panel de campañas: sistema aparte del CRM (otra página, otra base de
+      // datos) con campañas, premios y estatus de pólizas de TODA la
+      // promotoría. Solo para directivos — el avance individual de un asesor
+      // se consulta con consultar_mi_compensacion/consultar_mi_campana, no con
+      // estas.
+      {
+        spec: {
+          name: 'consultar_campanas_promotoria',
+          description:
+            'Lista las campañas activas de la promotoría en el panel de campañas (ej. Camino a la ' +
+            'Cumbre, MDRT, Proactiva Tech, Legión Centurión) y sus carpetas/fechas. Úsala para saber el ' +
+            'nombre exacto de una campaña antes de pedir el avance de un asesor específico en ella. ' +
+            'Solo para directivos.',
+          input_schema: { type: 'object', properties: {} },
+        },
+        run: () => campanasGet('/api/campaigns'),
+      },
+      {
+        spec: {
+          name: 'consultar_premios_promotoria',
+          description:
+            'Da el reporte de premios/compensación de TODA la promotoría del panel de campañas (no del ' +
+            'CRM). Solo para directivos.',
+          input_schema: { type: 'object', properties: {} },
+        },
+        run: () => campanasGet('/api/premios-promotoria'),
+      },
+      {
+        spec: {
+          name: 'consultar_ventas_mensuales_promotoria',
+          description:
+            'Da el reporte de cierre de mes del panel de campañas: tabla de ventas y campeones por ' +
+            'categoría de toda la promotoría. Solo para directivos.',
+          input_schema: { type: 'object', properties: {} },
+        },
+        run: () => campanasGet('/api/ventas-mensuales/latest'),
+      },
+      {
+        spec: {
+          name: 'consultar_resumen_general_promotoria',
+          description:
+            'Da el panorama general del panel de campañas: asesores sin emisión, y otros indicadores ' +
+            'agregados de toda la promotoría. Reporte grande — úsalo cuando pidan un panorama amplio, no ' +
+            'para preguntas puntuales que ya cubre otra herramienta. Solo para directivos.',
+          input_schema: { type: 'object', properties: {} },
+        },
+        run: () => campanasGet('/api/resumen-general'),
+      },
+      {
+        spec: {
+          name: 'consultar_estatus_polizas_promotoria',
+          description:
+            'Da el seguimiento de pólizas pendientes de recuperar y las ya recuperadas/pagadas este mes, ' +
+            'de toda la promotoría, del panel de campañas. Úsala para preguntas de "pagado y pendiente". ' +
+            'Solo para directivos.',
+          input_schema: { type: 'object', properties: {} },
+        },
+        run: () => campanasGet('/api/estatus-polizas/seguimiento'),
       }
     );
   }
@@ -504,8 +891,10 @@ Reglas:
 - Si la pregunta es ambigua (ej. hay varios clientes con nombre parecido), pide que precise en vez
   de adivinar cuál.
 - Si tienes herramientas de promotoría disponibles (asesores, pre-contratos, cancelaciones), son
-  datos de TODOS los asesores de la promotoría — quien te las puede pedir es un directivo, no un
-  asesor viendo su propia cartera. No mezcles esos datos con la cartera personal de quien pregunta.
+  datos de TODOS los asesores de la promotoría, no de la cartera personal de quien pregunta — no los
+  mezcles. El sistema YA verificó que quien te escribe es directivo antes de dártelas — si estas
+  herramientas aparecen en esta conversación, úsalas directo cuando te las pidan; nunca le preguntes
+  a la persona si es directivo ni le pidas que te lo confirme, eso ya no hace falta.
 
 Sobre acciones que escriben datos (dar de alta, marcar como pagada, anular, reactivar, identificar,
 editar, o cualquier otra que modifique el CRM): NUNCA llames a una de estas herramientas sin que el
@@ -513,10 +902,15 @@ asesor haya confirmado explícitamente qué quiere hacer, sobre qué póliza exa
 por nombre — si solo te dio un nombre y hay más de una póliza a su nombre, pregunta cuál número
 antes de actuar). Si hay cualquier duda, pregunta primero en vez de suponer.
 
-Sobre "eliminar_cliente" en particular: es la única acción sin marcha atrás — no hay forma de
-recuperar lo borrado. Antes de llamarla, muestra siempre contratante, número de póliza y prima de lo
-que se va a borrar, dile explícitamente al asesor que es permanente, y espera una confirmación clara
-e inequívoca (no una respuesta ambigua) antes de proceder.
+Sobre las herramientas que empiezan con "eliminar_" (cliente, asesor de promotoría, pre-contrato):
+son las únicas acciones sin marcha atrás — no hay forma de recuperar lo borrado. Antes de llamar
+cualquiera de ellas, muestra siempre los datos exactos de lo que se va a borrar, dile explícitamente
+a quien pregunta que es permanente, y espera una confirmación clara e inequívoca (no una respuesta
+ambigua) antes de proceder.
+
+Sobre "multiples_coincidencias": si una herramienta regresa esto, significa que el nombre o clave que
+diste coincide con más de un registro — muéstraselos a quien pregunta y pide que precise cuál antes
+de editar o eliminar nada.
 
 Sobre pólizas en PDF y alta de clientes:
 - Cuando el sistema te avise que llegó un PDF de póliza con datos ya extraídos, preséntaselos al
