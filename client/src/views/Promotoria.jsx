@@ -627,17 +627,25 @@ const PreContratosTab = ({ authFetch, apiBase }) => {
 // ======================================
 // Límites de fecha (YYYY-MM-DD) para los presets del filtro — semana/mes son
 // desde el inicio del periodo actual (lunes / día 1) hasta hoy.
+//
+// OJO: siempre a partir de los componentes LOCALES de la fecha (año/mes/día
+// del navegador), nunca con toISOString() — toISOString() convierte a UTC,
+// y para México (UTC-6) eso adelanta la fecha un día a partir de las 6pm
+// hora local. El "Fecha Detectado" que trae el Excel importado es la fecha
+// LOCAL en que corrió el script, así que comparar contra una fecha en UTC
+// hacía que el filtro "Hoy" dejara de encontrar nada después de esa hora.
+const localDateStr = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 const startOfWeekStr = () => {
   const d = new Date();
   const diffToMonday = d.getDay() === 0 ? 6 : d.getDay() - 1;
   d.setDate(d.getDate() - diffToMonday);
-  return d.toISOString().slice(0, 10);
+  return localDateStr(d);
 };
 const startOfMonthStr = () => {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`;
 };
-const todayStr = () => new Date().toISOString().slice(0, 10);
+const todayStr = () => localDateStr(new Date());
 
 const DATE_PRESETS = [
   { id: 'hoy', label: 'Hoy' },
