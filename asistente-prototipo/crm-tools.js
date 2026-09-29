@@ -873,7 +873,12 @@ export function construirHerramientas(token, role, claveAgente) {
             'Todo lo anterior tiene su equivalente para Reclutas y Temporales con el sufijo ' +
             '"_reclutas"/"_reclutas_temporales".\n' +
             '- "asesores_sin_emision": asesores sin emisión.\n' +
-            '- "proactivos": reporte de proactivos.\n' +
+            '- "proactivos": fila cruda por asesor — NO la uses para contar/listar, solo para un dato ' +
+            'puntual de un asesor exacto. Para "cuántos/quiénes son o no proactivos" usa siempre ' +
+            '"resumen_proactivos" (conteos ya hechos: proactivosEsteMes, noProactivosEsteMes, ' +
+            'proactivosADiciembre, noProactivosADiciembre) y las listas ya filtradas ' +
+            '"asesores_proactivos_mes" / "asesores_no_proactivos_mes" / "asesores_proactivos_dic" / ' +
+            '"asesores_no_proactivos_dic" — no cuentes ni filtres tú mismo el arreglo "proactivos".\n' +
             '- "comparativo_vida", "qsq_vida", "qsq_gmm": comparativos y quality score de Vida/GMM.\n' +
             '- "convenciones_promotores" y "convenciones_gerente": calificación de Convenciones.\n' +
             '- "historico_metas": histórico de la Meta Anual 2026.\n' +
@@ -903,6 +908,17 @@ export function construirHerramientas(token, role, claveAgente) {
             .filter((r) => Number(r['Pólizas_Pendinetes'] || 0) > 0)
             .map((r) => ({ nombre: r['Nombre Asesor'], sucursal: r['Sucursal'], polizasPendientes: r['Pólizas_Pendinetes'], reciboInicialPendiente: r['Recibo_Inicial_Pendiente'] }))
             .sort((a, b) => (b.reciboInicialPendiente || 0) - (a.reciboInicialPendiente || 0));
+          const esProactivo = (v) => ['p', 'sí', 'si'].includes(String(v || '').trim().toLowerCase());
+          const proactivosRows = data.proactivos || [];
+          const listaProactivo = (campo) => proactivosRows
+            .filter((r) => esProactivo(r[campo]))
+            .map((r) => ({ nombre: r.ASESOR, sucursal: r.SUC, polizasAcumuladas: r.Polizas_Acumuladas_Total, fechaConexion: r.Fecha_Conexion }))
+            .sort((a, b) => (b.polizasAcumuladas || 0) - (a.polizasAcumuladas || 0));
+          const listaNoProactivo = (campo, campoFaltantes) => proactivosRows
+            .filter((r) => !esProactivo(r[campo]))
+            .map((r) => ({ nombre: r.ASESOR, sucursal: r.SUC, polizasAcumuladas: r.Polizas_Acumuladas_Total, polizasFaltantes: r[campoFaltantes], fechaConexion: r.Fecha_Conexion }))
+            .sort((a, b) => (b.polizasFaltantes || 0) - (a.polizasFaltantes || 0));
+
           return {
             ...data,
             totales_pagado_pendiente_promotoria_general: totalesDe(data.pagado_pendiente),
@@ -911,6 +927,17 @@ export function construirHerramientas(token, role, claveAgente) {
             asesores_con_polizas_pendientes: conPendientes(data.pagado_pendiente),
             asesores_con_polizas_pagadas_reclutas: conPagadas(data.pagado_pendiente_reclutas),
             asesores_con_polizas_pendientes_reclutas: conPendientes(data.pagado_pendiente_reclutas),
+            resumen_proactivos: {
+              totalAsesores: proactivosRows.length,
+              proactivosEsteMes: proactivosRows.filter((r) => esProactivo(r.Proactivo_al_mes)).length,
+              noProactivosEsteMes: proactivosRows.filter((r) => !esProactivo(r.Proactivo_al_mes)).length,
+              proactivosADiciembre: proactivosRows.filter((r) => esProactivo(r.Proactivo_a_Dic)).length,
+              noProactivosADiciembre: proactivosRows.filter((r) => !esProactivo(r.Proactivo_a_Dic)).length,
+            },
+            asesores_proactivos_mes: listaProactivo('Proactivo_al_mes'),
+            asesores_no_proactivos_mes: listaNoProactivo('Proactivo_al_mes', 'Pólizas_Faltantes'),
+            asesores_proactivos_dic: listaProactivo('Proactivo_a_Dic'),
+            asesores_no_proactivos_dic: listaNoProactivo('Proactivo_a_Dic', 'Pólizas_Faltantes_Para_Dic'),
           };
         },
       },
