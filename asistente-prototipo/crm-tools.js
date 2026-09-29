@@ -857,12 +857,46 @@ export function construirHerramientas(token, role, claveAgente) {
         spec: {
           name: 'consultar_resumen_general_promotoria',
           description:
-            'Da el panorama general del panel de campañas: asesores sin emisión, y otros indicadores ' +
-            'agregados de toda la promotoría. Reporte grande — úsalo cuando pidan un panorama amplio, no ' +
-            'para preguntas puntuales que ya cubre otra herramienta. Solo para directivos.',
+            'Da el panorama general del panel de campañas: asesores sin emisión, fechas de corte, y ' +
+            'los mismos datos detrás de las pantallas "Convenciones" (calificación por promotoría y ' +
+            'gerencia), "Resumen de Promotoría" (reportes financieros y salud del área) y "Gerencia ' +
+            'Karen" (sucursal 2856 — filtra estos mismos datos por esa sucursal si preguntan por Karen ' +
+            'específicamente). Reporte grande — úsalo cuando pidan un panorama amplio, no para preguntas ' +
+            'puntuales que ya cubre otra herramienta. Solo para directivos.',
           input_schema: { type: 'object', properties: {} },
         },
         run: () => campanasGet('/api/resumen-general'),
+      },
+      {
+        spec: {
+          name: 'consultar_kpis_asesores_promotoria',
+          description:
+            'Da el reporte "Resumen de Asesores" del panel de campañas: KPIs, métricas y detalle por ' +
+            'campaña de cada asesor de la promotoría. Solo para directivos.',
+          input_schema: { type: 'object', properties: {} },
+        },
+        run: () => campanasGet('/api/admin/summary'),
+      },
+      {
+        spec: {
+          name: 'consultar_historico_metas_promotoria',
+          description:
+            'Da el histórico de la Meta Anual 2026 de la promotoría, mes a mes (complementa a ' +
+            'consultar_resumen_general_promotoria para la pantalla "Meta Anual 24M"). Solo para directivos.',
+          input_schema: { type: 'object', properties: {} },
+        },
+        run: () => campanasGet('/api/historico-metas'),
+      },
+      {
+        spec: {
+          name: 'consultar_premios_gerencia_karen_campanas',
+          description:
+            'Da el reporte de premios/compensación de la Gerencia Karen (sucursal 2856) en el panel de ' +
+            'campañas — OJO: esto es distinto a la pestaña "Karen" del CRM de promotoría (pre-contratos ' +
+            'y cancelaciones); aquí es específicamente de campañas y premios. Solo para directivos.',
+          input_schema: { type: 'object', properties: {} },
+        },
+        run: () => campanasGet('/api/premios-ga'),
       },
       {
         spec: {

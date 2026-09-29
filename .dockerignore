@@ -9,3 +9,5 @@ LOGO/
 *.pdf
 bot-whatsapp/node_modules/
 asistente-prototipo/node_modules/
+.env
+**/.env
