@@ -499,10 +499,11 @@ export function construirHerramientas(token, role, claveAgente) {
           name: 'consultar_mi_campana',
           description:
             'Da el avance del asesor que está preguntando en una campaña específica del panel de ' +
-            'campañas (ej. "Camino a la Cumbre", "MDRT", "Proactiva Tech") — solo SU propio avance, ' +
-            'nunca el de otro asesor. Usa consultar_campanas_promotoria primero si no sabes el nombre ' +
-            'exacto de la campaña (esa herramienta es solo para directivos; si el asesor pregunta por ' +
-            'una campaña de la que no tienes el nombre exacto, pídele que te diga cómo se llama).',
+            'campañas — solo SU propio avance, nunca el de otro asesor. La clave técnica de la campaña ' +
+            'va en minúsculas y sin acentos, ej. "mdrt", "camino_cumbre", "convenciones", ' +
+            '"legion_centurion", "graduacion", "educar_es_creer", "poder_elegirte" — si no estás ' +
+            'seguro de cuál es o el asesor la nombra distinto (ej. "Camino a la Cumbre"), pregúntale a ' +
+            'qué campaña exacta se refiere antes de adivinar la clave.',
           input_schema: {
             type: 'object',
             properties: {
@@ -825,13 +826,16 @@ export function construirHerramientas(token, role, claveAgente) {
         spec: {
           name: 'consultar_campanas_promotoria',
           description:
-            'Lista las campañas activas de la promotoría en el panel de campañas (ej. Camino a la ' +
-            'Cumbre, MDRT, Proactiva Tech, Legión Centurión) y sus carpetas/fechas. Úsala para saber el ' +
-            'nombre exacto de una campaña antes de pedir el avance de un asesor específico en ella. ' +
-            'Solo para directivos.',
+            'Lista las campañas REALMENTE vigentes de la promotoría (clave técnica → fecha de corte), ' +
+            'ej. "mdrt", "camino_cumbre", "convenciones", "legion_centurion", "graduacion", ' +
+            '"educar_es_creer", "poder_elegirte". Usa la clave técnica exacta que regresa esta ' +
+            'herramienta (en minúsculas) como el parámetro "campana" de consultar_mi_campana — nunca ' +
+            'inventes ni asumas el nombre de una campaña sin haber llamado esta herramienta primero, y ' +
+            'si una campaña que preguntan no aparece en esta lista, dile a la persona que no está ' +
+            'vigente en vez de suponer. Solo para directivos.',
           input_schema: { type: 'object', properties: {} },
         },
-        run: () => campanasGet('/api/campaigns'),
+        run: () => campanasGet('/api/campaigns/dates'),
       },
       {
         spec: {
