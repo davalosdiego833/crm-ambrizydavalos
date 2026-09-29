@@ -838,7 +838,18 @@ export function construirHerramientas(token, role, claveAgente) {
           name: 'consultar_premios_promotoria',
           description:
             'Da el reporte de premios/compensación de TODA la promotoría del panel de campañas (no del ' +
-            'CRM). Solo para directivos.',
+            'CRM): "resumen" (cabecera y resumen de bonos del mes/acumulado — datos chicos, ya sumados, ' +
+            'confía en ellos directo) y varias tablas de detalle (bonoVidaTablas, primaFaltanteTablas, ' +
+            'subsidiosTablas) con filas tipo [Concepto, Real, Min, Cumple] o montos por grupo/mes.\n' +
+            'IMPORTANTE sobre esas tablas de detalle: cuando una fila trae explícitamente "Gpo: N" en su ' +
+            'columna Min, o algo en su columna "Cumple", ESE es el dato oficial de qué grupo/nivel ya se ' +
+            'alcanzó — repórtalo tal cual. NUNCA calcules tú si un grupo "ya se superó" o "cuánto falta" ' +
+            'comparando a mano los montos de la tabla de grupos por mes (primaFaltanteTablas) contra un ' +
+            'total de prima — esa tabla tiene reglas de negocio (LIMRA, GA, otros mínimos) que no están ' +
+            'explícitas en los números, y una comparación simple da conclusiones falsas. Para esas ' +
+            'preguntas, muestra los montos de la tabla como referencia pero dile a la persona que la ' +
+            'calificación exacta de grupo la marca el propio "Gpo: N" de la fila correspondiente, no una ' +
+            'cuenta tuya. Solo para directivos.',
           input_schema: { type: 'object', properties: {} },
         },
         run: () => campanasGet('/api/premios-promotoria'),
