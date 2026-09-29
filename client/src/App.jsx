@@ -1194,6 +1194,7 @@ const AdminPanel = () => {
   const [editEmail, setEditEmail] = useState('');
   const [editPassword, setEditPassword] = useState('');
   const [editWhatsapp, setEditWhatsapp] = useState('');
+  const [editClave, setEditClave] = useState('');
   const [showPasswords, setShowPasswords] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [newRole, setNewRole] = useState('advisor');
@@ -1256,6 +1257,7 @@ const AdminPanel = () => {
     setEditPassword('');
     setEditRole(u.role || 'advisor');
     setEditWhatsapp(u.whatsappNumber || '');
+    setEditClave(u.claveAgente || '');
   };
 
   const saveEdit = (id) => {
@@ -1265,6 +1267,7 @@ const AdminPanel = () => {
     if (editPassword) body.password = editPassword;
     body.role = editRole;
     body.whatsappNumber = editWhatsapp.trim();
+    body.claveAgente = editClave.trim();
 
     authFetch(`/api/admin/users/${id}`, {
       method: 'PUT',
@@ -1481,16 +1484,27 @@ const AdminPanel = () => {
                       </td>
                       <td style={{ padding: '16px' }}>
                         {editingUser === u.id ? (
-                          <input
-                            value={editWhatsapp}
-                            onChange={(e) => setEditWhatsapp(e.target.value)}
-                            placeholder="+52 33 1234 5678"
-                            style={{ ...inputStyle, padding: '6px 8px', width: '150px' }}
-                          />
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                            <input
+                              value={editWhatsapp}
+                              onChange={(e) => setEditWhatsapp(e.target.value)}
+                              placeholder="+52 33 1234 5678"
+                              style={{ ...inputStyle, padding: '6px 8px', width: '150px' }}
+                            />
+                            <input
+                              value={editClave}
+                              onChange={(e) => setEditClave(e.target.value)}
+                              placeholder="Clave de agente"
+                              style={{ ...inputStyle, padding: '6px 8px', width: '150px' }}
+                            />
+                          </div>
                         ) : (
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', alignItems: 'flex-start' }}>
                             <span style={{ fontSize: '0.8rem', color: u.whatsappNumber ? 'var(--text-main)' : 'var(--text-dim)' }}>
                               {u.whatsappNumber || 'Sin número'}
+                            </span>
+                            <span style={{ fontSize: '0.7rem', color: u.claveAgente ? 'var(--text-dim)' : 'var(--text-dim)', opacity: 0.8 }}>
+                              Clave: {u.claveAgente || '—'}
                             </span>
                             <button
                               onClick={() => toggleWhatsappBot(u)}
