@@ -872,7 +872,11 @@ export function construirHerramientas(token, role, claveAgente) {
             'de la pantalla — no filtres tú mismo "pagado_pendiente", usa estas listas ya hechas.\n' +
             'Todo lo anterior tiene su equivalente para Reclutas y Temporales con el sufijo ' +
             '"_reclutas"/"_reclutas_temporales".\n' +
-            '- "asesores_sin_emision": asesores sin emisión.\n' +
+            '- "asesores_sin_emision": objeto crudo — NO lo uses para contar/listar. Para "cuántos/quiénes ' +
+            'no tienen emisión" usa "resumen_asesores_sin_emision" (conteos ya hechos: sinEmisionVida, ' +
+            'sinEmisionGMM, tresMesesSinEmisionVida/GMM, totalPrimaPagadaVida/GMM) y las listas ya ' +
+            'filtradas "asesores_sin_emision_vida" / "asesores_sin_emision_gmm". Para el desglose por ' +
+            'sucursal (ya con porcentajes calculados) usa "asesores_sin_emision_por_sucursal".\n' +
             '- "proactivos": fila cruda por asesor — NO la uses para contar/listar, solo para un dato ' +
             'puntual de un asesor exacto. Para "cuántos/quiénes son o no proactivos" usa siempre ' +
             '"resumen_proactivos" (conteos ya hechos: proactivosEsteMes, noProactivosEsteMes, ' +
@@ -938,6 +942,26 @@ export function construirHerramientas(token, role, claveAgente) {
             asesores_no_proactivos_mes: listaNoProactivo('Proactivo_al_mes', 'Pólizas_Faltantes'),
             asesores_proactivos_dic: listaProactivo('Proactivo_a_Dic'),
             asesores_no_proactivos_dic: listaNoProactivo('Proactivo_a_Dic', 'Pólizas_Faltantes_Para_Dic'),
+            ...(() => {
+              const individuals = (data.asesores_sin_emision || {}).individuals || [];
+              const sinEmision = (campo) => individuals
+                .filter((r) => r[campo] === 'i')
+                .map((r) => ({ nombre: r.Asesor, sucursal: r.Suc, primaPagadaVida: r.Prima_Pagada_Vida, primaPagadaGMM: r.Prima_Pagada_GMM }));
+              return {
+                resumen_asesores_sin_emision: {
+                  totalAsesores: individuals.length,
+                  sinEmisionVida: individuals.filter((r) => r.Sin_Emisión_Vida === 'i').length,
+                  sinEmisionGMM: individuals.filter((r) => r.Sin_Emisión_GMM === 'i').length,
+                  tresMesesSinEmisionVida: individuals.filter((r) => r['3_Meses_Sin_Emisión_Vida'] === 'i').length,
+                  tresMesesSinEmisionGMM: individuals.filter((r) => r['3_Meses_Sin_Emisión_GMM'] === 'i').length,
+                  totalPrimaPagadaVida: individuals.reduce((s, r) => s + (Number(r.Prima_Pagada_Vida) || 0), 0),
+                  totalPrimaPagadaGMM: individuals.reduce((s, r) => s + (Number(r.Prima_Pagada_GMM) || 0), 0),
+                },
+                asesores_sin_emision_vida: sinEmision('Sin_Emisión_Vida'),
+                asesores_sin_emision_gmm: sinEmision('Sin_Emisión_GMM'),
+                asesores_sin_emision_por_sucursal: (data.asesores_sin_emision || {}).summaryBySucursal || [],
+              };
+            })(),
           };
         },
       },
