@@ -857,15 +857,62 @@ export function construirHerramientas(token, role, claveAgente) {
         spec: {
           name: 'consultar_resumen_general_promotoria',
           description:
-            'Da el panorama general del panel de campañas: asesores sin emisión, fechas de corte, y ' +
-            'los mismos datos detrás de las pantallas "Convenciones" (calificación por promotoría y ' +
-            'gerencia), "Resumen de Promotoría" (reportes financieros y salud del área) y "Gerencia ' +
-            'Karen" (sucursal 2856 — filtra estos mismos datos por esa sucursal si preguntan por Karen ' +
-            'específicamente). Reporte grande — úsalo cuando pidan un panorama amplio, no para preguntas ' +
-            'puntuales que ya cubre otra herramienta. Solo para directivos.',
+            'Da TODO el reporte "Resumen de Promotoría" del panel de campañas, con estas secciones (usa ' +
+            'la que corresponda a la pregunta — no pidas otra herramienta para esto):\n' +
+            '- "pagado_pendiente": fila por asesor con TODOS los campos crudos (incluye montos de recibo ' +
+            'ordinario/renovación aunque no tenga una póliza nueva pendiente) — NO la uses para "qué ' +
+            'asesores tienen pólizas pendientes/pagadas", solo para un dato puntual de un asesor exacto.\n' +
+            '- "totales_pagado_pendiente_promotoria_general": SIEMPRE usa este objeto para el TOTAL de ' +
+            'pólizas/primas pagadas y pendientes — ya viene sumado correctamente; NUNCA sumes tú las ' +
+            'filas de "pagado_pendiente" a mano, es fácil equivocarse con tantos renglones.\n' +
+            '- "asesores_con_polizas_pagadas" / "asesores_con_polizas_pendientes": USA ESTAS para "qué ' +
+            'asesores tienen pólizas pagadas/pendientes" — ya vienen filtradas (solo quien realmente ' +
+            'tiene una póliza nueva pagada/pendiente, no solo un recibo ordinario pendiente) y ordenadas ' +
+            'de mayor a menor. Coinciden exacto con las tablas "Asesores con Pólizas Pagadas/Pendientes" ' +
+            'de la pantalla — no filtres tú mismo "pagado_pendiente", usa estas listas ya hechas.\n' +
+            'Todo lo anterior tiene su equivalente para Reclutas y Temporales con el sufijo ' +
+            '"_reclutas"/"_reclutas_temporales".\n' +
+            '- "asesores_sin_emision": asesores sin emisión.\n' +
+            '- "proactivos": reporte de proactivos.\n' +
+            '- "comparativo_vida", "qsq_vida", "qsq_gmm": comparativos y quality score de Vida/GMM.\n' +
+            '- "convenciones_promotores" y "convenciones_gerente": calificación de Convenciones.\n' +
+            '- "historico_metas": histórico de la Meta Anual 2026.\n' +
+            'Sucursal 2043 = Promotoría General, sucursal 2856 = Gerencia Karen — filtra por "Sucursal" ' +
+            'si preguntan específicamente por una de las dos (los totales precalculados son de TODOS, no ' +
+            'por sucursal). Solo para directivos.',
           input_schema: { type: 'object', properties: {} },
         },
-        run: () => campanasGet('/api/resumen-general'),
+        run: async () => {
+          const data = await campanasGet('/api/resumen-general');
+          const sumar = (rows, campo) => (rows || []).reduce((acc, r) => acc + (Number(r[campo]) || 0), 0);
+          const totalesDe = (rows) => ({
+            polizasPagadas: sumar(rows, 'Pólizas-Pagadas'),
+            reciboInicialPagado: sumar(rows, 'Recibo_Inicial_Pagado'),
+            reciboOrdinarioPagado: sumar(rows, 'Recibo_Ordinario_Pagado'),
+            totalPrimaPagada: sumar(rows, 'Total _Prima_Pagada'),
+            polizasPendientes: sumar(rows, 'Pólizas_Pendinetes'),
+            reciboInicialPendiente: sumar(rows, 'Recibo_Inicial_Pendiente'),
+            reciboOrdinarioPendiente: sumar(rows, 'Recibo_Ordinario_Pendiente'),
+            totalPrimaPendiente: sumar(rows, 'Total _Prima_Pendiente'),
+          });
+          const conPagadas = (rows) => (rows || [])
+            .filter((r) => Number(r['Pólizas-Pagadas'] || 0) > 0)
+            .map((r) => ({ nombre: r['Nombre Asesor'], sucursal: r['Sucursal'], polizasPagadas: r['Pólizas-Pagadas'], reciboInicialPagado: r['Recibo_Inicial_Pagado'] }))
+            .sort((a, b) => (b.reciboInicialPagado || 0) - (a.reciboInicialPagado || 0));
+          const conPendientes = (rows) => (rows || [])
+            .filter((r) => Number(r['Pólizas_Pendinetes'] || 0) > 0)
+            .map((r) => ({ nombre: r['Nombre Asesor'], sucursal: r['Sucursal'], polizasPendientes: r['Pólizas_Pendinetes'], reciboInicialPendiente: r['Recibo_Inicial_Pendiente'] }))
+            .sort((a, b) => (b.reciboInicialPendiente || 0) - (a.reciboInicialPendiente || 0));
+          return {
+            ...data,
+            totales_pagado_pendiente_promotoria_general: totalesDe(data.pagado_pendiente),
+            totales_pagado_pendiente_reclutas_temporales: totalesDe(data.pagado_pendiente_reclutas),
+            asesores_con_polizas_pagadas: conPagadas(data.pagado_pendiente),
+            asesores_con_polizas_pendientes: conPendientes(data.pagado_pendiente),
+            asesores_con_polizas_pagadas_reclutas: conPagadas(data.pagado_pendiente_reclutas),
+            asesores_con_polizas_pendientes_reclutas: conPendientes(data.pagado_pendiente_reclutas),
+          };
+        },
       },
       {
         spec: {
@@ -902,9 +949,11 @@ export function construirHerramientas(token, role, claveAgente) {
         spec: {
           name: 'consultar_estatus_polizas_promotoria',
           description:
-            'Da el seguimiento de pólizas pendientes de recuperar y las ya recuperadas/pagadas este mes, ' +
-            'de toda la promotoría, del panel de campañas. Úsala para preguntas de "pagado y pendiente". ' +
-            'Solo para directivos.',
+            'Da el seguimiento de pólizas que pasaron a Anulada y siguen pendientes de recuperar, y las ' +
+            'ya recuperadas (que volvieron a En Vigor) este mes — de toda la promotoría, del panel de ' +
+            'campañas. Esto es sobre el ESTATUS de la póliza (anulada/recuperada), NO sobre montos de ' +
+            'prima pagada/pendiente — para eso usa consultar_resumen_general_promotoria (sección ' +
+            '"pagado_pendiente"). Solo para directivos.',
           input_schema: { type: 'object', properties: {} },
         },
         run: () => campanasGet('/api/estatus-polizas/seguimiento'),
@@ -967,7 +1016,7 @@ export async function responder(client, model, herramientas, messages, pregunta,
   while (true) {
     const respuesta = await client.messages.create({
       model,
-      max_tokens: 1024,
+      max_tokens: 4096,
       system: systemPrompt,
       tools: herramientas.map((h) => h.spec),
       messages,
