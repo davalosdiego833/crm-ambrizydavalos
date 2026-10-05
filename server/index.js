@@ -1782,9 +1782,12 @@ app.get('/api/dashboard', authMiddleware, (req, res) => {
         colDate.setHours(23, 59, 59, 999);
         const diff = Math.ceil((colDate - now) / (1000 * 60 * 60 * 24));
         if (diff >= 0 && diff <= 30) {
+          // Sumar a pendiente total si está dentro de 30 días (próxima cobranza)
+          kpis.pending += (c.premium || 0);
+
           const alertItem = {
             id: c.id,
-            name: c.contractor, 
+            name: c.contractor,
             policyNumber: c.policyNumber,
             amount: c.premium,
             currency: c.currency,
