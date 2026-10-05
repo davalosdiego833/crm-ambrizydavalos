@@ -1804,8 +1804,6 @@ app.get('/api/dashboard', authMiddleware, (req, res) => {
         }
       }
     } else {
-      kpis.pending += (c.premium || 0);
-      
       let diff;
       if (c.collectionDate) {
         // Diferencia exacta en días si hay fecha completa
@@ -1816,11 +1814,16 @@ app.get('/api/dashboard', authMiddleware, (req, res) => {
         // Fallback a lógica mensual anterior
         diff = (c.collectionDay || 1) - today;
       }
-      
+
+      // Sumar a pending SOLO si es próxima cobranza (diff >= 0), no si es atrasado
+      if (diff >= 0) {
+        kpis.pending += (c.premium || 0);
+      }
+
       // We only care about pending policies for "Cobranza Próxima"
       const alertItem = {
         id: c.id,
-        name: c.contractor, 
+        name: c.contractor,
         policyNumber: c.policyNumber,
         amount: c.premium,
         currency: c.currency,
