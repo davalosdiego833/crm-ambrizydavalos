@@ -394,7 +394,7 @@ const parseDate = (val) => {
   }
   
   const dashParts = str.split('-');
-  if (dashParts.length === 3) {
+  if (dashParts.length === 3 && dashParts.every(p => /^\d+$/.test(p.trim()))) {
     if (dashParts[0].length === 4) {
       return str; // Ya está en YYYY-MM-DD
     } else {
@@ -406,6 +406,16 @@ const parseDate = (val) => {
       }
       return `${year}-${month}-${day}`;
     }
+  }
+
+  // Texto en español: "28 DE JULIO 2025", "28 jul 2025", "28-julio-25"
+  const MESES_ES = { ene: 1, feb: 2, mar: 3, abr: 4, may: 5, jun: 6, jul: 7, ago: 8, sep: 9, set: 9, oct: 10, nov: 11, dic: 12 };
+  const esMatch = str.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .match(/^(\d{1,2})\s*(?:de|del|-|\.)?\s*([a-z]{3,10})\.?\s*(?:de|del|-|,)?\s*(\d{2,4})$/);
+  if (esMatch && MESES_ES[esMatch[2].slice(0, 3)]) {
+    let year = esMatch[3];
+    if (year.length === 2) year = '20' + year;
+    return `${year}-${String(MESES_ES[esMatch[2].slice(0, 3)]).padStart(2, '0')}-${esMatch[1].padStart(2, '0')}`;
   }
 
   const d = new Date(str);
@@ -1283,8 +1293,19 @@ app.post('/api/migrate-prospects', authMiddleware, upload.single('file'), (req, 
     const sheetName = workbook.SheetNames[0];
     const sheet = workbook.Sheets[sheetName];
     
-    // Leemos el archivo en formato de objetos
-    const rawRows = xlsx.utils.sheet_to_json(sheet);
+    // Buscamos la fila de cabeceras (el Excel puede traer filas vacías o títulos
+    // arriba, como en el CRM anterior donde los encabezados están en la fila 4).
+    const matrix = xlsx.utils.sheet_to_json(sheet, { header: 1, defval: '' });
+    const normHeader = (v) => String(v || '').replace(/\u00a0/g, ' ').replace(/\s+/g, ' ').trim().toLowerCase();
+    const nameHeaders = ['nombre del prospecto', 'prospecto', 'nombre', 'nombre completo'];
+    let headerRowIdx = matrix.findIndex(r => r.some(cell => nameHeaders.includes(normHeader(cell))));
+    if (headerRowIdx === -1) headerRowIdx = 0;
+    const headerCells = (matrix[headerRowIdx] || []).map(h => String(h || '').trim());
+    const rawRows = matrix.slice(headerRowIdx + 1).map(r => {
+      const obj = {};
+      headerCells.forEach((h, i) => { if (h) obj[h] = r[i]; });
+      return obj;
+    });
 
     // Mapeo de cabeceras tolerante — si una columna no coincide con ninguno de
     // estos alias, simplemente se ignora y el campo correspondiente queda en
