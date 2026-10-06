@@ -1214,8 +1214,8 @@ const AdminPanel = () => {
   };
 
   const handleCopyWelcome = (u) => {
-    const message = `¡Hola, ${u.name}! Bienvenido(a) al CRM de ${companyLabel(u.company)}. 💼✨\n\nAquí tienes tus credenciales para acceder a la plataforma:\n🔗 Enlace: https://crm.ambrizydavalos.com\n📧 Usuario: ${u.email}\n🔑 Contraseña: ${u.rawPassword}\n\nCualquier duda, estoy a tus órdenes. ¡Mucho éxito! 🚀`;
-    
+    const message = `¡Hola, ${u.name}! Bienvenido(a) al CRM de ${companyLabel(u.company)}. 💼✨\n\nAquí tienes tus credenciales para acceder a la plataforma:\n🔗 Enlace: https://crm.ambrizydavalos.com\n📧 Usuario: ${u.email}\n🔑 Contraseña: ${u.rawPassword}\n\n📱 ASISTENTE POR WHATSAPP:\nEscribe al bot para consultar tu cartera, campañas y más:\n💬 WhatsApp: +52 33 3845 6002\n\nCualquier duda, estoy a tus órdenes. ¡Mucho éxito! 🚀`;
+
     navigator.clipboard.writeText(message)
       .then(() => {
         alert('📋 ¡Mensaje de bienvenida copiado al portapapeles! Ya puedes pegarlo donde prefieras.');
