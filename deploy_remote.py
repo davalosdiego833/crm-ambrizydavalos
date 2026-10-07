@@ -28,6 +28,8 @@ else:
     # pack.threads=1: el hosting compartido a veces no puede crear hilos para
     # resolver deltas ("fatal: unable to create thread: Resource temporarily
     # unavailable"), forzar un solo hilo evita ese error intermitente.
+    # NOTA: npm run build NO se ejecuta aquí porque en hosting compartido consume
+    # demasiados recursos. El build se hace localmente y se commitea dist/
     os.write(master, b"cd domains/crm.ambrizydavalos.com/nodejs && git -c pack.threads=1 fetch --all && git reset --hard origin/main && touch tmp/restart.txt && git log -1 --oneline\n")
     time.sleep(4)
     os.write(master, b"exit\n")

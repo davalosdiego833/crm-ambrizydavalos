@@ -1,0 +1,686 @@
+<title>WhatsApp para Asesores</title>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@0,500;0,600;0,700;1,500;1,600&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+  :root{
+    --bg:#FAF8F3;
+    --surface:#FFFFFF;
+    --surface-alt:#F1EDE3;
+    --ink:#1D2420;
+    --ink-muted:#5C665F;
+    --border:#E1DCCC;
+    --accent:#0E6E58;
+    --accent-ink:#0A4B3C;
+    --accent-soft:#E3F1EA;
+    --good:#1E8E5A;
+    --warning:#A8690F;
+    --critical:#B8402F;
+    --shadow: 0 1px 2px rgba(29,36,32,0.06), 0 8px 24px -16px rgba(29,36,32,0.18);
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --bg:#12160F;
+      --bg:#121611;
+      --surface:#191F19;
+      --surface-alt:#1E251E;
+      --ink:#ECEFE9;
+      --ink-muted:#9AA79D;
+      --border:#2B332B;
+      --accent:#49C89A;
+      --accent-ink:#BFF0DC;
+      --accent-soft:#1A2F27;
+      --good:#4ADE94;
+      --warning:#E3A23D;
+      --critical:#F0685A;
+      --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 8px 28px -16px rgba(0,0,0,0.5);
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#121611;
+    --surface:#191F19;
+    --surface-alt:#1E251E;
+    --ink:#ECEFE9;
+    --ink-muted:#9AA79D;
+    --border:#2B332B;
+    --accent:#49C89A;
+    --accent-ink:#BFF0DC;
+    --accent-soft:#1A2F27;
+    --good:#4ADE94;
+    --warning:#E3A23D;
+    --critical:#F0685A;
+    --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 8px 28px -16px rgba(0,0,0,0.5);
+  }
+
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:var(--bg);
+    color:var(--ink);
+    font-family:"IBM Plex Sans",system-ui,sans-serif;
+    font-size:16px;
+    line-height:1.6;
+    padding-inline:20px;
+  }
+  .page{
+    max-width:840px;
+    margin:0 auto;
+    padding-block:56px 80px;
+  }
+  h1,h2,h3{
+    font-family:"Fraunces",Georgia,serif;
+    font-weight:600;
+    text-wrap:balance;
+    color:var(--ink);
+  }
+  .eyebrow{
+    font-family:"IBM Plex Mono",monospace;
+    font-size:12.5px;
+    letter-spacing:0.08em;
+    text-transform:uppercase;
+    color:var(--accent-ink);
+    display:flex;
+    align-items:center;
+    gap:10px;
+  }
+  .eyebrow::before{
+    content:"";
+    width:7px;height:7px;border-radius:50%;
+    background:var(--accent);
+    display:inline-block;
+  }
+  header{
+    display:flex;
+    flex-direction:column;
+    gap:14px;
+    padding-bottom:36px;
+    border-bottom:1px solid var(--border);
+    margin-bottom:40px;
+  }
+  h1{font-size:clamp(2rem,4vw,2.6rem);line-height:1.08;margin:0;}
+  .subtitle{
+    color:var(--ink-muted);
+    font-size:1.05rem;
+    max-width:60ch;
+    margin:0;
+  }
+  section{margin-bottom:48px;}
+  section > h2{
+    font-size:1.4rem;
+    margin:0 0 6px;
+  }
+  .section-note{color:var(--ink-muted);font-size:0.95rem;margin:0 0 20px;max-width:68ch;}
+
+  .callout{
+    background:var(--accent-soft);
+    border:1px solid color-mix(in srgb, var(--accent) 30%, var(--border));
+    border-radius:14px;
+    padding:24px 26px;
+    display:flex;
+    flex-direction:column;
+    gap:16px;
+  }
+  .callout p{margin:0;color:var(--ink);}
+  .callout .lead{font-size:1.08rem;}
+  .stat-row{
+    display:grid;
+    grid-template-columns:repeat(3,1fr);
+    gap:16px;
+    margin-top:4px;
+  }
+  .stat{
+    background:var(--surface);
+    border:1px solid var(--border);
+    border-radius:10px;
+    padding:14px 16px;
+  }
+  .stat .num{
+    font-family:"IBM Plex Mono",monospace;
+    font-variant-numeric:tabular-nums;
+    font-size:1.5rem;
+    font-weight:600;
+    color:var(--accent-ink);
+    display:block;
+  }
+  .stat .label{font-size:0.82rem;color:var(--ink-muted);}
+
+  .explain-grid{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:14px;
+  }
+  .explain-card{
+    background:var(--surface);
+    border:1px solid var(--border);
+    border-radius:12px;
+    padding:16px 18px;
+  }
+  .explain-card h4{
+    margin:0 0 6px;
+    font-size:0.95rem;
+    font-family:"IBM Plex Sans";
+    font-weight:600;
+  }
+  .explain-card p{margin:0;font-size:0.9rem;color:var(--ink-muted);}
+  .tag{
+    display:inline-block;
+    font-family:"IBM Plex Mono",monospace;
+    font-size:0.72rem;
+    letter-spacing:0.03em;
+    padding:2px 8px;
+    border-radius:999px;
+    margin-bottom:8px;
+  }
+  .tag.free{background:color-mix(in srgb, var(--good) 18%, transparent);color:var(--good);}
+  .tag.paid{background:color-mix(in srgb, var(--critical) 16%, transparent);color:var(--critical);}
+
+  .options{
+    display:flex;
+    flex-direction:column;
+    gap:14px;
+  }
+  .option{
+    border:1px solid var(--border);
+    border-radius:14px;
+    padding:20px 22px;
+    background:var(--surface);
+    position:relative;
+  }
+  .option.recommended{
+    border-color:var(--accent);
+    box-shadow:var(--shadow);
+  }
+  .option-head{
+    display:flex;
+    justify-content:space-between;
+    align-items:baseline;
+    gap:12px;
+    flex-wrap:wrap;
+    margin-bottom:10px;
+  }
+  .option-head h3{font-size:1.1rem;margin:0;}
+  .badge{
+    font-family:"IBM Plex Mono",monospace;
+    font-size:0.72rem;
+    letter-spacing:0.04em;
+    text-transform:uppercase;
+    background:var(--accent);
+    color:var(--surface);
+    padding:3px 10px;
+    border-radius:999px;
+  }
+  .price-line{
+    font-family:"IBM Plex Mono",monospace;
+    font-variant-numeric:tabular-nums;
+    font-size:0.95rem;
+    color:var(--accent-ink);
+    margin:0 0 12px;
+  }
+  .option p.desc{margin:0 0 12px;color:var(--ink-muted);font-size:0.93rem;}
+  .pros-cons{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:10px;
+    font-size:0.88rem;
+  }
+  .pros-cons div{padding:10px 12px;border-radius:8px;background:var(--surface-alt);}
+  .pros-cons .con{color:var(--ink-muted);}
+  .verdict{
+    margin-top:12px;
+    padding-top:12px;
+    border-top:1px dashed var(--border);
+    font-size:0.9rem;
+    color:var(--ink-muted);
+  }
+  .verdict strong{color:var(--ink);}
+
+  table{
+    width:100%;
+    border-collapse:collapse;
+    font-size:0.92rem;
+  }
+  .table-wrap{overflow-x:auto;border:1px solid var(--border);border-radius:12px;}
+  th,td{
+    text-align:left;
+    padding:11px 16px;
+    border-bottom:1px solid var(--border);
+    white-space:nowrap;
+  }
+  thead th{
+    font-family:"IBM Plex Mono",monospace;
+    font-size:0.74rem;
+    letter-spacing:0.04em;
+    text-transform:uppercase;
+    color:var(--ink-muted);
+    background:var(--surface-alt);
+  }
+  tbody tr:last-child td{border-bottom:none;font-weight:600;}
+  td.num,th.num{
+    font-family:"IBM Plex Mono",monospace;
+    font-variant-numeric:tabular-nums;
+    text-align:right;
+  }
+  .per-person{
+    margin-top:14px;
+    font-size:0.9rem;
+    color:var(--ink-muted);
+  }
+  .per-person strong{color:var(--accent-ink);font-family:"IBM Plex Mono",monospace;}
+
+  figure{margin:0;}
+  .diagram-wrap{
+    border:1px solid var(--border);
+    border-radius:14px;
+    background:var(--surface);
+    padding:12px;
+    overflow-x:auto;
+  }
+  figcaption{
+    margin-top:10px;
+    font-size:0.85rem;
+    color:var(--ink-muted);
+    text-align:center;
+  }
+
+  .agent-grid{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:16px;
+  }
+  .agent-card{
+    border:1px solid var(--border);
+    border-radius:14px;
+    padding:20px 22px;
+    background:var(--surface);
+  }
+  .agent-card h3{
+    font-size:1.05rem;
+    margin:0 0 4px;
+    display:flex;
+    align-items:center;
+    gap:8px;
+  }
+  .agent-card .role-dot{width:9px;height:9px;border-radius:50%;background:var(--accent);}
+  .agent-card ul{margin:10px 0 0;padding-left:18px;font-size:0.9rem;color:var(--ink-muted);}
+  .agent-card li{margin-bottom:6px;}
+  .agent-card li strong{color:var(--ink);font-weight:600;}
+  .security-note{
+    margin-top:16px;
+    font-size:0.88rem;
+    color:var(--ink-muted);
+    border-left:3px solid var(--warning);
+    padding-left:12px;
+  }
+
+  ol.steps{
+    list-style:none;
+    counter-reset:step;
+    margin:0;padding:0;
+    display:flex;
+    flex-direction:column;
+    gap:14px;
+  }
+  ol.steps li{
+    counter-increment:step;
+    display:flex;
+    gap:14px;
+    align-items:flex-start;
+    background:var(--surface);
+    border:1px solid var(--border);
+    border-radius:12px;
+    padding:14px 16px;
+  }
+  ol.steps li::before{
+    content:counter(step);
+    font-family:"IBM Plex Mono",monospace;
+    font-weight:600;
+    font-size:0.85rem;
+    color:var(--accent-ink);
+    background:var(--accent-soft);
+    border-radius:50%;
+    width:26px;height:26px;
+    flex:none;
+    display:flex;align-items:center;justify-content:center;
+  }
+  ol.steps p{margin:0;font-size:0.92rem;color:var(--ink-muted);}
+  ol.steps p strong{color:var(--ink);}
+
+  footer{
+    margin-top:56px;
+    padding-top:20px;
+    border-top:1px solid var(--border);
+    font-size:0.82rem;
+    color:var(--ink-muted);
+  }
+  footer a{color:var(--ink-muted);}
+  footer ul{padding-left:18px;margin:8px 0 0;}
+  footer li{margin-bottom:4px;}
+
+  @media (max-width:640px){
+    .stat-row,.explain-grid,.pros-cons,.agent-grid{grid-template-columns:1fr;}
+    th,td{white-space:normal;}
+  }
+</style>
+
+<div class="page">
+  <header>
+    <span class="eyebrow">Propuesta interna · actualizado 24 sep 2026</span>
+    <h1>WhatsApp para Asesores</h1>
+    <p class="subtitle">Comparación de costos y arquitectura para poner el CRM y el panel de campañas a un mensaje de distancia, usando Claude como motor de dos agentes: uno para asesores y otro para directivos.</p>
+  </header>
+
+  <section>
+    <h2>Resumen</h2>
+    <div class="callout">
+      <p class="lead">Ya no es una propuesta — es algo que se construyó y se probó en vivo el 24 de septiembre, con datos y una póliza real. Para el equipo de asesores <strong>gana WhatsApp</strong> — cero fricción, cero app nueva, y resultó más barato de lo estimado: no hace falta pagar ningún intermediario, se conecta directo con Meta.</p>
+      <div class="stat-row">
+        <div class="stat"><span class="num">~$90–120 USD</span><span class="label">30 asesores + 5 directivos por WhatsApp / mes</span></div>
+        <div class="stat"><span class="num">11</span><span class="label">herramientas ya construidas y probadas</span></div>
+        <div class="stat"><span class="num">$0</span><span class="label">costo por asesor para adoptarlo</span></div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Ya no es teoría — se probó con datos y clientes reales</h2>
+    <p class="section-note">El 24 de septiembre se construyó y probó un prototipo completo contra el CRM real, con Diego usándolo en vivo desde su propio WhatsApp. Esto ya no es un plan — es algo que funcionó.</p>
+    <div class="callout">
+      <ul style="margin:0;padding-left:20px;display:flex;flex-direction:column;gap:8px;">
+        <li>Un número de WhatsApp conectado <strong>directo con Meta, sin pagar ningún intermediario</strong> — se descarta el gasto de 360dialog que se había presupuestado más abajo (ver "Estimado mensual" actualizado).</li>
+        <li><strong>11 herramientas</strong> conectadas al CRM real: 4 de consulta (cartera, analítica por mes, buscar cliente, prospectos) y <strong>7 que escriben datos</strong> — dar de alta, marcar pagada, anular, reactivar, identificar, editar y eliminar — todas exigiendo confirmación explícita del asesor antes de guardar nada.</li>
+        <li>Un flujo completo de principio a fin: mandar por WhatsApp el PDF real de una póliza → Claude lo lee → presenta los datos → el asesor confirma → se crea de verdad en el CRM. Probado con una póliza real, no de prueba.</li>
+        <li>Se encontraron y corrigieron <strong>2 errores reales que ya existían en el CRM</strong> (no del bot) durante las pruebas: una cifra de "cobrado este mes" que en realidad mezclaba meses distintos, y una póliza que no aparecía en pendientes por una fecha de pago desactualizada. El bot ayudó a encontrarlos porque obliga a poner en palabras lo que el sistema calcula.</li>
+        <li>El diseño de "nunca guardar sin confirmar" se probó en vivo y se sostuvo — incluyendo un aviso automático cuando se intentó dar de alta una póliza que ya existía.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section>
+    <h2>Lo que ya tienen</h2>
+    <p class="section-note">Revisé el código de los dos proyectos en el Escritorio. El punto de partida es mejor de lo que parece de un lado, y falta más de lo esperado del otro.</p>
+    <div class="agent-grid">
+      <div class="agent-card">
+        <h3><span class="role-dot"></span>CRM Ambriz</h3>
+        <ul>
+          <li><strong>Ya tiene:</strong> API en Express con login por asesor (JWT) y un rol admin ya separado del resto — cerca de 40 endpoints (clientes, pólizas, dashboard, analítica)</li>
+          <li><strong>Falta:</strong> prácticamente nada estructural — solo darle al backend del bot un acceso de servicio para consultar en nombre de cada asesor</li>
+          <li><strong>Ojo:</strong> su propio <code>CLAUDE.md</code> ya marca que <code>db.json</code> guarda la contraseña de cada usuario también en texto plano, junto a la versión encriptada — conviene resolverlo antes de exponer más este sistema</li>
+        </ul>
+      </div>
+      <div class="agent-card">
+        <h3><span class="role-dot"></span>Panel de Campañas</h3>
+        <ul>
+          <li><strong>Ya tiene:</strong> un endpoint <code>/api/daniela</code> del intento anterior, con la lógica de apodos → nombre completo de asesor ya resuelta y reutilizable</li>
+          <li><strong>Falta:</strong> esta app no tiene login por asesor — es un dashboard sin cuentas individuales, así que hay que crear una tabla nueva que ligue "número de WhatsApp del asesor" con su nombre/clave</li>
+          <li><strong>Ojo:</strong> ese endpoint hoy no pide ninguna autenticación — cualquiera con la URL puede leer el resumen financiero de la promotoría</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Por qué se caía "Daniela"</h2>
+    <p class="section-note">El intento anterior (Twilio + Make.com + GPT-4o-mini) no falló por mala suerte — cada eslabón de esa cadena es justo lo que la Opción B evita.</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Punto de falla del intento anterior</th><th>Qué hace distinto la Opción B</th></tr></thead>
+        <tbody>
+          <tr><td>Número de WhatsApp <em>Sandbox</em> de Twilio — gratis, pero pensado solo para pruebas; se desconecta y hay que re-vincularlo</td><td>Número real de WhatsApp Business, verificado con Meta, persistente</td></tr>
+          <tr><td>Make.com encadenaba Twilio → HTTP → OpenAI → Twilio en 4 pasos, sin reintentos visibles ante una falla</td><td>Un solo backend propio, con manejo de errores y registro bajo su control</td></tr>
+          <tr><td>El JSON completo de la base de datos se pegaba dentro del prompt en cada mensaje (34 KB)</td><td>Claude pide, como herramienta, solo el dato puntual que necesita — más rápido, más barato, no se degrada al crecer los datos</td></tr>
+          <tr><td>Motor: GPT-4o-mini vía Make, sin acceso real a su CRM</td><td>Motor: Claude, con acceso directo y con permisos a CRM Ambriz y al panel de campañas</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section>
+    <h2>Ese video no es WhatsApp — es un "Conector" de Claude</h2>
+    <p class="section-note">Revisé el video que te mandó el asesor. Es real, pero es una tecnología distinta a la que preguntaste al inicio — vale la pena separarlas bien antes de decidir.</p>
+    <div class="callout">
+      <p class="lead">SIGA Seguros (el CRM que ese asesor paga aparte) construyó un <strong>Conector de Claude</strong> — un servidor propio que Claude puede leer y escribir usando un protocolo oficial de Anthropic llamado <strong>MCP</strong>. El asesor lo agrega una vez desde Configuración → Conectores en su cuenta de Claude, y a partir de ahí le puede arrastrar una póliza en PDF o preguntarle "¿qué pólizas me vencen en octubre?" directo en el chat de Claude — no en WhatsApp.</p>
+      <p>Claude siempre pide confirmación antes de guardar algo ("Lee los datos, te pregunta, tú confirmas"), y cualquier empresa puede construir su propio conector así para sus propios sistemas — es exactamente lo que haríamos nosotros con CRM Ambriz y el panel de campañas.</p>
+    </div>
+  </section>
+
+  <section>
+    <h2>Opción 1 vs Opción 2 — cara a cara</h2>
+    <p class="section-note">Viendo precio, dificultad de construcción y, sobre todo, qué tan probable es que un asesor lo use de verdad en su día a día — no solo el primer día que se lo enseñan.</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Variable</th><th>Opción 1 · Bot de WhatsApp</th><th>Opción 2 · Conector de Claude</th></tr></thead>
+        <tbody>
+          <tr><td>Dónde vive</td><td>Dentro de WhatsApp — ya abierto todo el día</td><td>Dentro de la app de Claude — hay que abrirla aparte</td></tr>
+          <tr><td>Costo por persona</td><td>$0 adicional — el número y el servidor no cobran por asesor</td><td>$20–25 USD/mes por asiento (Team Standard), ya con acceso al conector</td></tr>
+          <tr><td>Costo para 30 asesores</td><td class="num">~$145 USD/mes (todo incluido)</td><td class="num">~$600–750 USD/mes solo en licencias</td></tr>
+          <tr><td>Costo para 5 directivos</td><td class="num">Incluido en el mismo backend</td><td class="num">~$100–125 USD/mes</td></tr>
+          <tr><td>Dificultad de construirlo</td><td>Media-alta: hay que integrar la API de Meta, plantillas, verificación de negocio, límites de caracteres</td><td>Media: sin Meta de por medio, pero exige autenticación OAuth 2.1 — un estándar más estricto que una simple contraseña o token</td></tr>
+          <tr><td>Subir un archivo (ej. una póliza)</td><td>Posible, pero hay que construir el manejo de adjuntos a mano</td><td>Nativo — arrastrar y soltar, tal como en el video</td></tr>
+          <tr><td>¿Requiere que cambien de hábito?</td><td>No — mismo WhatsApp de siempre</td><td>Sí — abrir una app nueva y acordarse de usarla</td></tr>
+          <tr><td>Adopción real esperada en el equipo de asesores</td><td>Alta — cero fricción, cero app nueva</td><td>Incierta — depende de qué tan cómodos estén con herramientas nuevas</td></tr>
+          <tr><td>Mejor encaje</td><td>Equipo grande, uso diario, consultas rápidas</td><td>Grupo chico, análisis más profundo, cargar documentos</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="callout" style="margin-top:20px;">
+      <p class="lead">Para el objetivo que describiste — que los asesores de verdad lo usen — <strong>gana la Opción 1</strong>. Ningún asesor tiene que aprender ni pagar nada nuevo; el bot vive donde ya está su atención todo el día. La Opción 2 pierde justo ahí: pedirle a 30 personas que abran una app distinta, aunque sea gratis para ellos, es la fricción que normalmente mata la adopción de estas herramientas.</p>
+      <p>Donde sí conviene la Opción 2 es con los <strong>directivos</strong>: son pocos (el costo de licencias es casi nulo), suelen estar más dispuestos a probar herramientas nuevas, y se benefician de lo que WhatsApp no puede dar — arrastrar un PDF, pedir un análisis de varios pasos, ver tablas completas. Ahí no es un gasto extra que compita con la Opción 1: es un complemento barato que además te ahorra construir un "Agente Directivo" completo dentro de WhatsApp.</p>
+      <div class="stat-row">
+        <div class="stat"><span class="num">~$145 USD</span><span class="label">Opción 1 · 30 asesores por WhatsApp</span></div>
+        <div class="stat"><span class="num">~$110 USD</span><span class="label">Opción 2 · 5 directivos por Conector</span></div>
+        <div class="stat"><span class="num">~$255 USD</span><span class="label">total combinado / mes, mejor experiencia para cada grupo</span></div>
+      </div>
+    </div>
+    <p class="per-person">Lo que hace esto posible sin duplicar el trabajo: en ambos casos se construye lo mismo por debajo — un conjunto de "herramientas" que traducen una pregunta en lenguaje natural en una consulta real contra CRM Ambriz y el panel de campañas. Conviene empezar por ahí (ver "Próximos pasos" más abajo) y decidir después si el Conector para directivos se suma de una vez o más adelante.</p>
+  </section>
+
+  <section>
+    <h2>Cómo se cobra esto en realidad</h2>
+    <p class="section-note">Desde julio de 2025, Meta ya no cobra por "conversación" sino por mensaje entregado, y solo cuando ese mensaje usa una plantilla fuera de una ventana de servicio abierta. Para un asistente interno como este, la mayoría del tráfico cae en la categoría gratuita.</p>
+    <div class="explain-grid">
+      <div class="explain-card">
+        <span class="tag free">Gratis</span>
+        <h4>El asesor escribe primero</h4>
+        <p>Cualquier respuesta dentro de las 24 horas siguientes a que un asesor o directivo le escribe al bot no tiene costo, sin importar cuántos mensajes tome resolver la consulta.</p>
+      </div>
+      <div class="explain-card">
+        <span class="tag paid">De paga</span>
+        <h4>El bot escribe primero</h4>
+        <p>Un recordatorio proactivo ("tu cliente vence en 3 días") que se envía fuera de una conversación abierta usa una plantilla de "utilidad" y sí genera un cargo pequeño por mensaje.</p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Tres caminos posibles</h2>
+    <p class="section-note">Las tres opciones pueden usar Claude por debajo. Lo que cambia es quién controla el número de WhatsApp y cuánto cobra por encima de la tarifa de Meta.</p>
+    <div class="options">
+      <div class="option">
+        <div class="option-head">
+          <h3>A · SaaS todo-en-uno</h3>
+        </div>
+        <p class="price-line">WATI: $59–$279 USD/usuario/mes + 20–60% de recargo sobre tarifas de Meta</p>
+        <p class="desc">Plataformas tipo WATI, Zoco o Gupshup: bandeja de chat, plantillas y automatizaciones listas, pero pensadas para vender por asiento.</p>
+        <div class="pros-cons">
+          <div>Producción en días, sin desarrollo</div>
+          <div class="con">Para 35 personas: $2,065–$9,765 USD/mes solo en licencias</div>
+        </div>
+        <div class="verdict"><strong>Veredicto:</strong> se descarta — el modelo por asiento no encaja con dar la herramienta a todo el equipo, y conectar su IA a Claude y a sus sistemas exige desarrollo a la medida de todos modos.</div>
+      </div>
+
+      <div class="option recommended">
+        <div class="option-head">
+          <h3>B · Directo con Meta + backend propio</h3>
+          <span class="badge">Ya probado ✓</span>
+        </div>
+        <p class="price-line">$0 USD/mes de plataforma — Meta no cobra renta por conectarse directo a su API, solo por mensaje (y eso, casi siempre gratis, ver abajo)</p>
+        <p class="desc">Actualización tras las pruebas del 24 de sep: no hace falta ningún intermediario (360dialog, Twilio) — se puede conectar directo con Meta for Developers, exactamente como se hizo para el prototipo. El backend — el que decide qué agente responde, con qué permisos y contra qué sistema — se construye una sola vez y no crece por asesor.</p>
+        <div class="pros-cons">
+          <div>Costo de plataforma nulo, sin importar cuántos asesores lo usen</div>
+          <div class="con">El panel de Meta es más técnico que el de un BSP — ya se resolvió una vez, documentado en "Próximos pasos"</div>
+        </div>
+        <div class="verdict"><strong>Veredicto:</strong> mejor relación costo/control, y ya no es hipotético — es el camino que se construyó y probó hoy.</div>
+      </div>
+
+      <div class="option">
+        <div class="option-head">
+          <h3>C · Twilio + backend propio</h3>
+        </div>
+        <p class="price-line">Tarifa de Meta + ~$0.005 USD de recargo de Twilio por mensaje, sin costo fijo mensual</p>
+        <p class="desc">Mismo nivel de control que la opción B, con la infraestructura y documentación de Twilio detrás. Útil si más adelante quieren sumar SMS o Messenger.</p>
+        <div class="pros-cons">
+          <div>Sin mínimo mensual, paga solo por uso</div>
+          <div class="con">Ese recargo por mensaje no existe yendo directo con Meta (Opción B) — Twilio ya no tiene ventaja de precio aquí</div>
+        </div>
+        <div class="verdict"><strong>Veredicto:</strong> alternativa válida si el plan es multicanal más adelante (SMS, Messenger); para solo WhatsApp interno, ir directo con Meta sale más barato y es lo que ya está probado.</div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Estimado mensual — actualizado con lo probado</h2>
+    <p class="section-note">Cifras de ejemplo para 30 asesores + 5 directivos, ahora usando el camino directo con Meta (sin BSP) que ya se construyó y probó, y el modelo real que quedó configurado (Claude Sonnet 5 con <code>effort: low</code>, pensado para respuestas rápidas de chat).</p>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>Concepto</th><th class="num">Estimado / mes</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Número de WhatsApp Business (directo con Meta, sin intermediario)</td><td class="num">$0 USD</td></tr>
+          <tr><td>Mensajería Meta — recordatorios proactivos (~400 msj/mes, cuando se agreguen)</td><td class="num">~$15 USD</td></tr>
+          <tr><td>Claude API (Sonnet 5, effort low · ~9,000 consultas/mes)</td><td class="num">~$60–85 USD</td></tr>
+          <tr><td>Hosting del backend (servidor propio, 24/7 — pendiente, hoy corre en una laptop)</td><td class="num">~$15–20 USD</td></tr>
+          <tr><td>Total estimado</td><td class="num">~$90–120 USD</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="per-person">Eso es <strong>~$2.60–3.40 USD</strong> por persona al mes con 35 usuarios activos — bajó frente al estimado original (~$4.50) principalmente porque se descartó el gasto fijo del intermediario (360dialog). El desarrollo del backend, que en el estimado original se consideraba el trabajo pendiente más grande, <strong>ya se hizo</strong> — ver la sección de arriba, "Ya no es teoría".</p>
+  </section>
+
+  <section>
+    <h2>Arquitectura recomendada</h2>
+    <figure>
+      <div class="diagram-wrap">
+        <svg viewBox="0 0 960 340" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Diagrama: asesor y directivo escriben por WhatsApp Business API a un backend que identifica el rol y consulta a Claude, que a su vez consulta el CRM Ambriz y el panel de campañas.">
+          <defs>
+            <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M0,0 L10,5 L0,10 z" fill="var(--ink-muted)"></path>
+            </marker>
+          </defs>
+
+          <!-- connectors -->
+          <path d="M180,58 L240,58 L240,103 L245,103" fill="none" stroke="var(--ink-muted)" stroke-width="1.5" marker-end="url(#arrow)"></path>
+          <path d="M180,148 L240,148 L240,103 L245,103" fill="none" stroke="var(--ink-muted)" stroke-width="1.5"></path>
+          <path d="M445,103 L500,103" fill="none" stroke="var(--ink-muted)" stroke-width="1.5" marker-end="url(#arrow)"></path>
+          <path d="M705,103 L760,103" fill="none" stroke="var(--ink-muted)" stroke-width="1.5" marker-end="url(#arrow)"></path>
+          <path d="M850,131 L850,200 L695,200 L695,225" fill="none" stroke="var(--ink-muted)" stroke-width="1.5" marker-end="url(#arrow)"></path>
+          <path d="M850,131 L850,225" fill="none" stroke="var(--ink-muted)" stroke-width="1.5" marker-end="url(#arrow)"></path>
+
+          <!-- Asesor -->
+          <rect x="20" y="30" width="160" height="56" rx="10" fill="var(--surface)" stroke="var(--border)"></rect>
+          <text x="100" y="53" text-anchor="middle" font-family="IBM Plex Sans" font-size="13" font-weight="600" fill="var(--ink)">Asesor</text>
+          <text x="100" y="70" text-anchor="middle" font-family="IBM Plex Mono" font-size="10.5" fill="var(--ink-muted)">WhatsApp personal</text>
+
+          <!-- Directivo -->
+          <rect x="20" y="120" width="160" height="56" rx="10" fill="var(--surface)" stroke="var(--border)"></rect>
+          <text x="100" y="143" text-anchor="middle" font-family="IBM Plex Sans" font-size="13" font-weight="600" fill="var(--ink)">Directivo</text>
+          <text x="100" y="160" text-anchor="middle" font-family="IBM Plex Mono" font-size="10.5" fill="var(--ink-muted)">WhatsApp personal</text>
+
+          <!-- WA API -->
+          <rect x="245" y="75" width="200" height="56" rx="10" fill="var(--accent-soft)" stroke="var(--accent)"></rect>
+          <text x="345" y="98" text-anchor="middle" font-family="IBM Plex Sans" font-size="13" font-weight="600" fill="var(--accent-ink)">WhatsApp Business API</text>
+          <text x="345" y="115" text-anchor="middle" font-family="IBM Plex Mono" font-size="10.5" fill="var(--accent-ink)">directo con Meta</text>
+
+          <!-- Backend -->
+          <rect x="500" y="75" width="205" height="56" rx="10" fill="var(--surface)" stroke="var(--border)"></rect>
+          <text x="602" y="98" text-anchor="middle" font-family="IBM Plex Sans" font-size="13" font-weight="600" fill="var(--ink)">Backend</text>
+          <text x="602" y="115" text-anchor="middle" font-family="IBM Plex Mono" font-size="10.5" fill="var(--ink-muted)">identifica quién escribe y su rol</text>
+
+          <!-- Claude -->
+          <rect x="760" y="75" width="180" height="56" rx="10" fill="var(--accent-soft)" stroke="var(--accent)"></rect>
+          <text x="850" y="98" text-anchor="middle" font-family="IBM Plex Sans" font-size="13" font-weight="600" fill="var(--accent-ink)">Claude</text>
+          <text x="850" y="115" text-anchor="middle" font-family="IBM Plex Mono" font-size="10.5" fill="var(--accent-ink)">permisos por rol</text>
+
+          <!-- CRM -->
+          <rect x="620" y="225" width="150" height="56" rx="10" fill="var(--surface)" stroke="var(--border)"></rect>
+          <text x="695" y="248" text-anchor="middle" font-family="IBM Plex Sans" font-size="13" font-weight="600" fill="var(--ink)">CRM Ambriz</text>
+          <text x="695" y="265" text-anchor="middle" font-family="IBM Plex Mono" font-size="10.5" fill="var(--ink-muted)">lectura y escritura confirmada</text>
+
+          <!-- Campañas -->
+          <rect x="790" y="225" width="150" height="56" rx="10" fill="var(--surface)" stroke="var(--border)"></rect>
+          <text x="865" y="248" text-anchor="middle" font-family="IBM Plex Sans" font-size="13" font-weight="600" fill="var(--ink)">Panel de Campañas</text>
+          <text x="865" y="265" text-anchor="middle" font-family="IBM Plex Mono" font-size="10.5" fill="var(--ink-muted)">solo lectura</text>
+        </svg>
+      </div>
+      <figcaption>La respuesta regresa por el mismo camino hasta el WhatsApp de quien preguntó. En CRM Ambriz el agente ya puede escribir (dar de alta, marcar pagada, editar, etc.), siempre pidiendo confirmación antes de guardar. En el panel de campañas, por ahora, solo consulta.</figcaption>
+    </figure>
+  </section>
+
+  <section>
+    <h2>Dos agentes, un mismo backend</h2>
+    <p class="section-note">El rol de quien escribe (identificado por su número de WhatsApp) decide qué agente responde y qué puede ver.</p>
+    <div class="agent-grid">
+      <div class="agent-card">
+        <h3><span class="role-dot"></span>Agente Asesor</h3>
+        <ul>
+          <li><strong>Ve:</strong> su propia cartera de clientes y pólizas, vencimientos y renovaciones pendientes, sus campañas asignadas</li>
+          <li><strong>Puede consultar:</strong> estatus de una póliza, cartera pendiente, cobrado por mes (incluyendo meses pasados), buscar si un cliente ya existe</li>
+          <li><strong>Puede escribir</strong> (ya probado, siempre con confirmación): dar de alta un cliente leyendo el PDF de su póliza, marcar como pagada, anular, reactivar, identificar/destacar, editar datos, y eliminar (esta última con una advertencia extra por ser permanente)</li>
+          <li><strong>No ve:</strong> la cartera de otros asesores ni cifras globales de la promotoría</li>
+        </ul>
+      </div>
+      <div class="agent-card">
+        <h3><span class="role-dot"></span>Agente Directivo</h3>
+        <ul>
+          <li><strong>Ve:</strong> la cartera completa de todos los asesores y métricas agregadas: renovaciones del mes, pólizas por vencer por asesor</li>
+          <li><strong>Puede:</strong> comparar desempeño entre asesores, dar seguimiento a campañas activas en tiempo real desde el chat</li>
+          <li><strong>No ve:</strong> nada que el sistema no le mostraría ya dentro del CRM — el chat es un atajo, no un permiso nuevo</li>
+          <li><em>Pendiente de construir</em> — hoy el prototipo solo tiene el Agente Asesor probado; la vista agregada de "toda la promotoría" sigue siendo la idea pendiente que ya tenía anotada CRM Ambriz.</li>
+        </ul>
+      </div>
+    </div>
+    <p class="security-note">Actualizado tras las pruebas: el agente <strong>sí puede escribir</strong> en CRM Ambriz (dar de alta, marcar pagada, anular, editar, eliminar) — pero nunca sin que el asesor confirme explícitamente qué y sobre cuál póliza exacta, en ese mismo chat. Cada acción identifica la póliza por su número exacto (nunca por nombre), para no arriesgarse a tocar la póliza equivocada entre clientes con nombres parecidos. Eliminar un cliente es la única acción sin marcha atrás, y el bot lo advierte explícitamente antes de pedir la confirmación final. En el panel de campañas, por ahora, el agente sigue siendo de solo lectura.</p>
+  </section>
+
+  <section>
+    <h2>Próximos pasos</h2>
+    <p class="section-note">Reordenado tras las pruebas del 24 de sep — lo ya hecho queda marcado, lo que sigue es lo que realmente falta para pasar de "funciona en la laptop de Diego" a "listo para el equipo".</p>
+    <ol class="steps">
+      <li>
+        <p>✅ <strong>Prototipo contra CRM Ambriz — hecho y probado.</strong> Terminal de prueba y bot de WhatsApp, compartiendo el mismo "cerebro" de 11 herramientas, probado con datos y una póliza real.</p>
+      </li>
+      <li>
+        <p>✅ <strong>Número de WhatsApp conectado — hecho (de prueba).</strong> Directo con Meta, sin BSP. Falta pasarlo de "número de prueba" a número real de producción (siguiente punto).</p>
+      </li>
+      <li>
+        <p><strong>Verificar el negocio en Meta Business Manager</strong> con la Constancia de Situación Fiscal del SAT, y completar el registro del número de producción — es lo único que falta para dejar de depender del número de prueba (limitado a unos pocos destinatarios). Puede tardar de minutos a 14 días hábiles.</p>
+      </li>
+      <li>
+        <p><strong>Mover el backend de la laptop de Diego a un servidor real</strong> (24/7, sin depender de ngrok ni de que la laptop esté prendida) — es el único costo pendiente de verdad, ~$15-20 USD/mes.</p>
+      </li>
+      <li>
+        <p><strong>Construir el interruptor de acceso</strong> en el panel de administrador que ya existe en CRM Ambriz: qué asesores tienen prendido el acceso al asistente y su número de WhatsApp — para que sea solo para los seleccionados, y se puedan agregar o quitar asesores sin tocar código.</p>
+      </li>
+      <li>
+        <p><strong>Definir si el Agente Directivo se construye</strong> (vista agregada de toda la promotoría) o si, como se planteó, ese rol se cubre mejor con el Conector de Claude en vez de WhatsApp.</p>
+      </li>
+      <li>
+        <p><strong>Panel de Campañas</strong> (aparte, sin empezar): agregar autenticación al endpoint <code>/api/daniela</code>, crear la tabla que ligue número de WhatsApp → asesor/clave, y sustituir el envío del JSON completo por consultas puntuales.</p>
+      </li>
+      <li>
+        <p><strong>Piloto con 3–5 asesores</strong> antes de dárselo a todo el equipo seleccionado.</p>
+      </li>
+    </ol>
+  </section>
+
+  <footer>
+    Fuentes consultadas (septiembre 2026):
+    <ul>
+      <li><a href="https://developers.facebook.com/documentation/business-messaging/whatsapp/pricing" target="_blank" rel="noopener">Meta for Developers — Pricing on the WhatsApp Business Platform</a></li>
+      <li><a href="https://360dialog.com/pricing" target="_blank" rel="noopener">360dialog — Pricing</a></li>
+      <li><a href="https://www.twilio.com/en-us/whatsapp/pricing" target="_blank" rel="noopener">Twilio — WhatsApp Messaging Pricing</a></li>
+      <li><a href="https://www.chatwoot.com/pricing/self-hosted-plans" target="_blank" rel="noopener">Chatwoot — Self-Hosted Pricing</a></li>
+      <li><a href="https://www.ycloud.com/blog/wati-pricing" target="_blank" rel="noopener">YCloud — Wati Pricing Explained</a></li>
+      <li><a href="https://itechdev.com.mx/es/blog/precio-whatsapp-business-api-mexico-2026" target="_blank" rel="noopener">iTechDev — Precio de WhatsApp Business API en México 2026</a></li>
+    </ul>
+  </footer>
+</div>

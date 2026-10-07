@@ -3685,6 +3685,99 @@ app.get('/api/bot-usage/projection', (req, res) => {
   res.json(monthlyProjection);
 });
 
+// Asesores inactivos en los últimos 7 días
+app.get('/api/bot-usage/asesores-inactivos', (req, res) => {
+  const cutoff = Date.now() - 7 * 86400000;
+  const last7days = botUsage.filter((r) => new Date(r.timestamp).getTime() >= cutoff);
+
+  // Obtener todos los asesores del CRM
+  const todosLosAsesores = users.filter(u => u.role === 'advisor' && !u.blocked);
+  const activos = new Set(last7days.map(r => r.nombre));
+
+  const inactivos = todosLosAsesores
+    .filter(u => !activos.has(u.name))
+    .map(u => ({
+      nombre: u.name,
+      claveAgente: u.claveAgente || '—',
+      email: u.email,
+      diasSinUsar: 7,
+    }));
+
+  res.json({
+    totalInactivos: inactivos.length,
+    inactivos: inactivos.sort((a, b) => a.nombre.localeCompare(b.nombre)),
+  });
+});
+
+// Uso por asesor en los últimos 7 días
+app.get('/api/bot-usage/uso-por-asesor', (req, res) => {
+  const { nombre, clave } = req.query;
+
+  if (!nombre && !clave) {
+    return res.status(400).json({ error: 'Falta parámetro: nombre o clave del asesor' });
+  }
+
+  const cutoff = Date.now() - 7 * 86400000;
+  const last7days = botUsage.filter((r) => new Date(r.timestamp).getTime() >= cutoff);
+
+  const filtrado = last7days.filter((r) => {
+    if (nombre) return r.nombre.toLowerCase().includes(nombre.toLowerCase());
+    if (clave) return r.claveAgente === clave;
+    return false;
+  });
+
+  if (filtrado.length === 0) {
+    return res.json({
+      nombre: nombre || `Clave: ${clave}`,
+      mensajesSemana: 0,
+      tokensSemana: 0,
+      costoSemana: 0,
+      herramientasMasUsadas: [],
+    });
+  }
+
+  const nombreAsesor = filtrado[0].nombre;
+  const totalTokens = filtrado.reduce((sum, r) => sum + r.totalTokens, 0);
+  const totalCosto = filtrado.reduce((sum, r) => sum + r.costoEstimado, 0);
+
+  // Top herramientas
+  const herramientasMap = {};
+  filtrado.forEach((r) => {
+    (r.herramientas || []).forEach((h) => {
+      herramientasMap[h] = (herramientasMap[h] || 0) + 1;
+    });
+  });
+
+  const herramientasMasUsadas = Object.entries(herramientasMap)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 3)
+    .map(([h, count]) => ({ herramienta: h, usos: count }));
+
+  res.json({
+    nombre: nombreAsesor,
+    mensajesSemana: filtrado.length,
+    tokensSemana: totalTokens,
+    costoSemana: totalCosto.toFixed(4),
+    herramientasMasUsadas,
+    detallesPorDia: filtrado
+      .reduce((acc, r) => {
+        const fecha = new Date(r.timestamp).toISOString().split('T')[0];
+        if (!acc[fecha]) acc[fecha] = { count: 0, tokens: 0, cost: 0 };
+        acc[fecha].count++;
+        acc[fecha].tokens += r.totalTokens;
+        acc[fecha].cost += r.costoEstimado;
+        return acc;
+      }, {})
+      .map(([date, data], i, arr) => ({
+        date,
+        mensajes: arr[i].count,
+        tokens: arr[i].tokens,
+        costo: arr[i].cost.toFixed(4),
+      }))
+      .sort((a, b) => new Date(b.date) - new Date(a.date)),
+  });
+});
+
 // Webhook de Despliegue Automático (sin depender de SSH)
 app.all('/api/git-pull-deploy', (req, res) => {
   const secret = req.query.secret || req.body?.secret;

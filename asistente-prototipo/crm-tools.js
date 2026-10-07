@@ -1165,28 +1165,69 @@ export function construirHerramientas(token, role, claveAgente) {
         spec: {
           name: 'consultar_uso_bot',
           description:
-            'Consulta el uso del asistente de WhatsApp de los últimos 7 ó 30 días: mensajes totales, ' +
-            'tokens consumidos, costo estimado, proyección mensual, y ranking de asesores por costo. ' +
+            'Consulta el uso del asistente de WhatsApp: resumen general, ranking de asesores por costo, ' +
+            'proyección mensual, asesores INACTIVOS en últimos 7 días, o detalle de uso de un asesor específico. ' +
             'Solo para directivos (admin/promotoria).',
           input_schema: {
             type: 'object',
             properties: {
-              dias: { type: 'number', description: 'Últimos 7 o 30 días (default: 30)' },
               tipo: {
                 type: 'string',
-                enum: ['resumen', 'ranking', 'proyeccion'],
-                description: 'Qué datos quieres: resumen diario, ranking de asesores, o proyección mensual'
-              }
-            }
+                enum: ['resumen', 'ranking', 'proyeccion', 'inactivos', 'asesor'],
+                description: 'resumen (general), ranking (top asesores), proyeccion (mensual), inactivos (sin usar en 7d), asesor (seguimiento individual)'
+              },
+              dias: { type: 'number', description: 'Para resumen/ranking: últimos 7 o 30 días (default: 7)' },
+              nombre: { type: 'string', description: 'Para tipo=asesor: nombre del asesor a consultar' },
+              clave: { type: 'string', description: 'Para tipo=asesor: clave agente (alternativa a nombre)' }
+            },
+            required: ['tipo']
           }
         },
         run: async (input) => {
-          const dias = input.dias || 30;
           const tipo = input.tipo || 'resumen';
+          const dias = input.dias || 7;
           const baseUrl = process.env.CRM_API_URL || 'http://localhost:3001';
 
           try {
-            if (tipo === 'ranking') {
+            if (tipo === 'inactivos') {
+              const res = await fetch(`${baseUrl}/api/bot-usage/asesores-inactivos`);
+              if (!res.ok) return { error: 'No se pudo obtener lista de inactivos' };
+              const data = await res.json();
+              if (data.totalInactivos === 0) {
+                return { mensaje: '✅ Todos los asesores han usado el bot en los últimos 7 días' };
+              }
+              return {
+                tipo: 'inactivos',
+                totalInactivos: data.totalInactivos,
+                asesores: data.inactivos.map(a => ({
+                  nombre: a.nombre,
+                  clave: a.claveAgente,
+                  email: a.email
+                }))
+              };
+            } else if (tipo === 'asesor') {
+              if (!input.nombre && !input.clave) {
+                return { error: 'Falta: nombre o clave del asesor' };
+              }
+              const params = new URLSearchParams();
+              if (input.nombre) params.append('nombre', input.nombre);
+              if (input.clave) params.append('clave', input.clave);
+
+              const res = await fetch(`${baseUrl}/api/bot-usage/uso-por-asesor?${params}`);
+              if (!res.ok) return { error: 'No se pudo obtener datos del asesor' };
+              const data = await res.json();
+              return {
+                tipo: 'asesor',
+                asesor: data.nombre,
+                semanal: {
+                  mensajes: data.mensajesSemana,
+                  tokens: data.tokensSemana.toLocaleString(),
+                  costo: `$${data.costoSemana}`
+                },
+                herramientasMasUsadas: data.herramientasMasUsadas.map(h => `${h.herramienta} (${h.usos} usos)`),
+                detalleUltimos7Dias: data.detallesPorDia
+              };
+            } else if (tipo === 'ranking') {
               const res = await fetch(`${baseUrl}/api/bot-usage/ranking?días=${dias}`);
               if (!res.ok) return { error: 'No se pudo obtener ranking' };
               const ranking = await res.json();
@@ -1197,7 +1238,7 @@ export function construirHerramientas(token, role, claveAgente) {
                   asesor: r.nombre,
                   clave: r.claveAgente || '—',
                   mensajes: r.messages,
-                  tokens: r.tokens,
+                  tokens: r.tokens.toLocaleString(),
                   costo: `$${r.cost.toFixed(4)}`,
                 }))
               };
@@ -1212,6 +1253,7 @@ export function construirHerramientas(token, role, claveAgente) {
                 tokensEstimados: proj.estimatedTokens.toLocaleString(),
               };
             } else {
+              // resumen
               const res = await fetch(`${baseUrl}/api/bot-usage/summary?days=${dias}`);
               if (!res.ok) return { error: 'No se pudo obtener resumen' };
               const summary = await res.json();
@@ -1224,15 +1266,16 @@ export function construirHerramientas(token, role, claveAgente) {
                 totalMensajes: totalMsgs,
                 totalTokens: totalTokens.toLocaleString(),
                 costoEstimado: `$${totalCost.toFixed(4)}`,
-                detalleUltimos3Dias: summary.slice(0, 3).map(d => ({
+                detalleUltimos: summary.slice(0, 3).map(d => ({
                   fecha: new Date(d.date).toLocaleDateString('es-MX'),
                   mensajes: d.messages,
+                  usuarios: d.uniqueUsers,
                   costo: `$${d.cost.toFixed(4)}`
                 }))
               };
             }
           } catch (err) {
-            return { error: err.message };
+            return { error: `Error: ${err.message}` };
           }
         }
       }
