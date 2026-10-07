@@ -35,173 +35,247 @@ export default function BotUsage({ userRole }) {
   };
 
   if (userRole !== 'admin' && userRole !== 'promotoria') {
-    return <div style={{ padding: '20px', color: 'red' }}>No tienes acceso a este panel.</div>;
+    return <div className="animate-up" style={{ padding: '20px', color: 'var(--accent-red)' }}>No tienes acceso a este panel.</div>;
   }
 
   if (loading) {
-    return <div style={{ padding: '20px' }}>Cargando...</div>;
+    return <div className="animate-up" style={{ padding: '20px', color: 'var(--text-muted)' }}>⏳ Cargando datos...</div>;
   }
 
-  const totalMensajes = messages.total;
+  const totalMensajes = messages.total || 0;
   const totalTokens = summary.reduce((sum, s) => sum + s.tokens, 0);
   const totalCosto = summary.reduce((sum, s) => sum + s.cost, 0);
 
-  return (
-    <div style={{ padding: '20px' }}>
-      <h1>Uso del Bot de WhatsApp</h1>
+  const metricCardStyle = {
+    padding: '20px',
+    background: 'rgba(226, 176, 66, 0.05)',
+    border: '1px solid var(--glass-border)',
+    borderRadius: '12px',
+    backdropFilter: 'blur(10px)',
+  };
 
-      <div style={{ marginBottom: '20px' }}>
-        <label>
+  const metricLabelStyle = {
+    fontSize: '0.85rem',
+    color: 'var(--text-muted)',
+    marginBottom: '8px',
+    fontWeight: '500',
+  };
+
+  const metricValueStyle = {
+    fontSize: '28px',
+    fontWeight: '700',
+    color: 'var(--accent-gold)',
+    fontVariantNumeric: 'tabular-nums',
+  };
+
+  const selectStyle = {
+    padding: '8px 12px',
+    background: 'rgba(255,255,255,0.05)',
+    border: '1px solid var(--glass-border)',
+    borderRadius: '6px',
+    color: 'var(--text-main)',
+    fontSize: '0.9rem',
+    cursor: 'pointer',
+    marginLeft: '8px',
+  };
+
+  const buttonStyle = (isActive) => ({
+    padding: '10px 18px',
+    background: isActive ? 'rgba(226, 176, 66, 0.15)' : 'transparent',
+    border: 'none',
+    borderBottom: isActive ? '2px solid var(--accent-gold)' : 'none',
+    color: isActive ? 'var(--accent-gold)' : 'var(--text-muted)',
+    cursor: 'pointer',
+    fontSize: '0.95rem',
+    fontWeight: isActive ? '600' : '400',
+    transition: 'all 0.2s ease',
+  });
+
+  return (
+    <div className="animate-up" style={{ padding: '0' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '28px' }}>
+        <div>
+          <h2 style={{ fontSize: '1.8rem', margin: '0 0 4px 0', color: 'var(--text-main)' }}>Uso del Bot de WhatsApp</h2>
+          <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', margin: 0 }}>Tracking de mensajes y consumo de créditos</p>
+        </div>
+        <label style={{ display: 'flex', alignItems: 'center', color: 'var(--text-main)', fontSize: '0.9rem' }}>
           Últimos
-          <select value={days} onChange={(e) => { setDays(parseInt(e.target.value)); setPage(0); }} style={{ marginLeft: '5px' }}>
-            <option value={7}>7 días</option>
-            <option value={30}>30 días</option>
-            <option value={90}>90 días</option>
-            <option value={365}>1 año</option>
+          <select
+            value={days}
+            onChange={(e) => { setDays(parseInt(e.target.value)); setPage(0); }}
+            style={selectStyle}
+          >
+            <option value={7} style={{ background: 'var(--bg-surface)' }}>7 días</option>
+            <option value={30} style={{ background: 'var(--bg-surface)' }}>30 días</option>
+            <option value={90} style={{ background: 'var(--bg-surface)' }}>90 días</option>
+            <option value={365} style={{ background: 'var(--bg-surface)' }}>1 año</option>
           </select>
         </label>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '15px', marginBottom: '30px' }}>
-        <div style={{ padding: '15px', background: '#f0f0f0', borderRadius: '8px' }}>
-          <div style={{ fontSize: '12px', color: '#666' }}>Mensajes totales</div>
-          <div style={{ fontSize: '24px', fontWeight: 'bold' }}>{totalMensajes}</div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px', marginBottom: '32px' }}>
+        <div style={metricCardStyle}>
+          <div style={metricLabelStyle}>Mensajes Totales</div>
+          <div style={metricValueStyle}>{totalMensajes}</div>
         </div>
-        <div style={{ padding: '15px', background: '#f0f0f0', borderRadius: '8px' }}>
-          <div style={{ fontSize: '12px', color: '#666' }}>Tokens totales</div>
-          <div style={{ fontSize: '24px', fontWeight: 'bold' }}>{totalTokens.toLocaleString()}</div>
+        <div style={metricCardStyle}>
+          <div style={metricLabelStyle}>Tokens Totales</div>
+          <div style={metricValueStyle}>{totalTokens.toLocaleString()}</div>
         </div>
-        <div style={{ padding: '15px', background: '#f0f0f0', borderRadius: '8px' }}>
-          <div style={{ fontSize: '12px', color: '#666' }}>Costo estimado</div>
-          <div style={{ fontSize: '24px', fontWeight: 'bold' }}>${totalCosto.toFixed(2)}</div>
+        <div style={metricCardStyle}>
+          <div style={metricLabelStyle}>Costo Estimado</div>
+          <div style={metricValueStyle}>${totalCosto.toFixed(2)}</div>
         </div>
-        <div style={{ padding: '15px', background: '#f0f0f0', borderRadius: '8px' }}>
-          <div style={{ fontSize: '12px', color: '#666' }}>Proyección mensual</div>
-          <div style={{ fontSize: '24px', fontWeight: 'bold' }}>${projection?.estimatedMonthlyCost?.toFixed(2) || '0.00'}</div>
+        <div style={metricCardStyle}>
+          <div style={metricLabelStyle}>Proyección Mensual</div>
+          <div style={metricValueStyle}>${projection?.estimatedMonthlyCost?.toFixed(2) || '0.00'}</div>
         </div>
       </div>
 
-      <div style={{ marginBottom: '20px' }}>
-        <button
-          onClick={() => setTab('resumen')}
-          style={{ marginRight: '10px', padding: '8px 15px', background: tab === 'resumen' ? '#007bff' : '#e0e0e0', color: tab === 'resumen' ? 'white' : 'black', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
-        >
-          Resumen Diario
+      <div style={{ display: 'flex', gap: '8px', marginBottom: '24px', borderBottom: '1px solid var(--glass-border)', paddingBottom: '12px' }}>
+        <button onClick={() => setTab('resumen')} style={buttonStyle(tab === 'resumen')}>
+          📊 Resumen Diario
         </button>
-        <button
-          onClick={() => setTab('ranking')}
-          style={{ marginRight: '10px', padding: '8px 15px', background: tab === 'ranking' ? '#007bff' : '#e0e0e0', color: tab === 'ranking' ? 'white' : 'black', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
-        >
-          Ranking de Asesores
+        <button onClick={() => setTab('ranking')} style={buttonStyle(tab === 'ranking')}>
+          🏆 Ranking de Asesores
         </button>
-        <button
-          onClick={() => setTab('mensajes')}
-          style={{ padding: '8px 15px', background: tab === 'mensajes' ? '#007bff' : '#e0e0e0', color: tab === 'mensajes' ? 'white' : 'black', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
-        >
-          Detalle de Mensajes
+        <button onClick={() => setTab('mensajes')} style={buttonStyle(tab === 'mensajes')}>
+          📝 Detalle de Mensajes
         </button>
       </div>
 
       {tab === 'resumen' && (
-        <div style={{ background: 'white', borderRadius: '8px', padding: '15px', border: '1px solid #e0e0e0' }}>
-          <h3>Resumen Diario</h3>
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-            <thead>
-              <tr style={{ background: '#f5f5f5' }}>
-                <th style={{ padding: '10px', textAlign: 'left', borderBottom: '1px solid #e0e0e0' }}>Fecha</th>
-                <th style={{ padding: '10px', textAlign: 'right', borderBottom: '1px solid #e0e0e0' }}>Mensajes</th>
-                <th style={{ padding: '10px', textAlign: 'right', borderBottom: '1px solid #e0e0e0' }}>Tokens</th>
-                <th style={{ padding: '10px', textAlign: 'right', borderBottom: '1px solid #e0e0e0' }}>Costo</th>
-                <th style={{ padding: '10px', textAlign: 'right', borderBottom: '1px solid #e0e0e0' }}>Usuarios</th>
-              </tr>
-            </thead>
-            <tbody>
-              {summary.map((row) => (
-                <tr key={row.date} style={{ borderBottom: '1px solid #e0e0e0' }}>
-                  <td style={{ padding: '10px' }}>{new Date(row.date).toLocaleDateString('es-MX')}</td>
-                  <td style={{ padding: '10px', textAlign: 'right' }}>{row.messages}</td>
-                  <td style={{ padding: '10px', textAlign: 'right' }}>{row.tokens.toLocaleString()}</td>
-                  <td style={{ padding: '10px', textAlign: 'right' }}>${row.cost.toFixed(4)}</td>
-                  <td style={{ padding: '10px', textAlign: 'right' }}>{row.uniqueUsers}</td>
+        <div className="glass-card" style={{ padding: '0', overflow: 'hidden' }}>
+          <div style={{ padding: '20px 24px', borderBottom: '1px solid var(--glass-border)' }}>
+            <h3 style={{ margin: 0, color: 'var(--text-main)' }}>Resumen Diario</h3>
+          </div>
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <thead>
+                <tr style={{ background: 'rgba(226, 176, 66, 0.05)' }}>
+                  <th style={{ padding: '14px 16px', textAlign: 'left', borderBottom: '1px solid var(--glass-border)', color: 'var(--text-muted)', fontWeight: '600', fontSize: '0.85rem' }}>Fecha</th>
+                  <th style={{ padding: '14px 16px', textAlign: 'right', borderBottom: '1px solid var(--glass-border)', color: 'var(--text-muted)', fontWeight: '600', fontSize: '0.85rem' }}>Mensajes</th>
+                  <th style={{ padding: '14px 16px', textAlign: 'right', borderBottom: '1px solid var(--glass-border)', color: 'var(--text-muted)', fontWeight: '600', fontSize: '0.85rem' }}>Tokens</th>
+                  <th style={{ padding: '14px 16px', textAlign: 'right', borderBottom: '1px solid var(--glass-border)', color: 'var(--text-muted)', fontWeight: '600', fontSize: '0.85rem' }}>Costo</th>
+                  <th style={{ padding: '14px 16px', textAlign: 'right', borderBottom: '1px solid var(--glass-border)', color: 'var(--text-muted)', fontWeight: '600', fontSize: '0.85rem' }}>Usuarios</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {summary.map((row) => (
+                  <tr key={row.date} style={{ borderBottom: '1px solid var(--glass-border)', transition: 'background 0.2s' }} onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(226, 176, 66, 0.03)'} onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}>
+                    <td style={{ padding: '14px 16px', color: 'var(--text-main)' }}>{new Date(row.date).toLocaleDateString('es-MX')}</td>
+                    <td style={{ padding: '14px 16px', textAlign: 'right', color: 'var(--text-main)', fontVariantNumeric: 'tabular-nums' }}>{row.messages}</td>
+                    <td style={{ padding: '14px 16px', textAlign: 'right', color: 'var(--accent-gold)', fontWeight: '600', fontVariantNumeric: 'tabular-nums' }}>{row.tokens.toLocaleString()}</td>
+                    <td style={{ padding: '14px 16px', textAlign: 'right', color: 'var(--accent-gold)', fontWeight: '600', fontVariantNumeric: 'tabular-nums' }}>${row.cost.toFixed(4)}</td>
+                    <td style={{ padding: '14px 16px', textAlign: 'right', color: 'var(--text-main)' }}>{row.uniqueUsers}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 
       {tab === 'ranking' && (
-        <div style={{ background: 'white', borderRadius: '8px', padding: '15px', border: '1px solid #e0e0e0' }}>
-          <h3>Ranking de Asesores por Costo</h3>
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-            <thead>
-              <tr style={{ background: '#f5f5f5' }}>
-                <th style={{ padding: '10px', textAlign: 'left', borderBottom: '1px solid #e0e0e0' }}>Asesor</th>
-                <th style={{ padding: '10px', textAlign: 'left', borderBottom: '1px solid #e0e0e0' }}>Clave</th>
-                <th style={{ padding: '10px', textAlign: 'right', borderBottom: '1px solid #e0e0e0' }}>Mensajes</th>
-                <th style={{ padding: '10px', textAlign: 'right', borderBottom: '1px solid #e0e0e0' }}>Tokens</th>
-                <th style={{ padding: '10px', textAlign: 'right', borderBottom: '1px solid #e0e0e0' }}>Costo</th>
-              </tr>
-            </thead>
-            <tbody>
-              {ranking.map((row, i) => (
-                <tr key={i} style={{ borderBottom: '1px solid #e0e0e0' }}>
-                  <td style={{ padding: '10px' }}>{row.nombre}</td>
-                  <td style={{ padding: '10px' }}>{row.claveAgente || '—'}</td>
-                  <td style={{ padding: '10px', textAlign: 'right' }}>{row.messages}</td>
-                  <td style={{ padding: '10px', textAlign: 'right' }}>{row.tokens.toLocaleString()}</td>
-                  <td style={{ padding: '10px', textAlign: 'right', fontWeight: 'bold' }}>${row.cost.toFixed(4)}</td>
+        <div className="glass-card" style={{ padding: '0', overflow: 'hidden' }}>
+          <div style={{ padding: '20px 24px', borderBottom: '1px solid var(--glass-border)' }}>
+            <h3 style={{ margin: 0, color: 'var(--text-main)' }}>🏆 Ranking de Asesores por Costo</h3>
+          </div>
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <thead>
+                <tr style={{ background: 'rgba(226, 176, 66, 0.05)' }}>
+                  <th style={{ padding: '14px 16px', textAlign: 'left', borderBottom: '1px solid var(--glass-border)', color: 'var(--text-muted)', fontWeight: '600', fontSize: '0.85rem' }}>Asesor</th>
+                  <th style={{ padding: '14px 16px', textAlign: 'left', borderBottom: '1px solid var(--glass-border)', color: 'var(--text-muted)', fontWeight: '600', fontSize: '0.85rem' }}>Clave</th>
+                  <th style={{ padding: '14px 16px', textAlign: 'right', borderBottom: '1px solid var(--glass-border)', color: 'var(--text-muted)', fontWeight: '600', fontSize: '0.85rem' }}>Mensajes</th>
+                  <th style={{ padding: '14px 16px', textAlign: 'right', borderBottom: '1px solid var(--glass-border)', color: 'var(--text-muted)', fontWeight: '600', fontSize: '0.85rem' }}>Tokens</th>
+                  <th style={{ padding: '14px 16px', textAlign: 'right', borderBottom: '1px solid var(--glass-border)', color: 'var(--text-muted)', fontWeight: '600', fontSize: '0.85rem' }}>Costo</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {ranking.map((row, i) => (
+                  <tr key={i} style={{ borderBottom: '1px solid var(--glass-border)', transition: 'background 0.2s' }} onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(226, 176, 66, 0.03)'} onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}>
+                    <td style={{ padding: '14px 16px', color: 'var(--text-main)', fontWeight: '500' }}>
+                      {i === 0 && '🥇 '}{i === 1 && '🥈 '}{i === 2 && '🥉 '}{row.nombre}
+                    </td>
+                    <td style={{ padding: '14px 16px', color: 'var(--text-muted)', fontSize: '0.9rem' }}>{row.claveAgente || '—'}</td>
+                    <td style={{ padding: '14px 16px', textAlign: 'right', color: 'var(--text-main)', fontVariantNumeric: 'tabular-nums' }}>{row.messages}</td>
+                    <td style={{ padding: '14px 16px', textAlign: 'right', color: 'var(--text-main)', fontVariantNumeric: 'tabular-nums' }}>{row.tokens.toLocaleString()}</td>
+                    <td style={{ padding: '14px 16px', textAlign: 'right', color: 'var(--accent-gold)', fontWeight: '700', fontVariantNumeric: 'tabular-nums' }}>${row.cost.toFixed(4)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 
       {tab === 'mensajes' && (
-        <div style={{ background: 'white', borderRadius: '8px', padding: '15px', border: '1px solid #e0e0e0' }}>
-          <h3>Detalle de Mensajes</h3>
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-            <thead>
-              <tr style={{ background: '#f5f5f5' }}>
-                <th style={{ padding: '10px', textAlign: 'left', borderBottom: '1px solid #e0e0e0' }}>Timestamp</th>
-                <th style={{ padding: '10px', textAlign: 'left', borderBottom: '1px solid #e0e0e0' }}>Asesor</th>
-                <th style={{ padding: '10px', textAlign: 'right', borderBottom: '1px solid #e0e0e0' }}>Tokens</th>
-                <th style={{ padding: '10px', textAlign: 'right', borderBottom: '1px solid #e0e0e0' }}>Costo</th>
-                <th style={{ padding: '10px', textAlign: 'left', borderBottom: '1px solid #e0e0e0' }}>Herramientas</th>
-              </tr>
-            </thead>
-            <tbody>
-              {messages.messages?.map((msg) => (
-                <tr key={msg.id} style={{ borderBottom: '1px solid #e0e0e0' }}>
-                  <td style={{ padding: '10px', fontSize: '12px' }}>{new Date(msg.timestamp).toLocaleString('es-MX')}</td>
-                  <td style={{ padding: '10px' }}>{msg.nombre}</td>
-                  <td style={{ padding: '10px', textAlign: 'right' }}>{msg.totalTokens}</td>
-                  <td style={{ padding: '10px', textAlign: 'right' }}>${msg.costoEstimado.toFixed(4)}</td>
-                  <td style={{ padding: '10px', fontSize: '12px' }}>{msg.herramientas?.join(', ') || '—'}</td>
+        <div className="glass-card" style={{ padding: '0', overflow: 'hidden' }}>
+          <div style={{ padding: '20px 24px', borderBottom: '1px solid var(--glass-border)' }}>
+            <h3 style={{ margin: 0, color: 'var(--text-main)' }}>📝 Detalle de Mensajes</h3>
+          </div>
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <thead>
+                <tr style={{ background: 'rgba(226, 176, 66, 0.05)' }}>
+                  <th style={{ padding: '14px 16px', textAlign: 'left', borderBottom: '1px solid var(--glass-border)', color: 'var(--text-muted)', fontWeight: '600', fontSize: '0.85rem' }}>Timestamp</th>
+                  <th style={{ padding: '14px 16px', textAlign: 'left', borderBottom: '1px solid var(--glass-border)', color: 'var(--text-muted)', fontWeight: '600', fontSize: '0.85rem' }}>Asesor</th>
+                  <th style={{ padding: '14px 16px', textAlign: 'right', borderBottom: '1px solid var(--glass-border)', color: 'var(--text-muted)', fontWeight: '600', fontSize: '0.85rem' }}>Tokens</th>
+                  <th style={{ padding: '14px 16px', textAlign: 'right', borderBottom: '1px solid var(--glass-border)', color: 'var(--text-muted)', fontWeight: '600', fontSize: '0.85rem' }}>Costo</th>
+                  <th style={{ padding: '14px 16px', textAlign: 'left', borderBottom: '1px solid var(--glass-border)', color: 'var(--text-muted)', fontWeight: '600', fontSize: '0.85rem' }}>Herramientas</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {messages.messages?.map((msg) => (
+                  <tr key={msg.id} style={{ borderBottom: '1px solid var(--glass-border)', transition: 'background 0.2s' }} onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(226, 176, 66, 0.03)'} onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}>
+                    <td style={{ padding: '14px 16px', fontSize: '0.85rem', color: 'var(--text-muted)' }}>{new Date(msg.timestamp).toLocaleString('es-MX')}</td>
+                    <td style={{ padding: '14px 16px', color: 'var(--text-main)', fontWeight: '500' }}>{msg.nombre}</td>
+                    <td style={{ padding: '14px 16px', textAlign: 'right', color: 'var(--text-main)', fontVariantNumeric: 'tabular-nums' }}>{msg.totalTokens}</td>
+                    <td style={{ padding: '14px 16px', textAlign: 'right', color: 'var(--accent-gold)', fontWeight: '600', fontVariantNumeric: 'tabular-nums' }}>${msg.costoEstimado.toFixed(4)}</td>
+                    <td style={{ padding: '14px 16px', fontSize: '0.85rem', color: 'var(--text-muted)' }}>{msg.herramientas?.join(', ') || '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
 
-          <div style={{ marginTop: '15px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div>
-              Página {page + 1} de {Math.ceil(messages.total / messages.limit)}
+          <div style={{ padding: '16px 24px', borderTop: '1px solid var(--glass-border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>
+              Página <span style={{ color: 'var(--accent-gold)', fontWeight: '600' }}>{page + 1}</span> de <span style={{ fontWeight: '600' }}>{Math.ceil(messages.total / messages.limit)}</span> • Total: <span style={{ color: 'var(--accent-gold)', fontWeight: '600' }}>{messages.total}</span> registros
             </div>
-            <div>
+            <div style={{ display: 'flex', gap: '8px' }}>
               <button
                 disabled={page === 0}
                 onClick={() => setPage(page - 1)}
-                style={{ marginRight: '5px', padding: '8px 15px', background: page === 0 ? '#ccc' : '#007bff', color: 'white', border: 'none', borderRadius: '4px', cursor: page === 0 ? 'default' : 'pointer' }}
+                style={{
+                  padding: '8px 16px',
+                  background: page === 0 ? 'rgba(255,255,255,0.05)' : 'rgba(226, 176, 66, 0.15)',
+                  color: page === 0 ? 'var(--text-muted)' : 'var(--accent-gold)',
+                  border: '1px solid var(--glass-border)',
+                  borderRadius: '6px',
+                  cursor: page === 0 ? 'default' : 'pointer',
+                  fontSize: '0.9rem',
+                  fontWeight: '500',
+                }}
               >
-                Anterior
+                ← Anterior
               </button>
               <button
                 disabled={page >= Math.ceil(messages.total / messages.limit) - 1}
                 onClick={() => setPage(page + 1)}
-                style={{ padding: '8px 15px', background: page >= Math.ceil(messages.total / messages.limit) - 1 ? '#ccc' : '#007bff', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
+                style={{
+                  padding: '8px 16px',
+                  background: page >= Math.ceil(messages.total / messages.limit) - 1 ? 'rgba(255,255,255,0.05)' : 'rgba(226, 176, 66, 0.15)',
+                  color: page >= Math.ceil(messages.total / messages.limit) - 1 ? 'var(--text-muted)' : 'var(--accent-gold)',
+                  border: '1px solid var(--glass-border)',
+                  borderRadius: '6px',
+                  cursor: page >= Math.ceil(messages.total / messages.limit) - 1 ? 'default' : 'pointer',
+                  fontSize: '0.9rem',
+                  fontWeight: '500',
+                }}
               >
-                Siguiente
+                Siguiente →
               </button>
             </div>
           </div>
