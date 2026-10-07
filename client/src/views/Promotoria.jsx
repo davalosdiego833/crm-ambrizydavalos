@@ -662,6 +662,17 @@ const PRODUCTO_PRESETS = [
   { id: 'GM', label: 'GMM (GM)' }
 ];
 
+// Seguimiento de cancelaciones: filtros rápidos por estado de reactivación.
+// Mientras hay uno activo se ignora el rango de fechas (una póliza pendiente
+// puede venir de una cancelación de hace semanas).
+const SEGUIMIENTO_PRESETS = [
+  { id: 'todos', label: 'Todos' },
+  { id: 'por_reactivar', label: 'Por reactivar' },
+  { id: 'accion', label: 'Requieren acción' },
+  { id: 'con_nota', label: 'Con observaciones' }
+];
+const SEGUIMIENTO_POR_REACTIVAR = ['pendiente', 'hoy', 'vencida'];
+
 const CancelacionesTab = ({ authFetch, apiBase }) => {
   const [data, setData] = useState({ importedAt: null, sourceFile: null, rows: [] });
   const [loading, setLoading] = useState(true);
@@ -672,6 +683,10 @@ const CancelacionesTab = ({ authFetch, apiBase }) => {
   const [customFrom, setCustomFrom] = useState(todayStr());
   const [customTo, setCustomTo] = useState(todayStr());
   const [productoFilter, setProductoFilter] = useState('todos');
+  const [seguimientoFilter, setSeguimientoFilter] = useState('todos');
+  const [editingRow, setEditingRow] = useState(null);
+  const [seguimientoForm, setSeguimientoForm] = useState({ observacion: '', reactivara: '', fechaReactivacion: '' });
+  const [savingSeguimiento, setSavingSeguimiento] = useState(false);
 
   const load = () => {
     setLoading(true);
@@ -712,11 +727,70 @@ const CancelacionesTab = ({ authFetch, apiBase }) => {
     return true;
   };
 
+  const openSeguimiento = (r) => {
+    setEditingRow(r);
+    setSeguimientoForm({ observacion: r.observacion || '', reactivara: r.reactivara || '', fechaReactivacion: r.fechaReactivacion || '' });
+  };
+
+  const guardarSeguimiento = (e) => {
+    e.preventDefault();
+    if (seguimientoForm.reactivara === 'si' && !seguimientoForm.fechaReactivacion) {
+      return alert('Si se va a reactivar, indica la fecha.');
+    }
+    setSavingSeguimiento(true);
+    authFetch(`${apiBase}/cancelaciones/seguimiento`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ noPoliza: editingRow.noPoliza, fechaDetectado: editingRow.fechaDetectado, ...seguimientoForm })
+    })
+      .then(res => res.json())
+      .then(d => {
+        setSavingSeguimiento(false);
+        if (d.success) {
+          // Actualiza solo esa fila en el estado local (sin recargar toda la tabla)
+          setData(prev => ({
+            ...prev,
+            rows: prev.rows.map(x => (x.noPoliza === d.fila.noPoliza && x.fechaDetectado === d.fila.fechaDetectado && x.estatusNuevo === 'Anulada') ? d.fila : x)
+          }));
+          setEditingRow(null);
+        } else alert(d.error || 'Error al guardar el seguimiento');
+      })
+      .catch(() => { setSavingSeguimiento(false); alert('Error al guardar el seguimiento'); });
+  };
+
+  const anuladas = (data.rows || []).filter(r => r.estatusNuevo === 'Anulada');
+  const totalVencidas = anuladas.filter(r => r.seguimiento === 'vencida').length;
+  const totalParaHoy = anuladas.filter(r => r.seguimiento === 'hoy').length;
+  const filtraSeguimiento = seguimientoFilter !== 'todos';
+
+  const coincideSeguimiento = (r) => {
+    if (seguimientoFilter === 'por_reactivar') return SEGUIMIENTO_POR_REACTIVAR.includes(r.seguimiento);
+    if (seguimientoFilter === 'accion') return r.seguimiento === 'hoy' || r.seguimiento === 'vencida';
+    if (seguimientoFilter === 'con_nota') return !!r.observacion;
+    return true;
+  };
+
   const rows = (data.rows || [])
     .filter(r => showAll || r.estatusNuevo === 'Anulada')
     .filter(r => (r.asesor || '').toLowerCase().includes(searchTerm.toLowerCase()))
-    .filter(r => matchesDateFilter(r.fechaDetectado))
-    .filter(r => productoFilter === 'todos' || (r.noPoliza || '').toUpperCase().startsWith(productoFilter));
+    .filter(r => filtraSeguimiento || matchesDateFilter(r.fechaDetectado))
+    .filter(r => productoFilter === 'todos' || (r.noPoliza || '').toUpperCase().startsWith(productoFilter))
+    .filter(coincideSeguimiento);
+
+  // Pendientes: la fecha de reactivación más próxima/vencida primero
+  if (seguimientoFilter === 'por_reactivar' || seguimientoFilter === 'accion') {
+    rows.sort((a, b) => (a.fechaReactivacion || '').localeCompare(b.fechaReactivacion || ''));
+  }
+
+  const renderSeguimientoBadge = (r) => {
+    const base = { padding: '4px 10px', borderRadius: '20px', fontSize: '0.7rem', fontWeight: 'bold', whiteSpace: 'nowrap', display: 'inline-block' };
+    if (r.seguimiento === 'reactivada') return <span style={{ ...base, background: 'rgba(0,255,170,0.1)', color: 'var(--accent-mint)' }}>Sí · {formatReadableDate(r.fechaReactivado)}</span>;
+    if (r.seguimiento === 'hoy') return <span style={{ ...base, background: 'rgba(226,176,66,0.15)', color: 'var(--accent-gold)' }}>Pendiente · toca hoy</span>;
+    if (r.seguimiento === 'vencida') return <span style={{ ...base, background: 'rgba(255,68,68,0.15)', color: '#ff4444' }}>Pendiente · vencida hace {r.diasVencida} {r.diasVencida === 1 ? 'día' : 'días'}</span>;
+    if (r.seguimiento === 'pendiente') return <span style={{ ...base, background: 'rgba(96,165,250,0.12)', color: '#60a5fa' }}>En espera</span>;
+    if (r.seguimiento === 'no_reactivara') return <span style={{ ...base, background: 'rgba(255,255,255,0.05)', color: 'var(--text-dim)' }}>No aplica</span>;
+    return <span style={{ color: 'var(--text-dim)' }}>—</span>;
+  };
 
   return (
     <div>
@@ -734,8 +808,27 @@ const CancelacionesTab = ({ authFetch, apiBase }) => {
         </label>
       </div>
 
+      {(totalVencidas > 0 || totalParaHoy > 0) && (
+        <div className="glass-card" style={{ marginBottom: '24px', padding: '16px 24px', borderLeft: `4px solid ${totalVencidas > 0 ? '#ff4444' : 'var(--accent-gold)'}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
+          <div>
+            <div style={{ fontWeight: '700', fontSize: '0.95rem' }}>Reactivaciones que requieren seguimiento</div>
+            <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginTop: '4px' }}>
+              {totalVencidas > 0 && <><strong style={{ color: '#ff4444' }}>{totalVencidas}</strong> con fecha vencida y sin reactivar</>}
+              {totalVencidas > 0 && totalParaHoy > 0 && ' · '}
+              {totalParaHoy > 0 && <><strong style={{ color: 'var(--accent-gold)' }}>{totalParaHoy}</strong> programada{totalParaHoy === 1 ? '' : 's'} para hoy</>}
+            </div>
+          </div>
+          <button
+            onClick={() => setSeguimientoFilter('accion')}
+            style={{ padding: '8px 18px', borderRadius: '20px', fontSize: '0.8rem', fontWeight: '600', cursor: 'pointer', border: '1px solid var(--glass-border)', background: 'rgba(255,255,255,0.04)', color: 'var(--text-main)' }}
+          >
+            Ver pólizas
+          </button>
+        </div>
+      )}
+
       <div className="glass-card" style={{ marginBottom: '24px', padding: '16px 24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', opacity: filtraSeguimiento ? 0.45 : 1 }}>
           {DATE_PRESETS.map(p => (
             <button
               key={p.id}
@@ -778,7 +871,32 @@ const CancelacionesTab = ({ authFetch, apiBase }) => {
           ))}
         </div>
 
-        {dateFilter === 'personalizado' && (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', alignItems: 'center' }}>
+          <span style={{ fontSize: '0.75rem', color: 'var(--text-dim)', marginRight: '4px' }}>Seguimiento:</span>
+          {SEGUIMIENTO_PRESETS.map(p => (
+            <button
+              key={p.id}
+              onClick={() => setSeguimientoFilter(p.id)}
+              style={{
+                padding: '8px 16px',
+                borderRadius: '20px',
+                fontSize: '0.8rem',
+                fontWeight: '600',
+                cursor: 'pointer',
+                border: seguimientoFilter === p.id ? '1px solid #60a5fa' : '1px solid var(--glass-border)',
+                background: seguimientoFilter === p.id ? 'rgba(96,165,250,0.12)' : 'transparent',
+                color: seguimientoFilter === p.id ? '#60a5fa' : 'var(--text-muted)'
+              }}
+            >
+              {p.label}
+            </button>
+          ))}
+          {filtraSeguimiento && (
+            <span style={{ fontSize: '0.7rem', color: 'var(--text-dim)' }}>Con este filtro se muestran todas las fechas.</span>
+          )}
+        </div>
+
+        {dateFilter === 'personalizado' && !filtraSeguimiento && (
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
             <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Desde</label>
             <input type="date" value={customFrom} onChange={(e) => setCustomFrom(e.target.value)} style={{ padding: '8px 10px', borderRadius: '8px', background: '#ffffff', border: '1px solid #cbd5e1', color: '#0f172a', outline: 'none' }} />
@@ -817,13 +935,17 @@ const CancelacionesTab = ({ authFetch, apiBase }) => {
                 <th style={{ padding: '16px 24px', color: 'var(--text-muted)', fontSize: '0.85rem' }}>Contratante</th>
                 <th style={{ padding: '16px 24px', color: 'var(--text-muted)', fontSize: '0.85rem' }}>Estatus Anterior</th>
                 <th style={{ padding: '16px 24px', color: 'var(--text-muted)', fontSize: '0.85rem' }}>Estatus Nuevo</th>
+                <th style={{ padding: '16px 24px', color: 'var(--text-muted)', fontSize: '0.85rem' }}>Observaciones</th>
+                <th style={{ padding: '16px 24px', color: 'var(--text-muted)', fontSize: '0.85rem' }}>¿Se reactivará?</th>
+                <th style={{ padding: '16px 24px', color: 'var(--text-muted)', fontSize: '0.85rem' }}>¿Se reactivó?</th>
+                <th style={{ padding: '16px 24px', color: 'var(--text-muted)', fontSize: '0.85rem', textAlign: 'center' }}>Seguimiento</th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
-                <tr><td colSpan="7" style={{ padding: '40px', textAlign: 'center', color: 'var(--text-dim)' }}>Cargando...</td></tr>
+                <tr><td colSpan="11" style={{ padding: '40px', textAlign: 'center', color: 'var(--text-dim)' }}>Cargando...</td></tr>
               ) : rows.length === 0 ? (
-                <tr><td colSpan="7" style={{ padding: '40px', textAlign: 'center', color: 'var(--text-dim)' }}>Sin registros para mostrar.</td></tr>
+                <tr><td colSpan="11" style={{ padding: '40px', textAlign: 'center', color: 'var(--text-dim)' }}>Sin registros para mostrar.</td></tr>
               ) : rows.map((r, i) => (
                 <tr key={i} style={{ borderBottom: '1px solid var(--glass-border)' }}>
                   <td style={{ padding: '16px 24px', fontSize: '0.85rem', color: 'var(--text-muted)' }}>{r.fechaDetectado}</td>
@@ -837,12 +959,97 @@ const CancelacionesTab = ({ authFetch, apiBase }) => {
                       {r.estatusNuevo}
                     </span>
                   </td>
+                  {r.estatusNuevo === 'Anulada' ? (
+                    <>
+                      <td title={r.observacion || ''} style={{ padding: '16px 24px', fontSize: '0.8rem', color: r.observacion ? 'var(--text-main)' : 'var(--text-dim)', minWidth: '220px', maxWidth: '300px', whiteSpace: 'pre-line', lineHeight: '1.4' }}>
+                        {r.observacion || '—'}
+                      </td>
+                      <td style={{ padding: '16px 24px', fontSize: '0.85rem', whiteSpace: 'nowrap' }}>
+                        {r.reactivara === 'si'
+                          ? <span style={{ color: 'var(--text-main)', fontWeight: '600' }}>Sí · {formatReadableDate(r.fechaReactivacion)}</span>
+                          : r.reactivara === 'no'
+                            ? <span style={{ color: 'var(--text-muted)' }}>No</span>
+                            : <span style={{ color: 'var(--text-dim)' }}>—</span>}
+                      </td>
+                      <td style={{ padding: '16px 24px' }}>{renderSeguimientoBadge(r)}</td>
+                      <td style={{ padding: '16px 24px', textAlign: 'center' }}>
+                        <button
+                          onClick={() => openSeguimiento(r)}
+                          style={{ background: 'none', border: 'none', color: 'var(--accent-gold)', fontSize: '0.8rem', cursor: 'pointer', fontWeight: 'bold' }}
+                        >
+                          {r.observacion || r.reactivara ? 'Editar' : 'Agregar'}
+                        </button>
+                      </td>
+                    </>
+                  ) : (
+                    <td colSpan="4" style={{ padding: '16px 24px', fontSize: '0.8rem', color: 'var(--text-dim)' }}>Sin seguimiento (no es una cancelación)</td>
+                  )}
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
       </div>
+
+      {editingRow && (
+        <ModalShell title="Seguimiento de cancelación" onClose={() => setEditingRow(null)}>
+          <div style={{ fontSize: '0.8rem', color: '#334155', marginBottom: '18px', lineHeight: '1.5' }}>
+            <div><strong>{editingRow.noPoliza}</strong> · {editingRow.contratante}</div>
+            <div>Asesor: {editingRow.asesor} ({editingRow.noAgente}) · cancelada el {formatReadableDate(editingRow.fechaDetectado)}</div>
+          </div>
+          <form onSubmit={guardarSeguimiento} style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
+            <div>
+              <label style={labelStyle}>Observaciones</label>
+              <textarea
+                style={{ ...inputStyle, minHeight: '90px', resize: 'vertical', fontFamily: 'inherit' }}
+                value={seguimientoForm.observacion}
+                onChange={(e) => setSeguimientoForm(prev => ({ ...prev, observacion: e.target.value }))}
+                placeholder="Ej. El asesor comenta que el cliente paga el viernes"
+                maxLength={1000}
+              />
+            </div>
+            <div>
+              <label style={labelStyle}>¿Se reactivará?</label>
+              <select
+                style={inputStyle}
+                value={seguimientoForm.reactivara}
+                onChange={(e) => setSeguimientoForm(prev => ({ ...prev, reactivara: e.target.value, fechaReactivacion: e.target.value === 'si' ? prev.fechaReactivacion : '' }))}
+              >
+                <option value="">Sin definir</option>
+                <option value="si">Sí</option>
+                <option value="no">No</option>
+              </select>
+            </div>
+            {seguimientoForm.reactivara === 'si' && (
+              <div>
+                <label style={labelStyle}>Fecha en que se reactivará *</label>
+                <input
+                  type="date"
+                  style={inputStyle}
+                  value={seguimientoForm.fechaReactivacion}
+                  onChange={(e) => setSeguimientoForm(prev => ({ ...prev, fechaReactivacion: e.target.value }))}
+                  required
+                />
+                <span style={{ fontSize: '0.7rem', color: '#64748b', marginTop: '6px', display: 'block' }}>
+                  Si llega esta fecha y la póliza no se ha reactivado, seguirá apareciendo como pendiente.
+                </span>
+              </div>
+            )}
+            <span style={{ fontSize: '0.7rem', color: '#64748b' }}>
+              "¿Se reactivó?" se detecta solo: cuando la póliza vuelve a aparecer en el reporte con un estatus distinto de Anulada.
+            </span>
+            {editingRow.seguimientoActualizadoEn && (
+              <span style={{ fontSize: '0.7rem', color: '#64748b' }}>
+                Última actualización: {new Date(editingRow.seguimientoActualizadoEn).toLocaleString('es-MX')}{editingRow.seguimientoActualizadoPor ? ` por ${editingRow.seguimientoActualizadoPor}` : ''}
+              </span>
+            )}
+            <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', marginTop: '4px' }}>
+              <button type="button" onClick={() => setEditingRow(null)} style={{ padding: '12px 24px', borderRadius: '10px', background: '#f1f5f9', color: '#0f172a', border: '1px solid #cbd5e1', cursor: 'pointer', fontWeight: '600' }}>Cancelar</button>
+              <button type="submit" className="btn-primary" disabled={savingSeguimiento}>{savingSeguimiento ? 'Guardando...' : 'Guardar'}</button>
+            </div>
+          </form>
+        </ModalShell>
+      )}
     </div>
   );
 };

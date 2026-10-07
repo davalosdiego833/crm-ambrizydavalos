@@ -177,6 +177,50 @@ sección nueva **"Pólizas actuales"**, separada de "Pólizas a reasignar"
 (esa sigue siendo solo para claves ya desaparecidas) — probado con datos
 sintéticos antes de desplegar.
 
+## Seguimiento de cancelaciones: observaciones + reactivación (2026-10-07)
+
+Columnas nuevas en Cancelaciones (Promotoría **y** Karen, mismo componente):
+**Observaciones**, **¿Se reactivará?** (Sí + fecha / No), **¿Se reactivó?**, y
+un botón Agregar/Editar por fila (solo filas Anulada). Se edita desde el CRM
+y desde WhatsApp. Idea de Diego: que las notas de las cancelaciones "no se
+pasen" — poder preguntar "qué pólizas se reactivan hoy / en tal fecha" y que
+sigan como pendientes si pasó la fecha y no se reactivaron.
+
+Decisiones de diseño (no obvias):
+- **Se guarda aparte de las filas** (`seguimientoCancelaciones` en
+  `promotoria.json`/`karen.json`, llave `"<noPoliza>|<fechaDetectado>"`),
+  porque cada importación reemplaza TODAS las filas de cancelaciones con el
+  Excel de origen — una nota dentro de la fila se perdería en la siguiente
+  corrida diaria. Probado: las notas sobreviven a reimportar.
+- **"¿Se reactivó?" NO se captura a mano**: lo calcula el servidor
+  (`enriquecerCancelaciones` en `server/index.js`) — es `true` si existe un
+  movimiento posterior de esa misma póliza con estatus distinto de Anulada.
+- `seguimiento` calculado por fila: `pendiente` (fecha futura) · `hoy` ·
+  `vencida` (fecha pasó y sigue sin reactivarse; trae `diasVencida`) ·
+  `reactivada` · `no_reactivara` · vacío. "Hoy" siempre en hora de México
+  (`hoyMexico()`), no UTC del servidor (mismo tipo de bug de zona horaria
+  que ya se corrigió en el filtro de fechas del frontend).
+- Si `reactivara = si`, la **fecha es obligatoria** (el API responde 400 si
+  falta). Las llaves que no se manden se conservan (se puede actualizar solo
+  la nota).
+- API: `GET` de cancelaciones ahora devuelve las filas enriquecidas + `hoy`;
+  `PUT /api/promotoria/cancelaciones/seguimiento` y `/api/karen/...` con
+  `{ noPoliza, fechaDetectado?, observacion?, reactivara?, fechaReactivacion? }`
+  (sin `fechaDetectado` usa la cancelación más reciente de esa póliza).
+- UI: tarjeta de alerta arriba (vencidas / para hoy) + filtro "Seguimiento"
+  (Por reactivar · Requieren acción · Con observaciones) que ignora el rango
+  de fechas, porque una pendiente puede venir de una cancelación vieja.
+- WhatsApp (`asistente-prototipo/crm-tools.js`): `consultar_cancelaciones`
+  (y `_karen`) ahora filtran por `seguimiento` y `fecha_reactivacion` y
+  devuelven `hoy`; herramienta nueva `registrar_seguimiento_cancelacion`
+  (y `_karen`) que escribe — pide confirmación y siempre por número de
+  póliza exacto. **El bot carga las herramientas al arrancar: hay que
+  reiniciarlo para que las vea**, y su `CRM_URL` debe apuntar al servidor
+  que ya tenga este endpoint (producción tras el deploy).
+- Probado con datos sintéticos (backend, UI en navegador y las herramientas
+  del asistente ejecutadas directo). **No** se probó la conversación real
+  por WhatsApp con el modelo (requiere el bot corriendo).
+
 ## ⚠️ Hallazgo de seguridad (2026-09-18, sin resolver todavía)
 
 `server/db.json` guarda, para cada usuario, **la contraseña dos veces**: una

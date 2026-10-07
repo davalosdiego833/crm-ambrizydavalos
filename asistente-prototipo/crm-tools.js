@@ -131,6 +131,106 @@ async function buscarEnLista(token, path, identificador, campoClaveExacta) {
   );
 }
 
+// PUT que NO truena en 4xx: regresa el cuerpo tal cual, para que el asistente
+// lea el mensaje real del servidor (ej. "indica la fecha") y se lo pueda
+// explicar a quien pregunta, en vez de un error genérico de status.
+async function crmPutJson(token, path, body) {
+  const res = await fetch(`${CRM_URL}${path}`, {
+    method: 'PUT',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  return res.json().catch(() => ({ error: `Error ${res.status} actualizando ${path}` }));
+}
+
+// Seguimiento de cancelaciones (observaciones + reactivación). El CRM ya
+// entrega cada fila Anulada con estos campos calculados — aquí solo se filtra.
+const DESCRIPCION_SEGUIMIENTO =
+  'Cada cancelación (estatus Anulada) trae su seguimiento: "observacion" (nota libre), "reactivara" ' +
+  '("si"/"no"/vacío = sin definir), "fechaReactivacion" (la fecha que dio el asesor), "reactivado" ' +
+  '(true/false — lo calcula el sistema solo, cuando la póliza vuelve a aparecer en el reporte con un ' +
+  'estatus distinto de Anulada) y "seguimiento": "pendiente" (le toca reactivarse en el futuro), "hoy" ' +
+  '(le toca reactivarse hoy), "vencida" (la fecha ya pasó y NO se ha reactivado — "diasVencida" dice ' +
+  'cuántos días), "reactivada", "no_reactivara", o vacío (sin definir). El resultado incluye "hoy" (la ' +
+  'fecha de hoy en México, YYYY-MM-DD) — úsala para entender "mañana", "esta semana", etc.';
+
+const FILTROS_SEGUIMIENTO = {
+  por_reactivar: (r) => ['pendiente', 'hoy', 'vencida'].includes(r.seguimiento),
+  requieren_accion: (r) => r.seguimiento === 'hoy' || r.seguimiento === 'vencida',
+  hoy: (r) => r.seguimiento === 'hoy',
+  vencidas: (r) => r.seguimiento === 'vencida',
+  reactivadas: (r) => r.seguimiento === 'reactivada',
+  con_observaciones: (r) => !!r.observacion,
+};
+
+const SCHEMA_CONSULTA_CANCELACIONES = {
+  type: 'object',
+  properties: {
+    asesor: { type: 'string', description: 'Filtra por nombre (completo o parcial) del asesor.' },
+    contratante: { type: 'string', description: 'Filtra por nombre (completo o parcial) del contratante.' },
+    tipo: { type: 'string', description: 'Filtra por tipo de cancelación, tal como viene en el reporte.' },
+    seguimiento: {
+      type: 'string',
+      enum: Object.keys(FILTROS_SEGUIMIENTO),
+      description:
+        'Filtra por estado de seguimiento: "por_reactivar" (todas las que el asesor dijo que se reactivarán y ' +
+        'aún no lo hacen), "requieren_accion" (las de hoy + las vencidas), "hoy", "vencidas", "reactivadas", ' +
+        '"con_observaciones".',
+    },
+    fecha_reactivacion: {
+      type: 'string',
+      description: 'YYYY-MM-DD. Trae las pólizas que el asesor prometió reactivar EXACTAMENTE en esa fecha (y siguen sin reactivarse).',
+    },
+  },
+};
+
+// Filtros compartidos entre la consulta de Promotoría y la de Karen.
+function filtrarCancelaciones(rows, { asesor, contratante, tipo, seguimiento, fecha_reactivacion } = {}) {
+  let out = rows || [];
+  if (asesor) out = out.filter((r) => normalizar(r.asesor).includes(normalizar(asesor)));
+  if (contratante) out = out.filter((r) => normalizar(r.contratante).includes(normalizar(contratante)));
+  if (tipo) out = out.filter((r) => normalizar(r.tipo).includes(normalizar(tipo)));
+  if (seguimiento && FILTROS_SEGUIMIENTO[seguimiento]) out = out.filter(FILTROS_SEGUIMIENTO[seguimiento]);
+  if (fecha_reactivacion) out = out.filter((r) => r.fechaReactivacion === fecha_reactivacion && !r.reactivado);
+  return out;
+}
+
+// Herramienta que ESCRIBE el seguimiento de una cancelación (la misma que
+// edita la pantalla de Cancelaciones del CRM). `basePath` es /api/promotoria o
+// /api/karen — cada una guarda en su base, nunca se mezclan.
+function herramientaSeguimientoCancelacion(token, nombre, basePath, etiqueta) {
+  return {
+    spec: {
+      name: nombre,
+      description:
+        `Anota o actualiza el seguimiento de una cancelación de ${etiqueta}: observaciones, si se reactivará ` +
+        'y en qué fecha. ES UNA ACCIÓN QUE ESCRIBE — solo tras confirmación explícita del directivo, ' +
+        'mostrándole antes qué va a quedar anotado, y siempre sobre el NÚMERO DE PÓLIZA exacto (si solo te ' +
+        'dio un nombre, búscalo primero con la consulta de cancelaciones, muestra la póliza y confirma). ' +
+        'Solo mandas los campos que se quieren cambiar: los demás se conservan. Si el directivo dice que SÍ ' +
+        'se reactivará, la fecha es OBLIGATORIA — si no la dio, pregúntasela antes de llamar. No marques ' +
+        'nada como "reactivada": eso lo detecta el sistema solo. Solo para directivos.',
+      input_schema: {
+        type: 'object',
+        properties: {
+          numero_poliza: { type: 'string', description: 'Número de póliza exacto de la cancelación.' },
+          observacion: { type: 'string', description: 'Nota libre sobre la cancelación (reemplaza la anterior; "" la borra).' },
+          reactivara: { type: 'string', enum: ['si', 'no', 'quitar'], description: '"si", "no", o "quitar" para dejarlo sin definir.' },
+          fecha_reactivacion: { type: 'string', description: 'YYYY-MM-DD. Obligatoria cuando reactivara es "si".' },
+        },
+        required: ['numero_poliza'],
+      },
+    },
+    run: ({ numero_poliza, observacion, reactivara, fecha_reactivacion }) => {
+      const body = { noPoliza: numero_poliza };
+      if (observacion !== undefined) body.observacion = observacion;
+      if (reactivara !== undefined) body.reactivara = reactivara === 'quitar' ? '' : reactivara;
+      if (fecha_reactivacion !== undefined) body.fechaReactivacion = fecha_reactivacion;
+      return crmPutJson(token, `${basePath}/cancelaciones/seguimiento`, body);
+    },
+  };
+}
+
 // Sube el PDF de una póliza al extractor que ya existe en el CRM (mismo que
 // usa la app web) y regresa los campos que pudo leer. Es de solo lectura —
 // no da de alta nada todavía, eso lo hace `dar_de_alta_cliente` aparte.
@@ -696,25 +796,19 @@ export function construirHerramientas(token, role, claveAgente) {
             'que pasaron a estatus Anulada): fecha detectada, asesor, número de póliza, contratante, ' +
             'estatus anterior y nuevo. Se puede filtrar por asesor, contratante y/o tipo — si el ' +
             'directivo pide algo específico (ej. "las de Fernando"), usa el filtro en vez de traer todo ' +
-            'y buscarlo tú. Solo para directivos.',
-          input_schema: {
-            type: 'object',
-            properties: {
-              asesor: { type: 'string', description: 'Filtra por nombre (completo o parcial) del asesor.' },
-              contratante: { type: 'string', description: 'Filtra por nombre (completo o parcial) del contratante.' },
-              tipo: { type: 'string', description: 'Filtra por tipo de cancelación, tal como viene en el reporte.' },
-            },
-          },
+            'y buscarlo tú. También sirve para el SEGUIMIENTO de reactivaciones (ej. "qué pólizas se ' +
+            'tienen que reactivar hoy" → seguimiento "hoy"; "cuáles ya vencieron y no se reactivaron" → ' +
+            '"vencidas"; "las que se reactivan el 15 de octubre" → fecha_reactivacion). ' +
+            DESCRIPCION_SEGUIMIENTO + ' Solo para directivos.',
+          input_schema: SCHEMA_CONSULTA_CANCELACIONES,
         },
-        run: async ({ asesor, contratante, tipo } = {}) => {
+        run: async (filtros = {}) => {
           const reporte = await crmGet(token, '/api/promotoria/cancelaciones');
-          let rows = reporte.rows || [];
-          if (asesor) rows = rows.filter((r) => normalizar(r.asesor).includes(normalizar(asesor)));
-          if (contratante) rows = rows.filter((r) => normalizar(r.contratante).includes(normalizar(contratante)));
-          if (tipo) rows = rows.filter((r) => normalizar(r.tipo).includes(normalizar(tipo)));
-          return { importedAt: reporte.importedAt, sourceFile: reporte.sourceFile, total_encontradas: rows.length, rows };
+          const rows = filtrarCancelaciones(reporte.rows, filtros);
+          return { hoy: reporte.hoy, importedAt: reporte.importedAt, sourceFile: reporte.sourceFile, total_encontradas: rows.length, rows };
         },
       },
+      herramientaSeguimientoCancelacion(token, 'registrar_seguimiento_cancelacion', '/api/promotoria', 'la promotoría'),
 
       // Gerencia de Karen: mismo tipo de datos que la promotoría (pre-contratos y
       // cancelaciones), pero en su propia base separada (karen.json en el servidor).
@@ -806,25 +900,18 @@ export function construirHerramientas(token, role, claveAgente) {
             'Da el último reporte importado de cancelaciones de pólizas de la Gerencia de Karen (base ' +
             'separada de la promotoría): fecha detectada, asesor, número de póliza, contratante, estatus ' +
             'anterior y nuevo. Se puede filtrar por asesor, contratante y/o tipo — si el directivo pide ' +
-            'algo específico, usa el filtro en vez de traer todo y buscarlo tú. Solo para directivos.',
-          input_schema: {
-            type: 'object',
-            properties: {
-              asesor: { type: 'string', description: 'Filtra por nombre (completo o parcial) del asesor.' },
-              contratante: { type: 'string', description: 'Filtra por nombre (completo o parcial) del contratante.' },
-              tipo: { type: 'string', description: 'Filtra por tipo de cancelación, tal como viene en el reporte.' },
-            },
-          },
+            'algo específico, usa el filtro en vez de traer todo y buscarlo tú. También sirve para el ' +
+            'SEGUIMIENTO de reactivaciones de Karen (seguimiento "hoy", "vencidas", fecha_reactivacion, ' +
+            'etc.). ' + DESCRIPCION_SEGUIMIENTO + ' Solo para directivos.',
+          input_schema: SCHEMA_CONSULTA_CANCELACIONES,
         },
-        run: async ({ asesor, contratante, tipo } = {}) => {
+        run: async (filtros = {}) => {
           const reporte = await crmGet(token, '/api/karen/cancelaciones');
-          let rows = reporte.rows || [];
-          if (asesor) rows = rows.filter((r) => normalizar(r.asesor).includes(normalizar(asesor)));
-          if (contratante) rows = rows.filter((r) => normalizar(r.contratante).includes(normalizar(contratante)));
-          if (tipo) rows = rows.filter((r) => normalizar(r.tipo).includes(normalizar(tipo)));
-          return { importedAt: reporte.importedAt, sourceFile: reporte.sourceFile, total_encontradas: rows.length, rows };
+          const rows = filtrarCancelaciones(reporte.rows, filtros);
+          return { hoy: reporte.hoy, importedAt: reporte.importedAt, sourceFile: reporte.sourceFile, total_encontradas: rows.length, rows };
         },
       },
+      herramientaSeguimientoCancelacion(token, 'registrar_seguimiento_cancelacion_karen', '/api/karen', 'la Gerencia de Karen'),
 
       // Panel de campañas: sistema aparte del CRM (otra página, otra base de
       // datos) con campañas, premios y estatus de pólizas de TODA la

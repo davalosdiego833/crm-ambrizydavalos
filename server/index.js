@@ -162,7 +162,11 @@ const saveDB = () => {
 const defaultClavesTemporales = { importedAt: null, sourceFile: null, rows: [] };
 const defaultPolizasReasignar = { importedAt: null, sourceFile: null, rows: [] };
 const defaultDetalleActivas = { importedAt: null, sourceFile: null, rows: [] };
-const defaultPromotoria = { asesores: [], preContratos: [], cancelaciones: { importedAt: null, sourceFile: null, rows: [] }, clavesTemporales: { ...defaultClavesTemporales }, polizasReasignar: { ...defaultPolizasReasignar }, detalleActivas: { ...defaultDetalleActivas } };
+// Seguimiento de cancelaciones (observaciones + reactivación): vive APARTE
+// de cancelaciones.rows porque cada importación reemplaza todas las filas
+// con el Excel de origen — cualquier nota guardada dentro de una fila se
+// perdería en la siguiente corrida. Llave: "<noPoliza>|<fechaDetectado>".
+const defaultPromotoria = { asesores: [], preContratos: [], cancelaciones: { importedAt: null, sourceFile: null, rows: [] }, clavesTemporales: { ...defaultClavesTemporales }, polizasReasignar: { ...defaultPolizasReasignar }, detalleActivas: { ...defaultDetalleActivas }, seguimientoCancelaciones: {} };
 
 const loadPromotoria = () => {
   if (fs.existsSync(PROMOTORIA_FILE)) {
@@ -181,7 +185,7 @@ const savePromotoria = () => {
 // Gerencia de Karen: otra cuenta del mismo portal, asesores distintos a los
 // de la Promotoría de Diego. Datos completamente separados — nunca se
 // combinan con los de promotoria.json.
-const defaultKaren = { preContratos: [], cancelaciones: { importedAt: null, sourceFile: null, rows: [] }, clavesTemporales: { ...defaultClavesTemporales }, polizasReasignar: { ...defaultPolizasReasignar }, detalleActivas: { ...defaultDetalleActivas } };
+const defaultKaren = { preContratos: [], cancelaciones: { importedAt: null, sourceFile: null, rows: [] }, clavesTemporales: { ...defaultClavesTemporales }, polizasReasignar: { ...defaultPolizasReasignar }, detalleActivas: { ...defaultDetalleActivas }, seguimientoCancelaciones: {} };
 
 const loadKaren = () => {
   if (fs.existsSync(KAREN_FILE)) {
@@ -3271,9 +3275,119 @@ app.delete('/api/promotoria/pre-contratos/:id', authMiddleware, promotoriaAccess
   res.json({ success: true });
 });
 
+// --- Seguimiento de cancelaciones (observaciones + reactivación) ---
+// Compartido por Promotoría y Karen (cada una pasa su propio dataset).
+
+// "Hoy" siempre en hora de México — el servidor corre en UTC y, igual que
+// pasó con el filtro de fechas del frontend, a partir de las 6pm locales su
+// "hoy" ya sería mañana.
+const hoyMexico = () => new Date().toLocaleDateString('en-CA', { timeZone: 'America/Mexico_City' });
+const FECHA_ISO = /^\d{4}-\d{2}-\d{2}$/;
+const diasEntre = (desde, hasta) => Math.round((new Date(hasta + 'T00:00:00Z') - new Date(desde + 'T00:00:00Z')) / 86400000);
+const claveSeguimiento = (noPoliza, fechaDetectado) => `${noPoliza}|${fechaDetectado}`;
+const sinAcentos = (t) => String(t || '').normalize('NFD').replace(/[̀-ͯ]/g, '').trim().toLowerCase();
+
+// A cada fila Anulada le agrega su seguimiento guardado, y calcula SOLO (no se
+// captura a mano) si la póliza ya se reactivó: existe un movimiento posterior
+// de esa misma póliza con estatus distinto de Anulada.
+//   seguimiento: 'reactivada' | 'no_reactivara' | 'pendiente' (fecha futura)
+//              | 'hoy' (le toca reactivarse hoy) | 'vencida' (la fecha ya
+//              pasó y sigue sin reactivarse) | '' (sin definir)
+const enriquecerCancelaciones = (org) => {
+  const rows = org.cancelaciones.rows || [];
+  const seguimientos = org.seguimientoCancelaciones || {};
+  const hoy = hoyMexico();
+
+  const movimientosNoAnulada = {};
+  rows.forEach(r => {
+    if (r.estatusNuevo && r.estatusNuevo !== 'Anulada') {
+      (movimientosNoAnulada[r.noPoliza] = movimientosNoAnulada[r.noPoliza] || []).push(String(r.fechaDetectado));
+    }
+  });
+
+  return rows.map(r => {
+    if (r.estatusNuevo !== 'Anulada') return r;
+    const s = seguimientos[claveSeguimiento(r.noPoliza, r.fechaDetectado)] || {};
+    const posteriores = (movimientosNoAnulada[r.noPoliza] || []).filter(f => f > String(r.fechaDetectado)).sort();
+    const reactivado = posteriores.length > 0;
+    const reactivara = s.reactivara || '';
+    const fechaReactivacion = s.fechaReactivacion || '';
+
+    let seguimiento = '';
+    let diasVencida = null;
+    if (reactivado) seguimiento = 'reactivada';
+    else if (reactivara === 'no') seguimiento = 'no_reactivara';
+    else if (reactivara === 'si') {
+      if (!fechaReactivacion || fechaReactivacion > hoy) seguimiento = 'pendiente';
+      else if (fechaReactivacion === hoy) seguimiento = 'hoy';
+      else { seguimiento = 'vencida'; diasVencida = diasEntre(fechaReactivacion, hoy); }
+    }
+
+    return {
+      ...r,
+      observacion: s.observacion || '',
+      reactivara,
+      fechaReactivacion,
+      reactivado,
+      fechaReactivado: reactivado ? posteriores[0] : '',
+      seguimiento,
+      diasVencida,
+      seguimientoActualizadoEn: s.actualizadoEn || '',
+      seguimientoActualizadoPor: s.actualizadoPor || ''
+    };
+  });
+};
+
+// Guarda (o actualiza, o borra si queda vacío) el seguimiento de UNA cancelación.
+// Si no se indica la fecha en que se detectó, usa la cancelación más reciente
+// de esa póliza (así WhatsApp solo necesita el número de póliza). Las llaves
+// que no vengan se conservan como estaban — se puede actualizar solo la
+// observación sin tocar la reactivación.
+const guardarSeguimientoCancelacion = (org, body, usuario) => {
+  const noPoliza = String(body.noPoliza || '').trim();
+  if (!noPoliza) return { status: 400, error: 'Falta el número de póliza' };
+
+  const anuladas = (org.cancelaciones.rows || []).filter(r => String(r.noPoliza) === noPoliza && r.estatusNuevo === 'Anulada');
+  if (anuladas.length === 0) return { status: 404, error: 'No hay una cancelación (Anulada) registrada para esa póliza' };
+
+  let fila;
+  if (body.fechaDetectado) {
+    fila = anuladas.find(r => String(r.fechaDetectado) === String(body.fechaDetectado));
+    if (!fila) return { status: 404, error: 'Esa póliza no tiene una cancelación detectada en esa fecha' };
+  } else {
+    fila = [...anuladas].sort((a, b) => String(b.fechaDetectado).localeCompare(String(a.fechaDetectado)))[0];
+  }
+
+  const key = claveSeguimiento(fila.noPoliza, fila.fechaDetectado);
+  const previo = org.seguimientoCancelaciones[key] || {};
+
+  const observacion = body.observacion !== undefined ? String(body.observacion).trim().slice(0, 1000) : (previo.observacion || '');
+  const reactivara = body.reactivara !== undefined ? sinAcentos(body.reactivara) : (previo.reactivara || '');
+  if (!['', 'si', 'no'].includes(reactivara)) return { status: 400, error: 'reactivara debe ser "si", "no" o vacío' };
+
+  let fechaReactivacion = body.fechaReactivacion !== undefined ? String(body.fechaReactivacion || '').trim() : (previo.fechaReactivacion || '');
+  if (reactivara !== 'si') fechaReactivacion = '';
+  if (reactivara === 'si' && !FECHA_ISO.test(fechaReactivacion)) {
+    return { status: 400, error: 'Si se va a reactivar, indica la fecha (formato AAAA-MM-DD)' };
+  }
+
+  if (!observacion && !reactivara) delete org.seguimientoCancelaciones[key];
+  else org.seguimientoCancelaciones[key] = { observacion, reactivara, fechaReactivacion, actualizadoEn: new Date().toISOString(), actualizadoPor: usuario || '' };
+
+  return { ok: true, fila };
+};
+
 // --- Cancelaciones (importadas del Excel de "Estatus de Pólizas") ---
 app.get('/api/promotoria/cancelaciones', authMiddleware, promotoriaAccess, (req, res) => {
-  res.json(promotoria.cancelaciones);
+  res.json({ ...promotoria.cancelaciones, rows: enriquecerCancelaciones(promotoria), hoy: hoyMexico() });
+});
+
+app.put('/api/promotoria/cancelaciones/seguimiento', authMiddleware, promotoriaAccess, (req, res) => {
+  const r = guardarSeguimientoCancelacion(promotoria, req.body || {}, req.user.name);
+  if (!r.ok) return res.status(r.status).json({ error: r.error });
+  savePromotoria();
+  const fila = enriquecerCancelaciones(promotoria).find(x => x.noPoliza === r.fila.noPoliza && x.fechaDetectado === r.fila.fechaDetectado && x.estatusNuevo === 'Anulada');
+  res.json({ success: true, fila });
 });
 
 // Parsea un Excel de "cambios de estatus" (mismo formato para Promotoría y
@@ -3419,7 +3533,15 @@ app.delete('/api/karen/pre-contratos/:id', authMiddleware, promotoriaAccess, (re
 
 // --- Cancelaciones (Karen) ---
 app.get('/api/karen/cancelaciones', authMiddleware, promotoriaAccess, (req, res) => {
-  res.json(karen.cancelaciones);
+  res.json({ ...karen.cancelaciones, rows: enriquecerCancelaciones(karen), hoy: hoyMexico() });
+});
+
+app.put('/api/karen/cancelaciones/seguimiento', authMiddleware, promotoriaAccess, (req, res) => {
+  const r = guardarSeguimientoCancelacion(karen, req.body || {}, req.user.name);
+  if (!r.ok) return res.status(r.status).json({ error: r.error });
+  saveKaren();
+  const fila = enriquecerCancelaciones(karen).find(x => x.noPoliza === r.fila.noPoliza && x.fechaDetectado === r.fila.fechaDetectado && x.estatusNuevo === 'Anulada');
+  res.json({ success: true, fila });
 });
 
 app.post('/api/karen/cancelaciones/import', authMiddleware, promotoriaAccess, upload.single('file'), (req, res) => {
