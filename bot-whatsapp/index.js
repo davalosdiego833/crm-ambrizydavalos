@@ -59,6 +59,33 @@ function paraEnviar(numero) {
   return numero;
 }
 
+// Registra uso del bot en servidor para tracking de créditos.
+async function registrarUsoBot(numero, nombre, claveAgente, usage, herramientas) {
+  try {
+    const payload = {
+      timestamp: new Date().toISOString(),
+      numero,
+      nombre,
+      claveAgente,
+      inputTokens: usage.input_tokens,
+      outputTokens: usage.output_tokens,
+      totalTokens: usage.input_tokens + usage.output_tokens,
+      herramientas: herramientas.length > 0 ? herramientas : [],
+      costoEstimado: ((usage.input_tokens / 1000) * 0.003 + (usage.output_tokens / 1000) * 0.015),
+    };
+    const res = await fetch(`${process.env.CRM_API_URL || 'http://localhost:3001'}/api/bot-usage/log`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      console.warn(`No se pudo registrar uso (HTTP ${res.status})`);
+    }
+  } catch (err) {
+    console.warn(`No se pudo conectar para registrar uso: ${err.message}`);
+  }
+}
+
 // Encuentra, por número de WhatsApp, a qué asesor le pertenece un mensaje —
 // o null si nadie con ese número tiene el acceso encendido.
 async function encontrarAsesorPorNumero(numeroWhatsapp) {
@@ -212,10 +239,22 @@ async function procesarMensaje(numero, texto, sesionYaObtenida) {
     return enviarWhatsApp(numero, 'Este número no tiene acceso a este asistente. Contacta a tu promotor.');
   }
 
-  const log = (nombre, input) => console.log(`  [herramienta] ${nombre}(${JSON.stringify(input)})`);
-  const respuesta = await responder(anthropic, MODEL, sesion.herramientas, sesion.messages, texto, SYSTEM_PROMPT, log);
+  const herramientasUsadas = [];
+  const log = (nombre, input) => {
+    console.log(`  [herramienta] ${nombre}(${JSON.stringify(input)})`);
+    herramientasUsadas.push(nombre);
+  };
+  const resultado = await responder(anthropic, MODEL, sesion.herramientas, sesion.messages, texto, SYSTEM_PROMPT, log, { returnUsage: true });
+  const respuesta = resultado.text;
+  const usage = resultado.usage;
 
   console.log(`🤖 → ${numero} (${sesion.nombre}): ${respuesta}`);
+  console.log(`  [tokens] input: ${usage.input_tokens}, output: ${usage.output_tokens}`);
+
+  registrarUsoBot(numero, sesion.nombre, sesion.claveAgente, usage, herramientasUsadas).catch((err) => {
+    console.error('Error registrando uso del bot:', err.message);
+  });
+
   await enviarWhatsApp(numero, respuesta);
 }
 

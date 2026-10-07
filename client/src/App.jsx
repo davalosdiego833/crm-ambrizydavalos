@@ -5,6 +5,7 @@ import Analytics from './views/Analytics';
 import TemplatesPanel from './views/TemplatesPanel';
 import Prospects from './views/Prospects';
 import Promotoria from './views/Promotoria';
+import BotUsage from './views/BotUsage';
 import novarisLogo from './assets/logo.png';
 import ambrizLogo from './assets/ambriz_logo.png';
 
@@ -1200,6 +1201,7 @@ const AdminPanel = () => {
   const [newRole, setNewRole] = useState('advisor');
   const [editRole, setEditRole] = useState('advisor');
   const [newCompany, setNewCompany] = useState(user?.company === 'novaris' ? 'novaris' : 'ambriz');
+  const [adminTab, setAdminTab] = useState('usuarios');
   const isMasterAdmin = user?.role === 'admin';
   // La cuenta de Promotoría también supervisa ambos despachos, igual que el Master.
   const hasGlobalScope = user?.role === 'admin' || user?.role === 'promotoria';
@@ -1320,6 +1322,42 @@ const AdminPanel = () => {
     <div className="animate-up">
       <h1 style={{ fontSize: '2rem', marginBottom: '32px' }}>Panel de <span className="text-gradient-gold">Administración</span></h1>
 
+      <div style={{ display: 'flex', gap: '12px', marginBottom: '24px', borderBottom: '1px solid var(--glass-border)', paddingBottom: '12px' }}>
+        <button
+          onClick={() => setAdminTab('usuarios')}
+          style={{
+            padding: '8px 16px',
+            background: adminTab === 'usuarios' ? 'rgba(226, 176, 66, 0.15)' : 'transparent',
+            border: 'none',
+            borderBottom: adminTab === 'usuarios' ? '2px solid var(--accent-gold)' : 'none',
+            color: adminTab === 'usuarios' ? 'var(--accent-gold)' : 'var(--text-muted)',
+            cursor: 'pointer',
+            fontSize: '0.9rem',
+            fontWeight: adminTab === 'usuarios' ? '600' : '400',
+          }}
+        >
+          Usuarios & Cuentas
+        </button>
+        {(user?.role === 'admin' || user?.role === 'promotoria') && (
+          <button
+            onClick={() => setAdminTab('bot')}
+            style={{
+              padding: '8px 16px',
+              background: adminTab === 'bot' ? 'rgba(226, 176, 66, 0.15)' : 'transparent',
+              border: 'none',
+              borderBottom: adminTab === 'bot' ? '2px solid var(--accent-gold)' : 'none',
+              color: adminTab === 'bot' ? 'var(--accent-gold)' : 'var(--text-muted)',
+              cursor: 'pointer',
+              fontSize: '0.9rem',
+              fontWeight: adminTab === 'bot' ? '600' : '400',
+            }}
+          >
+            Uso del Bot
+          </button>
+        )}
+      </div>
+
+      {adminTab === 'usuarios' && (
       <div className="dashboard-grid">
         {/* Formulario de Apertura */}
         <div className="glass-card" style={{ gridColumn: 'span 4' }}>
@@ -1556,6 +1594,11 @@ const AdminPanel = () => {
           </div>
         </div>
       </div>
+      )}
+
+      {adminTab === 'bot' && (
+        <BotUsage userRole={user?.role} />
+      )}
     </div>
   );
 };

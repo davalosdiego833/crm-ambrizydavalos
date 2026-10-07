@@ -3562,6 +3562,129 @@ app.post('/api/karen/cancelaciones/import', authMiddleware, promotoriaAccess, up
   }
 });
 
+// ======================================
+// TRACKING DE USO DEL BOT DE WHATSAPP
+// ======================================
+const BOT_USAGE_FILE = path.join(__dirname, 'bot-usage.json');
+
+const loadBotUsage = () => {
+  try {
+    return JSON.parse(fs.readFileSync(BOT_USAGE_FILE, 'utf8'));
+  } catch {
+    return [];
+  }
+};
+
+const saveBotUsage = () => {
+  fs.writeFileSync(BOT_USAGE_FILE, JSON.stringify(botUsage, null, 2));
+};
+
+let botUsage = loadBotUsage();
+
+// Registrar un uso del bot (llamado desde bot-whatsapp/index.js)
+app.post('/api/bot-usage/log', (req, res) => {
+  const { timestamp, numero, nombre, claveAgente, inputTokens, outputTokens, totalTokens, herramientas, costoEstimado } = req.body;
+
+  const record = {
+    id: Date.now(),
+    timestamp,
+    numero,
+    nombre,
+    claveAgente,
+    inputTokens,
+    outputTokens,
+    totalTokens,
+    herramientas,
+    costoEstimado,
+  };
+
+  botUsage.push(record);
+  saveBotUsage();
+  res.json({ success: true, id: record.id });
+});
+
+// Resumen diario de uso
+app.get('/api/bot-usage/summary', (req, res) => {
+  const { days = 30 } = req.query;
+  const cutoff = Date.now() - days * 86400000;
+  const recent = botUsage.filter((r) => new Date(r.timestamp).getTime() >= cutoff);
+
+  const byDay = {};
+  recent.forEach((r) => {
+    const date = new Date(r.timestamp).toISOString().split('T')[0];
+    if (!byDay[date]) byDay[date] = { count: 0, tokens: 0, cost: 0, usuarios: new Set() };
+    byDay[date].count++;
+    byDay[date].tokens += r.totalTokens;
+    byDay[date].cost += r.costoEstimado;
+    byDay[date].usuarios.add(r.nombre);
+  });
+
+  const summary = Object.entries(byDay).map(([date, data]) => ({
+    date,
+    messages: data.count,
+    tokens: data.tokens,
+    cost: data.cost,
+    uniqueUsers: data.usuarios.size,
+  }));
+
+  res.json(summary.sort((a, b) => new Date(b.date) - new Date(a.date)));
+});
+
+// Lista de mensajes con paginación
+app.get('/api/bot-usage/messages', (req, res) => {
+  const { page = 0, limit = 50, usuario, días = 30 } = req.query;
+  const cutoff = Date.now() - días * 86400000;
+
+  let filtered = botUsage.filter((r) => new Date(r.timestamp).getTime() >= cutoff);
+  if (usuario) filtered = filtered.filter((r) => r.nombre.toLowerCase().includes(usuario.toLowerCase()));
+
+  const total = filtered.length;
+  const messages = filtered
+    .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
+    .slice(page * limit, (page + 1) * limit);
+
+  res.json({ messages, total, page: parseInt(page), limit: parseInt(limit) });
+});
+
+// Ranking de asesores por tokens/costo
+app.get('/api/bot-usage/ranking', (req, res) => {
+  const { días = 30 } = req.query;
+  const cutoff = Date.now() - días * 86400000;
+  const recent = botUsage.filter((r) => new Date(r.timestamp).getTime() >= cutoff);
+
+  const byUser = {};
+  recent.forEach((r) => {
+    if (!byUser[r.nombre]) {
+      byUser[r.nombre] = { nombre: r.nombre, claveAgente: r.claveAgente, messages: 0, tokens: 0, cost: 0 };
+    }
+    byUser[r.nombre].messages++;
+    byUser[r.nombre].tokens += r.totalTokens;
+    byUser[r.nombre].cost += r.costoEstimado;
+  });
+
+  const ranking = Object.values(byUser).sort((a, b) => b.cost - a.cost);
+  res.json(ranking);
+});
+
+// Proyección mensual de costos
+app.get('/api/bot-usage/projection', (req, res) => {
+  const cutoff = Date.now() - 7 * 86400000; // últimos 7 días
+  const recent = botUsage.filter((r) => new Date(r.timestamp).getTime() >= cutoff);
+
+  const dailyAvg = recent.length / 7;
+  const totalCost = recent.reduce((sum, r) => sum + r.costoEstimado, 0);
+  const dailyCostAvg = totalCost / 7;
+
+  const monthlyProjection = {
+    estimatedMessages: Math.round(dailyAvg * 30),
+    estimatedTokens: Math.round((recent.reduce((sum, r) => sum + r.totalTokens, 0) / recent.length) * dailyAvg * 30),
+    estimatedMonthlyCost: dailyCostAvg * 30,
+    lastUpdated: new Date().toISOString(),
+  };
+
+  res.json(monthlyProjection);
+});
+
 // Webhook de Despliegue Automático (sin depender de SSH)
 app.all('/api/git-pull-deploy', (req, res) => {
   const secret = req.query.secret || req.body?.secret;

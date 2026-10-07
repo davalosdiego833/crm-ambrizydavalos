@@ -1160,6 +1160,81 @@ export function construirHerramientas(token, role, claveAgente) {
           input_schema: { type: 'object', properties: {} },
         },
         run: () => campanasGet('/api/estatus-polizas/seguimiento'),
+      },
+      {
+        spec: {
+          name: 'consultar_uso_bot',
+          description:
+            'Consulta el uso del asistente de WhatsApp de los últimos 7 ó 30 días: mensajes totales, ' +
+            'tokens consumidos, costo estimado, proyección mensual, y ranking de asesores por costo. ' +
+            'Solo para directivos (admin/promotoria).',
+          input_schema: {
+            type: 'object',
+            properties: {
+              dias: { type: 'number', description: 'Últimos 7 o 30 días (default: 30)' },
+              tipo: {
+                type: 'string',
+                enum: ['resumen', 'ranking', 'proyeccion'],
+                description: 'Qué datos quieres: resumen diario, ranking de asesores, o proyección mensual'
+              }
+            }
+          }
+        },
+        run: async (input) => {
+          const dias = input.dias || 30;
+          const tipo = input.tipo || 'resumen';
+          const baseUrl = process.env.CRM_API_URL || 'http://localhost:3001';
+
+          try {
+            if (tipo === 'ranking') {
+              const res = await fetch(`${baseUrl}/api/bot-usage/ranking?días=${dias}`);
+              if (!res.ok) return { error: 'No se pudo obtener ranking' };
+              const ranking = await res.json();
+              return {
+                tipo: 'ranking',
+                dias,
+                datos: ranking.map(r => ({
+                  asesor: r.nombre,
+                  clave: r.claveAgente || '—',
+                  mensajes: r.messages,
+                  tokens: r.tokens,
+                  costo: `$${r.cost.toFixed(4)}`,
+                }))
+              };
+            } else if (tipo === 'proyeccion') {
+              const res = await fetch(`${baseUrl}/api/bot-usage/projection`);
+              if (!res.ok) return { error: 'No se pudo obtener proyección' };
+              const proj = await res.json();
+              return {
+                tipo: 'proyeccion',
+                estimadoMensual: `${proj.estimatedMessages} mensajes`,
+                costeMensual: `$${proj.estimatedMonthlyCost.toFixed(2)}`,
+                tokensEstimados: proj.estimatedTokens.toLocaleString(),
+              };
+            } else {
+              const res = await fetch(`${baseUrl}/api/bot-usage/summary?days=${dias}`);
+              if (!res.ok) return { error: 'No se pudo obtener resumen' };
+              const summary = await res.json();
+              const totalMsgs = summary.reduce((s, r) => s + r.messages, 0);
+              const totalTokens = summary.reduce((s, r) => s + r.tokens, 0);
+              const totalCost = summary.reduce((s, r) => s + r.cost, 0);
+              return {
+                tipo: 'resumen',
+                dias,
+                totalMensajes: totalMsgs,
+                totalTokens: totalTokens.toLocaleString(),
+                costoEstimado: `$${totalCost.toFixed(4)}`,
+                detalleUltimos3Dias: summary.slice(0, 3).map(d => ({
+                  fecha: new Date(d.date).toLocaleDateString('es-MX'),
+                  mensajes: d.messages,
+                  costo: `$${d.cost.toFixed(4)}`
+                }))
+              };
+            }
+          } catch (err) {
+            return { error: err.message };
+          }
+        }
       }
     );
   }
@@ -1221,9 +1296,11 @@ Sobre pólizas en PDF y alta de clientes:
 // Un solo turno de conversación con Claude, incluyendo las vueltas de tool-use
 // que hagan falta. `messages` se recibe y se modifica en el lugar (se le
 // agrega la pregunta y la respuesta), así el que llama mantiene el historial.
-export async function responder(client, model, herramientas, messages, pregunta, systemPrompt, log = () => {}) {
+export async function responder(client, model, herramientas, messages, pregunta, systemPrompt, log = () => {}, { returnUsage = false } = {}) {
   messages.push({ role: 'user', content: pregunta });
   const effort = process.env.CLAUDE_EFFORT || 'low';
+  let totalInputTokens = 0;
+  let totalOutputTokens = 0;
 
   while (true) {
     const respuesta = await client.messages.create({
@@ -1235,10 +1312,19 @@ export async function responder(client, model, herramientas, messages, pregunta,
       output_config: { effort },
     });
 
+    if (respuesta.usage) {
+      totalInputTokens += respuesta.usage.input_tokens;
+      totalOutputTokens += respuesta.usage.output_tokens;
+    }
+
     messages.push({ role: 'assistant', content: respuesta.content });
 
     if (respuesta.stop_reason !== 'tool_use') {
-      return respuesta.content.find((b) => b.type === 'text')?.text || '(sin respuesta de texto)';
+      const texto = respuesta.content.find((b) => b.type === 'text')?.text || '(sin respuesta de texto)';
+      if (returnUsage) {
+        return { text: texto, usage: { input_tokens: totalInputTokens, output_tokens: totalOutputTokens } };
+      }
+      return texto;
     }
 
     const llamadas = respuesta.content.filter((b) => b.type === 'tool_use');
