@@ -9,6 +9,17 @@ const CRM_URL = process.env.CRM_URL || 'http://localhost:5001';
 // página solo protege la pantalla, no la API).
 const PANEL_CAMPANAS_URL = process.env.PANEL_CAMPANAS_URL || 'https://panel.ambrizydavalos.com';
 
+// El hosting del CRM cierra conexiones ociosas; si el bot reutiliza una ya
+// cerrada, fetch falla. Un único reintento abre una conexión nueva.
+async function fetchCRM(url, opts) {
+  try {
+    return await fetch(url, opts);
+  } catch (err) {
+    if (err?.message !== 'fetch failed') throw err;
+    return fetch(url, opts);
+  }
+}
+
 export function normalizar(texto) {
   return String(texto || '')
     .normalize('NFD')
@@ -18,7 +29,7 @@ export function normalizar(texto) {
 }
 
 export async function loginCRM(email, password) {
-  const res = await fetch(`${CRM_URL}/api/login`, {
+  const res = await fetchCRM(`${CRM_URL}/api/login`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ email, password }),
@@ -44,7 +55,7 @@ export function normalizarTelefono(numero) {
 // bot para encontrar, por número de WhatsApp, a qué asesor le pertenece cada
 // mensaje que llega.
 export async function listarUsuariosAdmin(adminToken) {
-  const res = await fetch(`${CRM_URL}/api/admin/users`, {
+  const res = await fetchCRM(`${CRM_URL}/api/admin/users`, {
     headers: { Authorization: `Bearer ${adminToken}` },
   });
   if (!res.ok) throw new Error(`Error listando usuarios: ${res.status}`);
@@ -55,7 +66,7 @@ export async function listarUsuariosAdmin(adminToken) {
 // específico, sin conocer su contraseña. Solo funciona si ese usuario tiene
 // el interruptor de WhatsApp encendido — si está apagado, el CRM lo rechaza.
 export async function pedirBotToken(adminToken, userId) {
-  const res = await fetch(`${CRM_URL}/api/admin/users/${userId}/bot-token`, {
+  const res = await fetchCRM(`${CRM_URL}/api/admin/users/${userId}/bot-token`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${adminToken}` },
   });
@@ -67,7 +78,7 @@ export async function pedirBotToken(adminToken, userId) {
 }
 
 async function crmGet(token, path) {
-  const res = await fetch(`${CRM_URL}${path}`, {
+  const res = await fetchCRM(`${CRM_URL}${path}`, {
     headers: { Authorization: `Bearer ${token}` },
   });
   if (!res.ok) throw new Error(`Error consultando ${path}: ${res.status}`);
@@ -75,7 +86,7 @@ async function crmGet(token, path) {
 }
 
 async function crmPost(token, path, body) {
-  const res = await fetch(`${CRM_URL}${path}`, {
+  const res = await fetchCRM(`${CRM_URL}${path}`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
@@ -85,7 +96,7 @@ async function crmPost(token, path, body) {
 }
 
 async function crmPut(token, path, body) {
-  const res = await fetch(`${CRM_URL}${path}`, {
+  const res = await fetchCRM(`${CRM_URL}${path}`, {
     method: 'PUT',
     headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
@@ -95,7 +106,7 @@ async function crmPut(token, path, body) {
 }
 
 async function crmDelete(token, path) {
-  const res = await fetch(`${CRM_URL}${path}`, {
+  const res = await fetchCRM(`${CRM_URL}${path}`, {
     method: 'DELETE',
     headers: { Authorization: `Bearer ${token}` },
   });
@@ -135,7 +146,7 @@ async function buscarEnLista(token, path, identificador, campoClaveExacta) {
 // lea el mensaje real del servidor (ej. "indica la fecha") y se lo pueda
 // explicar a quien pregunta, en vez de un error genérico de status.
 async function crmPutJson(token, path, body) {
-  const res = await fetch(`${CRM_URL}${path}`, {
+  const res = await fetchCRM(`${CRM_URL}${path}`, {
     method: 'PUT',
     headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
@@ -237,7 +248,7 @@ function herramientaSeguimientoCancelacion(token, nombre, basePath, etiqueta) {
 export async function leerPolizaPDF(token, bytesPDF, filename) {
   const form = new FormData();
   form.append('policy', new Blob([bytesPDF], { type: 'application/pdf' }), filename || 'poliza.pdf');
-  const res = await fetch(`${CRM_URL}/api/policies/parse`, {
+  const res = await fetchCRM(`${CRM_URL}/api/policies/parse`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${token}` },
     body: form,
