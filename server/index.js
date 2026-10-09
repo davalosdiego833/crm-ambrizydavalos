@@ -3581,9 +3581,17 @@ const saveBotUsage = () => {
 
 let botUsage = loadBotUsage();
 
+// Precio real de Sonnet 5 (USD por millón de tokens), confirmado contra el
+// reporte de costos de la consola de Anthropic. El costo se calcula siempre
+// desde los tokens guardados, así un cambio de precio corrige también el historial.
+const PRECIO_ENTRADA_USD_POR_MTOK = 2;
+const PRECIO_SALIDA_USD_POR_MTOK = 10;
+const costoDeRegistro = (r) =>
+  ((r.inputTokens || 0) * PRECIO_ENTRADA_USD_POR_MTOK + (r.outputTokens || 0) * PRECIO_SALIDA_USD_POR_MTOK) / 1e6;
+
 // Registrar un uso del bot (llamado desde bot-whatsapp/index.js)
 app.post('/api/bot-usage/log', (req, res) => {
-  const { timestamp, numero, nombre, claveAgente, inputTokens, outputTokens, totalTokens, herramientas, costoEstimado } = req.body;
+  const { timestamp, numero, nombre, claveAgente, inputTokens, outputTokens, totalTokens, herramientas } = req.body;
 
   const record = {
     id: Date.now(),
@@ -3595,7 +3603,7 @@ app.post('/api/bot-usage/log', (req, res) => {
     outputTokens,
     totalTokens,
     herramientas,
-    costoEstimado,
+    costoEstimado: costoDeRegistro({ inputTokens, outputTokens }),
   };
 
   botUsage.push(record);
@@ -3615,7 +3623,7 @@ app.get('/api/bot-usage/summary', (req, res) => {
     if (!byDay[date]) byDay[date] = { count: 0, tokens: 0, cost: 0, usuarios: new Set() };
     byDay[date].count++;
     byDay[date].tokens += r.totalTokens;
-    byDay[date].cost += r.costoEstimado;
+    byDay[date].cost += costoDeRegistro(r);
     byDay[date].usuarios.add(r.nombre);
   });
 
@@ -3641,7 +3649,8 @@ app.get('/api/bot-usage/messages', (req, res) => {
   const total = filtered.length;
   const messages = filtered
     .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
-    .slice(page * limit, (page + 1) * limit);
+    .slice(page * limit, (page + 1) * limit)
+    .map((r) => ({ ...r, costoEstimado: costoDeRegistro(r) }));
 
   res.json({ messages, total, page: parseInt(page), limit: parseInt(limit) });
 });
@@ -3659,7 +3668,7 @@ app.get('/api/bot-usage/ranking', (req, res) => {
     }
     byUser[r.nombre].messages++;
     byUser[r.nombre].tokens += r.totalTokens;
-    byUser[r.nombre].cost += r.costoEstimado;
+    byUser[r.nombre].cost += costoDeRegistro(r);
   });
 
   const ranking = Object.values(byUser).sort((a, b) => b.cost - a.cost);
@@ -3672,7 +3681,7 @@ app.get('/api/bot-usage/projection', (req, res) => {
   const recent = botUsage.filter((r) => new Date(r.timestamp).getTime() >= cutoff);
 
   const dailyAvg = recent.length / 7;
-  const totalCost = recent.reduce((sum, r) => sum + r.costoEstimado, 0);
+  const totalCost = recent.reduce((sum, r) => sum + costoDeRegistro(r), 0);
   const dailyCostAvg = totalCost / 7;
 
   const monthlyProjection = {
@@ -3738,7 +3747,7 @@ app.get('/api/bot-usage/uso-por-asesor', (req, res) => {
 
   const nombreAsesor = filtrado[0].nombre;
   const totalTokens = filtrado.reduce((sum, r) => sum + r.totalTokens, 0);
-  const totalCosto = filtrado.reduce((sum, r) => sum + r.costoEstimado, 0);
+  const totalCosto = filtrado.reduce((sum, r) => sum + costoDeRegistro(r), 0);
 
   // Top herramientas
   const herramientasMap = {};
@@ -3759,20 +3768,20 @@ app.get('/api/bot-usage/uso-por-asesor', (req, res) => {
     tokensSemana: totalTokens,
     costoSemana: totalCosto.toFixed(4),
     herramientasMasUsadas,
-    detallesPorDia: filtrado
+    detallesPorDia: Object.entries(filtrado
       .reduce((acc, r) => {
         const fecha = new Date(r.timestamp).toISOString().split('T')[0];
         if (!acc[fecha]) acc[fecha] = { count: 0, tokens: 0, cost: 0 };
         acc[fecha].count++;
         acc[fecha].tokens += r.totalTokens;
-        acc[fecha].cost += r.costoEstimado;
+        acc[fecha].cost += costoDeRegistro(r);
         return acc;
-      }, {})
-      .map(([date, data], i, arr) => ({
+      }, {}))
+      .map(([date, data]) => ({
         date,
-        mensajes: arr[i].count,
-        tokens: arr[i].tokens,
-        costo: arr[i].cost.toFixed(4),
+        mensajes: data.count,
+        tokens: data.tokens,
+        costo: data.cost.toFixed(4),
       }))
       .sort((a, b) => new Date(b.date) - new Date(a.date)),
   });

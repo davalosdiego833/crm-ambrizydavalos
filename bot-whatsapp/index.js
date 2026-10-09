@@ -71,7 +71,7 @@ async function registrarUsoBot(numero, nombre, claveAgente, usage, herramientas)
       outputTokens: usage.output_tokens,
       totalTokens: usage.input_tokens + usage.output_tokens,
       herramientas: herramientas.length > 0 ? herramientas : [],
-      costoEstimado: ((usage.input_tokens / 1000) * 0.003 + (usage.output_tokens / 1000) * 0.015),
+      costoEstimado: ((usage.input_tokens * 2 + usage.output_tokens * 10) / 1e6),
     };
     const res = await fetch(`${process.env.CRM_API_URL || 'http://localhost:3001'}/api/bot-usage/log`, {
       method: 'POST',
