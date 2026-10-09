@@ -163,7 +163,11 @@ const DESCRIPCION_SEGUIMIENTO =
   'estatus distinto de Anulada) y "seguimiento": "pendiente" (le toca reactivarse en el futuro), "hoy" ' +
   '(le toca reactivarse hoy), "vencida" (la fecha ya pasó y NO se ha reactivado — "diasVencida" dice ' +
   'cuántos días), "reactivada", "no_reactivara", o vacío (sin definir). El resultado incluye "hoy" (la ' +
-  'fecha de hoy en México, YYYY-MM-DD) — úsala para entender "mañana", "esta semana", etc.';
+  'fecha de hoy en México, YYYY-MM-DD) — úsala para entender "mañana", "esta semana", etc. OJO: ' +
+  '"cancelaciones de HOY / de ayer / de la semana" se refiere a cuándo se DETECTARON (usa fecha_detectado o ' +
+  'desde con solo_anuladas=true), NO al seguimiento de reactivación: el filtro seguimiento="hoy" es ' +
+  'únicamente para "qué pólizas se tienen que reactivar hoy". Si la consulta por fecha sale vacía, di que ' +
+  'no hay cancelaciones detectadas ese día, sin mezclarlo con el seguimiento.';
 
 const FILTROS_SEGUIMIENTO = {
   por_reactivar: (r) => ['pendiente', 'hoy', 'vencida'].includes(r.seguimiento),
@@ -192,17 +196,37 @@ const SCHEMA_CONSULTA_CANCELACIONES = {
       type: 'string',
       description: 'YYYY-MM-DD. Trae las pólizas que el asesor prometió reactivar EXACTAMENTE en esa fecha (y siguen sin reactivarse).',
     },
+    fecha_detectado: {
+      type: 'string',
+      description:
+        'YYYY-MM-DD. Trae solo lo que el reporte detectó ESE día. Úsalo para "cancelaciones de hoy / de ayer / ' +
+        'del 7 de octubre" (para "hoy" usa la fecha "hoy" del resultado de esta misma herramienta, o la de ' +
+        'la fecha actual). NO es el seguimiento de reactivación.',
+    },
+    desde: {
+      type: 'string',
+      description: 'YYYY-MM-DD. Trae lo detectado desde esa fecha en adelante (ej. "de la última semana").',
+    },
+    solo_anuladas: {
+      type: 'boolean',
+      description:
+        'true = solo cancelaciones reales (pólizas que pasaron a Anulada). Úsalo siempre que el directivo ' +
+        'pregunte por "cancelaciones"; el reporte también trae otros cambios de estatus (Vigor Prorrogado, etc.).',
+    },
   },
 };
 
 // Filtros compartidos entre la consulta de Promotoría y la de Karen.
-function filtrarCancelaciones(rows, { asesor, contratante, tipo, seguimiento, fecha_reactivacion } = {}) {
+function filtrarCancelaciones(rows, { asesor, contratante, tipo, seguimiento, fecha_reactivacion, fecha_detectado, desde, solo_anuladas } = {}) {
   let out = rows || [];
   if (asesor) out = out.filter((r) => normalizar(r.asesor).includes(normalizar(asesor)));
   if (contratante) out = out.filter((r) => normalizar(r.contratante).includes(normalizar(contratante)));
   if (tipo) out = out.filter((r) => normalizar(r.tipo).includes(normalizar(tipo)));
   if (seguimiento && FILTROS_SEGUIMIENTO[seguimiento]) out = out.filter(FILTROS_SEGUIMIENTO[seguimiento]);
   if (fecha_reactivacion) out = out.filter((r) => r.fechaReactivacion === fecha_reactivacion && !r.reactivado);
+  if (fecha_detectado) out = out.filter((r) => String(r.fechaDetectado) === fecha_detectado);
+  if (desde) out = out.filter((r) => String(r.fechaDetectado) >= desde);
+  if (solo_anuladas) out = out.filter((r) => r.estatusNuevo === 'Anulada');
   return out;
 }
 
