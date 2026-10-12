@@ -5,6 +5,7 @@ import {
   loginCRM,
   construirHerramientas,
   SYSTEM_PROMPT_BASE,
+  SYSTEM_PROMPT_PROMOTORIA,
   responder,
   leerPolizaPDF,
   normalizarTelefono,
@@ -214,6 +215,10 @@ async function procesarDocumento(numero, documento) {
     return enviarWhatsApp(numero, 'Este número no tiene acceso a este asistente. Contacta a tu promotor.');
   }
 
+  if (sesion.role === 'promotoria') {
+    return enviarWhatsApp(numero, 'Este perfil de Promotoría no maneja cartera de clientes, así que no da de alta pólizas.');
+  }
+
   if (documento.mime_type !== 'application/pdf') {
     return enviarWhatsApp(numero, 'Por ahora solo puedo leer pólizas en PDF.');
   }
@@ -244,7 +249,7 @@ async function procesarMensaje(numero, texto, sesionYaObtenida) {
     console.log(`  [herramienta] ${nombre}(${JSON.stringify(input)})`);
     herramientasUsadas.push(nombre);
   };
-  const resultado = await responder(anthropic, MODEL, sesion.herramientas, sesion.messages, texto, SYSTEM_PROMPT, log, { returnUsage: true });
+  const resultado = await responder(anthropic, MODEL, sesion.herramientas, sesion.messages, texto, sesion.role === 'promotoria' ? SYSTEM_PROMPT + SYSTEM_PROMPT_PROMOTORIA : SYSTEM_PROMPT, log, { returnUsage: true });
   const respuesta = resultado.text;
   const usage = resultado.usage;
 

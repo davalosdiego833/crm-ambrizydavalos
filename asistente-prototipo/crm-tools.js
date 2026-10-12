@@ -284,7 +284,7 @@ export async function leerPolizaPDF(token, bytesPDF, filename) {
 // Cada herramienta golpea la API real del CRM. Nada se inventa ni se guarda:
 // son consultas de solo lectura, tal como acordamos para el piloto.
 export function construirHerramientas(token, role, claveAgente) {
-  const herramientas = [
+  let herramientas = [
     {
       spec: {
         name: 'consultar_dashboard',
@@ -611,6 +611,10 @@ export function construirHerramientas(token, role, claveAgente) {
       },
     },
   ];
+
+  // La cuenta de Promotoría no maneja cartera de clientes (el CRM de promotoría
+  // no tiene esa información): solo recibe las herramientas de promotoría de abajo.
+  if (role === 'promotoria') herramientas = [];
 
   // Compensación/campañas del propio asesor en el panel de campañas (sistema
   // aparte del CRM). Usa SIEMPRE la clave de agente que el directivo ya
@@ -1003,7 +1007,11 @@ export function construirHerramientas(token, role, claveAgente) {
         spec: {
           name: 'consultar_resumen_general_promotoria',
           description:
-            'Da TODO el reporte "Resumen de Promotoría" del panel de campañas, con estas secciones (usa ' +
+            'Da TODO el reporte "Resumen de Promotoría" del panel de campañas. SINÓNIMOS: cuando pidan ' +
+            '"el emitido y pagado", "emisión y pago", "lo emitido/pagado", "el pagado" o "pagado y ' +
+            'pendiente" de la promotoría, es ESTE reporte — llámala directo, sin preguntar de qué cartera ' +
+            'hablan. "El ÚLTIMO" significa el corte MÁS RECIENTE del reporte (dile la fecha de corte), NO ' +
+            'la última póliza de alguien. Secciones (usa ' +
             'la que corresponda a la pregunta — no pidas otra herramienta para esto):\n' +
             '- "pagado_pendiente": fila por asesor con TODOS los campos crudos (incluye montos de recibo ' +
             'ordinario/renovación aunque no tenga una póliza nueva pendiente) — NO la uses para "qué ' +
@@ -1320,6 +1328,16 @@ export function construirHerramientas(token, role, claveAgente) {
   return herramientas;
 }
 
+// Se agrega al prompt SOLO cuando quien escribe es la cuenta de Promotoría.
+export const SYSTEM_PROMPT_PROMOTORIA = `
+
+PERFIL DE PROMOTORÍA: esta cuenta NO es de un asesor y NO tiene cartera de clientes — el CRM de
+promotoría no guarda clientes, pólizas individuales ni cobranza. Ignora lo anterior de "SU cartera":
+todo lo que te pidan es de TODA la promotoría (asesores, cancelaciones, pre-contratos, campañas,
+reportes del panel). Nunca preguntes por "tu cartera" ni ofrezcas buscar clientes o pólizas
+individuales. Si piden algo de un cliente o una póliza en particular, explica que este perfil no
+maneja cartera y que eso lo consulta el asesor dueño del cliente.`;
+
 export const SYSTEM_PROMPT_BASE = `Eres el asistente de un asesor de seguros en la promotoría Ambriz. Respondes
 preguntas sobre SU cartera usando datos reales del CRM, a través de las herramientas disponibles.
 
@@ -1343,6 +1361,10 @@ Reglas:
   mezcles. El sistema YA verificó que quien te escribe es directivo antes de dártelas — si estas
   herramientas aparecen en esta conversación, úsalas directo cuando te las pidan; nunca le preguntes
   a la persona si es directivo ni le pidas que te lo confirme, eso ya no hace falta.
+- Si quien escribe es directivo y dice "de la promotoría", "de los asesores" o nombra un reporte
+  (pagado y pendiente, emitido y pagado, proactivos, sin emisión, campañas), habla de TODA la
+  promotoría: llama directo a la herramienta de promotoría que corresponda y nunca le preguntes si
+  se refiere a su cartera. "El último" de un reporte es su corte más reciente, no una póliza.
 
 Sobre acciones que escriben datos (dar de alta, marcar como pagada, anular, reactivar, identificar,
 editar, o cualquier otra que modifique el CRM): NUNCA llames a una de estas herramientas sin que el
