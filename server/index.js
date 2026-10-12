@@ -99,6 +99,7 @@ setInterval(fetchRates, 1000 * 60 * 60 * 1);
 const DB_FILE = path.join(__dirname, 'db.json');
 const PROMOTORIA_FILE = path.join(__dirname, 'promotoria.json');
 const KAREN_FILE = path.join(__dirname, 'karen.json');
+const FINANZAS_FILE = path.join(__dirname, 'finanzas.json');
 
 const defaultUsers = [
   {
@@ -237,6 +238,7 @@ const backupDB = () => {
   backupFile(DB_FILE, 'db');
   backupFile(PROMOTORIA_FILE, 'promotoria');
   backupFile(KAREN_FILE, 'karen');
+  backupFile(FINANZAS_FILE, 'finanzas');
 };
 
 
@@ -3561,6 +3563,13 @@ app.post('/api/karen/cancelaciones/import', authMiddleware, promotoriaAccess, up
     res.status(500).json({ error: 'Error al procesar el archivo: ' + err.message });
   }
 });
+
+// ======================================
+// FINANZAS DE LA PROMOTORÍA (Master + cuenta de Promotoría)
+// ======================================
+// Estado de resultados mensual, presupuesto vs real y resumen anual. Vive en
+// server/finanzas.js con sus datos en server/finanzas.json.
+require('./finanzas')({ app, authMiddleware, promotoriaAccess, upload, xlsx, backupFile, FINANZAS_FILE });
 
 // ======================================
 // TRACKING DE USO DEL BOT DE WHATSAPP

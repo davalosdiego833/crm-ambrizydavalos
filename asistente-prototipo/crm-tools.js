@@ -266,6 +266,346 @@ function herramientaSeguimientoCancelacion(token, nombre, basePath, etiqueta) {
   };
 }
 
+// Llamada genérica que NO truena en 4xx: regresa el cuerpo tal cual para que el
+// asistente lea el mensaje real del servidor (ej. "la fecha no pertenece a ese
+// mes") y se lo explique a quien pregunta.
+async function crmJson(token, method, path, body) {
+  const res = await fetchCRM(`${CRM_URL}${path}`, {
+    method,
+    headers: { Authorization: `Bearer ${token}`, ...(body ? { 'Content-Type': 'application/json' } : {}) },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  return res.json().catch(() => ({ error: `Error ${res.status} en ${path}` }));
+}
+
+const hoyMexicoBot = () => new Date().toLocaleDateString('en-CA', { timeZone: 'America/Mexico_City' });
+const pct = (f) => (typeof f === 'number' ? `${(f * 100).toFixed(1)}%` : null);
+
+// Finanzas de la promotoría (estado de resultados, presupuesto vs real, nómina).
+// Las mismas rutas que usa la pestaña "Finanzas" del CRM. Solo admin/promotoría.
+function herramientasFinanzas(token) {
+  const MES_SCHEMA = { type: 'string', description: 'Mes en formato YYYY-MM (ej. "2026-10"). Si no lo dan, es el mes actual.' };
+  const SECCION_SCHEMA = {
+    type: 'string',
+    enum: ['nomina', 'bonos', 'gastosAdmin', 'eventos'],
+    description: '"nomina", "bonos", "gastosAdmin" (gastos administrativos) o "eventos".',
+  };
+  const detalleMes = (d) => {
+    if (d.error) return d;
+    return {
+      mes: d.mes,
+      estado: d.abierto
+        ? 'ABIERTO: todavía no se captura el ingreso bruto del mes, por eso no hay ingreso neto, resultado ni rentabilidad'
+        : 'CERRADO (ingreso capturado)',
+      ingreso: d.ingreso,
+      totales: d.totales,
+      resultado: d.resultado,
+      rentabilidad: pct(d.rentabilidad),
+      nomina_modo: d.nominaModo === 'plantilla' ? 'sigue la plantilla de nómina' : 'nómina propia del mes',
+      renglones: {
+        nomina: d.nomina,
+        bonos: d.bonos,
+        gastosAdmin: d.gastosAdmin,
+        eventos: d.eventos,
+      },
+    };
+  };
+
+  return [
+    {
+      spec: {
+        name: 'consultar_finanzas',
+        description:
+          'Consulta las FINANZAS de la promotoría (el estado de resultados que antes vivía en el Excel de ' +
+          'rentabilidad). Fórmulas: facturas = ingreso bruto x 6%; ingreso neto = bruto - renta - facturas; ' +
+          'gastos totales = nómina + bonos + gastos administrativos + eventos; resultado = ingreso neto - gastos ' +
+          'totales; rentabilidad = resultado / ingreso bruto. El ingreso bruto se captura hasta el cierre de mes: ' +
+          'un mes ABIERTO (sin ingreso) NO tiene ingreso neto, resultado ni rentabilidad — dilo así, no inventes ' +
+          'esas cifras. Vistas: "mes" (estado de resultados de un mes con todos sus renglones: ingreso bruto, ' +
+          'gastos totales, rentabilidad, etc.), "anual" (mes por mes + totales del año), "presupuesto" (presupuesto ' +
+          'anual vs gasto real por rubro, con diferencia y porcentaje usado), "nomina" (plantilla fija de nómina ' +
+          'con sueldos) y "buscar" (renglones de gastos/eventos/bonos/nómina de varios meses, por texto, ' +
+          'sección, rubro o rango de meses — ej. "cuánto he gastado en tacos este año"). Cada renglón trae su ' +
+          '"id", que necesitas para editarlo o eliminarlo. Solo para directivos.',
+        input_schema: {
+          type: 'object',
+          properties: {
+            vista: { type: 'string', enum: ['mes', 'anual', 'presupuesto', 'nomina', 'buscar'] },
+            mes: MES_SCHEMA,
+            anio: { type: 'number', description: 'Año (ej. 2026). Default: el actual.' },
+            seccion: { ...SECCION_SCHEMA, description: 'Para "buscar": limita a una sección.' },
+            buscar: { type: 'string', description: 'Para "buscar": texto del concepto/detalle (parcial).' },
+            categoria: { type: 'string', description: 'Para "buscar": rubro del presupuesto (parcial) o "sin categoria".' },
+            desde: { type: 'string', description: 'Para "buscar": primer mes YYYY-MM.' },
+            hasta: { type: 'string', description: 'Para "buscar": último mes YYYY-MM.' },
+          },
+          required: ['vista'],
+        },
+      },
+      run: async ({ vista, mes, anio, seccion, buscar, categoria, desde, hasta }) => {
+        const hoy = hoyMexicoBot();
+        const anioUsar = anio || Number(hoy.slice(0, 4));
+        if (vista === 'mes') return { hoy, ...detalleMes(await crmJson(token, 'GET', `/api/finanzas/mes/${mes || hoy.slice(0, 7)}`)) };
+        if (vista === 'anual') {
+          const d = await crmJson(token, 'GET', `/api/finanzas/resumen?anio=${anioUsar}`);
+          if (d.error) return d;
+          return {
+            hoy, anio: d.anio,
+            meses: d.meses.map((m) => (m.sinDatos ? { mes: m.mes, estado: 'sin datos (mes futuro)' } : { ...m, estado: m.abierto ? 'abierto' : 'cerrado', rentabilidad: pct(m.rentabilidad) })),
+            totales_meses_cerrados: { ...d.totales, rentabilidad: pct(d.totales.rentabilidad) },
+          };
+        }
+        if (vista === 'presupuesto') {
+          const d = await crmJson(token, 'GET', `/api/finanzas/presupuesto?anio=${anioUsar}`);
+          if (d.error) return d;
+          return {
+            anio: d.anio,
+            rubros: d.categorias.map((c) => ({ id: c.id, rubro: c.nombre, detalle: c.detalle, presupuesto_anual: c.anual, gastado: c.real, diferencia: c.diferencia, porcentaje_usado: pct(c.porcentaje) })),
+            gasto_sin_rubro: d.sinCategoria,
+            totales: { ...d.totales, porcentaje: pct(d.totales.porcentaje) },
+          };
+        }
+        if (vista === 'nomina') return crmJson(token, 'GET', '/api/finanzas/plantilla-nomina');
+        // buscar
+        const q = new URLSearchParams();
+        if (mes) q.set('mes', mes);
+        else if (!desde && !hasta) q.set('anio', String(anioUsar));
+        if (seccion) q.set('seccion', seccion);
+        if (buscar) q.set('buscar', buscar);
+        if (categoria) q.set('categoria', categoria);
+        if (desde) q.set('desde', desde);
+        if (hasta) q.set('hasta', hasta);
+        return crmJson(token, 'GET', `/api/finanzas/lineas?${q}`);
+      },
+    },
+    {
+      spec: {
+        name: 'registrar_gasto_finanzas',
+        description:
+          'Registra un GASTO en las finanzas de la promotoría: "admin" (gasto administrativo: estacionamiento, ' +
+          'regalos, insumos, tacos, etc.) o "evento" (junta mensual, Golden Group, evento staff, etc.). ES UNA ' +
+          'ACCIÓN QUE ESCRIBE. Si el directivo pide explícitamente registrar el gasto y ya dio concepto e importe, ' +
+          'regístralo directo (no hace falta una segunda confirmación) y después dile en una línea qué quedó ' +
+          'guardado (concepto, importe, mes, rubro). Si falta el concepto o el importe, pregúntalo. Si no dice si ' +
+          'es administrativo o de evento, deduce por el concepto (junta, evento, convención = evento; lo demás = ' +
+          'admin) y dilo en tu confirmación. "categoria" es el rubro del presupuesto anual (ej. "Juntas mensuales", ' +
+          '"Insumos", "Golden group") para que cuente en Presupuesto vs real; si no queda claro cuál es, déjalo ' +
+          'vacío y sugiérelo. El mes sale de la fecha (default: hoy en México). Solo para directivos.',
+        input_schema: {
+          type: 'object',
+          properties: {
+            tipo: { type: 'string', enum: ['admin', 'evento'] },
+            concepto: { type: 'string', description: 'Qué se compró/pagó (para evento: nombre del evento).' },
+            importe: { type: 'number', description: 'Importe en pesos.' },
+            detalles: { type: 'string', description: 'Solo eventos: detalle (ej. proveedor).' },
+            fecha: { type: 'string', description: 'YYYY-MM-DD. Default: hoy.' },
+            categoria: { type: 'string', description: 'Rubro del presupuesto (nombre completo o parcial).' },
+          },
+          required: ['tipo', 'concepto', 'importe'],
+        },
+      },
+      run: ({ tipo, concepto, importe, detalles, fecha, categoria }) => {
+        const dia = fecha || hoyMexicoBot();
+        const body = tipo === 'evento' ? { evento: concepto, detalles, importe, fecha: dia } : { concepto, importe, fecha: dia };
+        if (categoria) body.categoria = categoria;
+        return crmJson(token, 'POST', `/api/finanzas/mes/${dia.slice(0, 7)}/${tipo === 'evento' ? 'eventos' : 'gastosAdmin'}`, body)
+          .then((r) => (r.error ? r : { guardado: r.linea, mes: r.mes.mes, gastos_totales_del_mes: r.mes.totales.gastos }));
+      },
+    },
+    {
+      spec: {
+        name: 'registrar_ingreso_finanzas',
+        description:
+          'Captura el INGRESO BRUTO de un mes (se hace al cierre de mes) — con eso el sistema calcula solo las ' +
+          'facturas (6%), el ingreso neto, el resultado y la rentabilidad, y la nómina del mes queda congelada. ' +
+          'ES UNA ACCIÓN QUE ESCRIBE. Si el directivo pide registrar el ingreso con su cantidad, hazlo directo y ' +
+          'después reporta el ingreso neto, los gastos, el resultado y la rentabilidad que salieron. Si el mes ya ' +
+          'tenía un ingreso capturado, la herramienta NO lo sobrescribe: te regresa "requiere_confirmacion" con ' +
+          'el ingreso actual — pregúntale al directivo si quiere reemplazarlo y solo entonces vuelve a llamar ' +
+          'con reemplazar=true. Opcionalmente cambia la renta del mes. Solo para directivos.',
+        input_schema: {
+          type: 'object',
+          properties: {
+            mes: MES_SCHEMA,
+            ingreso_bruto: { type: 'number', description: 'Ingreso bruto del mes en pesos.' },
+            renta: { type: 'number', description: 'Opcional: renta del mes si cambió.' },
+            reemplazar: { type: 'boolean', description: 'true solo si el directivo confirmó reemplazar un ingreso ya capturado.' },
+          },
+          required: ['ingreso_bruto'],
+        },
+      },
+      run: async ({ mes, ingreso_bruto, renta, reemplazar }) => {
+        const ym = mes || hoyMexicoBot().slice(0, 7);
+        const actual = await crmJson(token, 'GET', `/api/finanzas/mes/${ym}`);
+        if (actual.error) return actual;
+        if (!actual.abierto && !reemplazar) {
+          return { requiere_confirmacion: true, mes: ym, ingreso_bruto_actual: actual.ingreso.bruto, ingreso_bruto_nuevo: ingreso_bruto };
+        }
+        const body = { ingresoBruto: ingreso_bruto };
+        if (renta !== undefined) body.renta = renta;
+        const r = await crmJson(token, 'PUT', `/api/finanzas/mes/${ym}`, body);
+        return r.error ? r : detalleMes(r.mes);
+      },
+    },
+    {
+      spec: {
+        name: 'registrar_bono_finanzas',
+        description:
+          'Registra un BONO del staff en un mes (suma a los gastos del mes). ES UNA ACCIÓN QUE ESCRIBE: si el ' +
+          'directivo la pide con nombre y monto, hazla directo y reporta qué quedó. Solo para directivos.',
+        input_schema: {
+          type: 'object',
+          properties: {
+            mes: MES_SCHEMA,
+            nombre: { type: 'string', description: 'Persona del staff que recibe el bono.' },
+            monto: { type: 'number' },
+          },
+          required: ['nombre', 'monto'],
+        },
+      },
+      run: ({ mes, nombre, monto }) =>
+        crmJson(token, 'POST', `/api/finanzas/mes/${mes || hoyMexicoBot().slice(0, 7)}/bonos`, { nombre, monto })
+          .then((r) => (r.error ? r : { guardado: r.linea, mes: r.mes.mes, total_bonos_del_mes: r.mes.totales.bonos })),
+    },
+    {
+      spec: {
+        name: 'editar_renglon_finanzas',
+        description:
+          'Corrige un renglón ya registrado de un mes (gasto administrativo, evento, bono o nómina del mes): ' +
+          'concepto, importe, fecha, rubro del presupuesto, etc. ES UNA ACCIÓN QUE ESCRIBE. Necesitas el "id" del ' +
+          'renglón: búscalo antes con consultar_finanzas (vista "mes" o "buscar"). Si hay más de un renglón que ' +
+          'pueda ser, muéstraselos y pregunta cuál. Muestra qué va a cambiar y pide confirmación antes de llamar. ' +
+          'Solo mandas los campos que cambian. Solo para directivos.',
+        input_schema: {
+          type: 'object',
+          properties: {
+            mes: { ...MES_SCHEMA, description: 'Mes (YYYY-MM) donde está el renglón.' },
+            seccion: SECCION_SCHEMA,
+            id: { type: 'number', description: 'Id del renglón (de consultar_finanzas).' },
+            concepto: { type: 'string', description: 'Nuevo texto principal (concepto / evento / nombre).' },
+            detalles: { type: 'string', description: 'Solo eventos.' },
+            importe: { type: 'number', description: 'Nuevo importe (en nómina es el sueldo; en bonos, el monto).' },
+            fecha: { type: 'string', description: 'YYYY-MM-DD (debe caer en el mismo mes).' },
+            categoria: { type: 'string', description: 'Rubro del presupuesto, o "ninguna" para quitarlo.' },
+          },
+          required: ['mes', 'seccion', 'id'],
+        },
+      },
+      run: ({ mes, seccion, id, concepto, detalles, importe, fecha, categoria }) => {
+        const campoPrincipal = { nomina: 'nombre', bonos: 'nombre', gastosAdmin: 'concepto', eventos: 'evento' }[seccion];
+        const campoMonto = { nomina: 'sueldo', bonos: 'monto', gastosAdmin: 'importe', eventos: 'importe' }[seccion];
+        const body = {};
+        if (concepto !== undefined) body[campoPrincipal] = concepto;
+        if (importe !== undefined) body[campoMonto] = importe;
+        if (detalles !== undefined) body.detalles = detalles;
+        if (fecha !== undefined) body.fecha = fecha;
+        if (categoria !== undefined) body.categoria = categoria;
+        return crmJson(token, 'PUT', `/api/finanzas/mes/${mes}/${seccion}/${id}`, body)
+          .then((r) => (r.error ? r : { actualizado: r.linea, mes: r.mes.mes, gastos_totales_del_mes: r.mes.totales.gastos }));
+      },
+    },
+    {
+      spec: {
+        name: 'eliminar_renglon_finanzas',
+        description:
+          'Elimina un renglón de un mes (gasto administrativo, evento, bono o nómina). SIN MARCHA ATRÁS. Primero ' +
+          'busca el renglón con consultar_finanzas, muéstrale al directivo exactamente cuál es (concepto, importe, ' +
+          'mes), avísale que es permanente y espera su confirmación clara antes de llamar. Solo para directivos.',
+        input_schema: {
+          type: 'object',
+          properties: {
+            mes: { ...MES_SCHEMA, description: 'Mes (YYYY-MM) donde está el renglón.' },
+            seccion: SECCION_SCHEMA,
+            id: { type: 'number', description: 'Id del renglón (de consultar_finanzas).' },
+          },
+          required: ['mes', 'seccion', 'id'],
+        },
+      },
+      run: ({ mes, seccion, id }) =>
+        crmJson(token, 'DELETE', `/api/finanzas/mes/${mes}/${seccion}/${id}`)
+          .then((r) => (r.error ? r : { eliminado: r.eliminado, mes: r.mes.mes, gastos_totales_del_mes: r.mes.totales.gastos })),
+    },
+    {
+      spec: {
+        name: 'actualizar_nomina_finanzas',
+        description:
+          'Cambia la PLANTILLA DE NÓMINA fija (la lista de personas y sueldos que se repite cada mes): agregar a ' +
+          'alguien, cambiar un sueldo, dar de baja (deja de contar desde ahora) o dar de alta de nuevo. Los meses ' +
+          'ya CERRADOS no cambian — solo los meses abiertos (sin ingreso capturado) siguen la plantilla. ES UNA ' +
+          'ACCIÓN QUE ESCRIBE: muestra el cambio y pide confirmación antes de llamar. Primero consulta la ' +
+          'plantilla (consultar_finanzas vista "nomina") para usar el nombre exacto. Solo para directivos.',
+        input_schema: {
+          type: 'object',
+          properties: {
+            accion: { type: 'string', enum: ['agregar', 'cambiar_sueldo', 'baja', 'alta'] },
+            nombre: { type: 'string', description: 'Nombre de la persona (como aparece en la plantilla).' },
+            sueldo: { type: 'number', description: 'Obligatorio para "agregar" y "cambiar_sueldo".' },
+          },
+          required: ['accion', 'nombre'],
+        },
+      },
+      run: async ({ accion, nombre, sueldo }) => {
+        if (accion === 'agregar') {
+          if (sueldo === undefined) return { error: 'Falta el sueldo de la persona nueva.' };
+          return crmJson(token, 'POST', '/api/finanzas/plantilla-nomina', { nombre, sueldo });
+        }
+        const plantilla = (await crmJson(token, 'GET', '/api/finanzas/plantilla-nomina')).plantilla || [];
+        const q = normalizar(nombre);
+        const exactas = plantilla.filter((p) => normalizar(p.nombre) === q);
+        const coinc = exactas.length ? exactas : plantilla.filter((p) => normalizar(p.nombre).includes(q));
+        if (coinc.length === 0) return { error: `No encontré a "${nombre}" en la plantilla de nómina.`, plantilla: plantilla.map((p) => p.nombre) };
+        if (coinc.length > 1) return { multiples_coincidencias: coinc.map((p) => ({ nombre: p.nombre, sueldo: p.sueldo, activo: p.activo })) };
+        const persona = coinc[0];
+        if (accion === 'cambiar_sueldo') {
+          if (sueldo === undefined) return { error: 'Falta el nuevo sueldo.' };
+          return crmJson(token, 'PUT', `/api/finanzas/plantilla-nomina/${persona.id}`, { sueldo });
+        }
+        return crmJson(token, 'PUT', `/api/finanzas/plantilla-nomina/${persona.id}`, { activo: accion === 'alta' });
+      },
+    },
+    {
+      spec: {
+        name: 'actualizar_presupuesto_finanzas',
+        description:
+          'Agrega un rubro al presupuesto anual o cambia el presupuesto de uno existente (nombre, detalle o monto ' +
+          'anual). ES UNA ACCIÓN QUE ESCRIBE: muestra el cambio y pide confirmación antes de llamar. Usa ' +
+          'consultar_finanzas (vista "presupuesto") para ver los rubros actuales. Solo para directivos.',
+        input_schema: {
+          type: 'object',
+          properties: {
+            accion: { type: 'string', enum: ['agregar', 'cambiar'] },
+            rubro: { type: 'string', description: 'Nombre del rubro (para "cambiar", el actual).' },
+            anio: { type: 'number', description: 'Año del presupuesto. Default: el actual.' },
+            presupuesto_anual: { type: 'number', description: 'Monto anual proyectado en pesos.' },
+            detalle: { type: 'string', description: 'Texto libre (ej. "$500 p/p").' },
+            nuevo_nombre: { type: 'string', description: 'Solo "cambiar": renombrar el rubro.' },
+          },
+          required: ['accion', 'rubro'],
+        },
+      },
+      run: async ({ accion, rubro, anio, presupuesto_anual, detalle, nuevo_nombre }) => {
+        const anioUsar = anio || Number(hoyMexicoBot().slice(0, 4));
+        if (accion === 'agregar') {
+          if (presupuesto_anual === undefined) return { error: 'Falta el presupuesto anual del rubro nuevo.' };
+          return crmJson(token, 'POST', '/api/finanzas/presupuesto/categorias', { anio: anioUsar, nombre: rubro, anual: presupuesto_anual, detalle });
+        }
+        const pres = await crmJson(token, 'GET', `/api/finanzas/presupuesto?anio=${anioUsar}`);
+        if (pres.error) return pres;
+        const q = normalizar(rubro);
+        const exactas = pres.categorias.filter((c) => normalizar(c.nombre) === q);
+        const coinc = exactas.length ? exactas : pres.categorias.filter((c) => normalizar(c.nombre).includes(q));
+        if (coinc.length === 0) return { error: `No encontré el rubro "${rubro}" en ${anioUsar}.`, rubros: pres.categorias.map((c) => c.nombre) };
+        if (coinc.length > 1) return { multiples_coincidencias: coinc.map((c) => c.nombre) };
+        const body = {};
+        if (presupuesto_anual !== undefined) body.anual = presupuesto_anual;
+        if (detalle !== undefined) body.detalle = detalle;
+        if (nuevo_nombre !== undefined) body.nombre = nuevo_nombre;
+        return crmJson(token, 'PUT', `/api/finanzas/presupuesto/categorias/${coinc[0].id}`, body);
+      },
+    },
+  ];
+}
+
 // Sube el PDF de una póliza al extractor que ya existe en el CRM (mismo que
 // usa la app web) y regresa los campos que pudo leer. Es de solo lectura —
 // no da de alta nada todavía, eso lo hace `dar_de_alta_cliente` aparte.
@@ -849,6 +1189,9 @@ export function construirHerramientas(token, role, claveAgente) {
       },
       herramientaSeguimientoCancelacion(token, 'registrar_seguimiento_cancelacion', '/api/promotoria', 'la promotoría'),
 
+      // Finanzas de la promotoría (estado de resultados, presupuesto vs real, nómina).
+      ...herramientasFinanzas(token),
+
       // Gerencia de Karen: mismo tipo de datos que la promotoría (pre-contratos y
       // cancelaciones), pero en su propia base separada (karen.json en el servidor).
       // Nunca se mezcla con los datos de la promotoría de arriba.
@@ -1372,11 +1715,22 @@ asesor haya confirmado explícitamente qué quiere hacer, sobre qué póliza exa
 por nombre — si solo te dio un nombre y hay más de una póliza a su nombre, pregunta cuál número
 antes de actuar). Si hay cualquier duda, pregunta primero en vez de suponer.
 
-Sobre las herramientas que empiezan con "eliminar_" (cliente, asesor de promotoría, pre-contrato):
+Sobre las herramientas que empiezan con "eliminar_" (cliente, asesor de promotoría, pre-contrato, renglón de finanzas):
 son las únicas acciones sin marcha atrás — no hay forma de recuperar lo borrado. Antes de llamar
 cualquiera de ellas, muestra siempre los datos exactos de lo que se va a borrar, dile explícitamente
 a quien pregunta que es permanente, y espera una confirmación clara e inequívoca (no una respuesta
 ambigua) antes de proceder.
+
+Sobre las FINANZAS de la promotoría (solo directivos): usa consultar_finanzas para ingreso bruto, gastos
+totales, rentabilidad, presupuesto vs real, nómina, etc. — nunca calcules de memoria ni inventes cifras.
+Un mes "ABIERTO" no tiene ingreso capturado todavía: no tiene ingreso neto, resultado ni rentabilidad, y
+así debes decirlo (puedes dar sus gastos acumulados). Muestra los importes en pesos con separador de miles
+y la rentabilidad como porcentaje. Para REGISTRAR un gasto, bono o el ingreso del mes: si el directivo lo
+pide de forma explícita y ya dio los datos (concepto e importe, o la cantidad del ingreso), hazlo directo y
+después confirma en una o dos líneas qué quedó guardado y en qué mes; si falta un dato, pregúntalo. Para
+EDITAR un renglón, cambiar la plantilla de nómina o el presupuesto: muestra el cambio y espera confirmación.
+Para ELIMINAR un renglón aplica la regla de "eliminar_". Si el servidor responde con un error, explícaselo
+tal cual en vez de reintentar a ciegas.
 
 Sobre "multiples_coincidencias": si una herramienta regresa esto, significa que el nombre o clave que
 diste coincide con más de un registro — muéstraselos a quien pregunta y pide que precise cuál antes

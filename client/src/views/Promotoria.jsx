@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
+import Finanzas from './Finanzas';
 
 // Hook para acceder al contexto de auth (mismo patrón que el resto de las vistas)
 const useAuth = () => {
@@ -1081,19 +1082,20 @@ const Promotoria = () => {
     : [
         { id: 'asesores', label: 'Asesores' },
         { id: 'cancelaciones', label: 'Cancelaciones' },
-        { id: 'preContratos', label: 'Pre-contratos' }
+        { id: 'preContratos', label: 'Pre-contratos' },
+        { id: 'finanzas', label: 'Finanzas' }
       ];
 
   const handleOrgChange = (id) => {
     setOrg(id);
-    if (id === 'karen' && tab === 'asesores') setTab('cancelaciones');
+    if (id === 'karen' && (tab === 'asesores' || tab === 'finanzas')) setTab('cancelaciones');
   };
 
   return (
     <div className="animate-up">
       <header style={{ marginBottom: '24px' }}>
         <h1 style={{ fontSize: '2.5rem', fontWeight: '800' }}>Panel de <span className="text-gradient-gold">Promotoría</span></h1>
-        <p style={{ color: 'var(--text-muted)', marginTop: '8px' }}>Panorama de asesores, cancelaciones y pre-contratos.</p>
+        <p style={{ color: 'var(--text-muted)', marginTop: '8px' }}>Panorama de asesores, cancelaciones, pre-contratos y finanzas.</p>
       </header>
 
       <div style={{ display: 'flex', gap: '12px', marginBottom: '28px', flexWrap: 'wrap' }}>
@@ -1143,6 +1145,7 @@ const Promotoria = () => {
       {tab === 'asesores' && org === 'promotoria' && <AsesoresTab authFetch={authFetch} />}
       {tab === 'cancelaciones' && <CancelacionesTab key={currentOrg.id} authFetch={authFetch} apiBase={currentOrg.apiBase} />}
       {tab === 'preContratos' && <PreContratosTab key={currentOrg.id} authFetch={authFetch} apiBase={currentOrg.apiBase} />}
+      {tab === 'finanzas' && org === 'promotoria' && <Finanzas />}
     </div>
   );
 };

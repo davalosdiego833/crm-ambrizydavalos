@@ -221,6 +221,60 @@ Decisiones de diseño (no obvias):
   del asistente ejecutadas directo). **No** se probó la conversación real
   por WhatsApp con el modelo (requiere el bot corriendo).
 
+## Finanzas de la promotoría (2026-10-12)
+
+Reemplaza al Excel `rentabilidad de la promo` (solo se tomaron las pestañas de
+PRESUPUESTO 2026 hacia la derecha; las de 2025 quedaron fuera a propósito).
+Vive en la pestaña **Finanzas** de PROMOTORÍA AMBRIZ (no existe para Karen), y
+la ven **las dos cuentas: Master (`admin`) y `promotoria`, con acceso total,
+nómina incluida** — decisión explícita de Diego. Para eso se agregó el item
+"Promotoría" al menú del Master (antes solo lo tenía la cuenta promotoria).
+
+Código: `server/finanzas.js` (rutas `/api/finanzas/*`, mismo middleware
+`promotoriaAccess`), datos en `server/finanzas.json` (gitignored, respaldado
+con `backupFile` como db/promotoria/karen), UI en
+`client/src/views/Finanzas.jsx`, herramientas del bot en
+`asistente-prototipo/crm-tools.js` (`herramientasFinanzas`).
+
+Reglas de negocio (las mismas fórmulas del Excel): facturas = bruto x 6%;
+neto = bruto - renta - facturas; gastos = nómina + bonos + gastos admin +
+eventos; resultado = neto - gastos; rentabilidad = resultado / bruto.
+- El **ingreso bruto se captura al cierre de mes**. Mientras no exista, el mes
+  está "abierto": no hay neto/resultado/rentabilidad (el servidor regresa
+  `null`, no un número negativo como hacía el Excel).
+- **Nómina**: hay una *plantilla fija* (`nomina`) y cada mes la sigue
+  (`mes.nomina === null`) mientras esté abierto. Al capturar el ingreso (cierre)
+  la nómina del mes se **congela** como copia propia, así cambiar la plantilla
+  no altera meses cerrados. Editar un renglón de nómina de un mes también la
+  congela. "Restablecer desde plantilla" la vuelve a copiar.
+- Renglones (`gastosAdmin`, `eventos`) llevan fecha (debe caer en el mes) y un
+  **rubro** opcional del presupuesto anual (`categoriaId`); el "real" de
+  Presupuesto vs real es la suma de renglones con ese rubro, no un número
+  capturado a mano. Lo que no tiene rubro sale aparte como "Sin rubro".
+- Filtros del estado de resultados: sección, texto y rubro; meses con botones
+  y selector de año. Resumen anual: totales/rentabilidad solo sobre meses
+  cerrados.
+- Importación inicial: `POST /api/finanzas/import` (multipart) lee las
+  pestañas de meses, el presupuesto 2026 y arma la plantilla con la nómina del
+  último mes. **Se niega a correr de nuevo** (409) salvo `?forzar=1`, porque
+  reemplaza todo lo capturado en el CRM. Etiqueta rubros solo cuando es obvio
+  por el texto (junta, golden, evento staff, noche de estrellas,
+  pastel/regalo; todo "eventos" de enero = Evento de promo).
+- Hallazgos del Excel original (en el CRM ya salen bien): el total de gastos
+  administrativos usaba `SUM(B38)` (solo la primera fila) en marzo, mayo y
+  septiembre, y en septiembre la fórmula de gastos totales apuntaba a la fila
+  de FER CARLOS en vez del TOTAL NÓMINA (rentabilidad de septiembre mostrada
+  69.2% vs 43.1% real). Títulos de abril-septiembre decían "MARZO".
+- WhatsApp (solo admin/promotoria): `consultar_finanzas` (vistas mes / anual /
+  presupuesto / nomina / buscar), `registrar_gasto_finanzas`,
+  `registrar_ingreso_finanzas` (no sobrescribe un ingreso ya capturado sin
+  `reemplazar`), `registrar_bono_finanzas`, `editar_renglon_finanzas`,
+  `eliminar_renglon_finanzas`, `actualizar_nomina_finanzas`,
+  `actualizar_presupuesto_finanzas`. Registrar un gasto/ingreso pedido de forma
+  explícita se hace directo; editar, eliminar y cambios de plantilla/presupuesto
+  piden confirmación. **El bot carga las herramientas al arrancar: hay que
+  reiniciarlo.**
+
 ## ⚠️ Hallazgo de seguridad (2026-09-18, sin resolver todavía)
 
 `server/db.json` guarda, para cada usuario, **la contraseña dos veces**: una

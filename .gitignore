@@ -7,5 +7,6 @@ server/uploads/
 server/db.json
 server/promotoria.json
 server/karen.json
+server/finanzas.json
 server/backups/
 server/bot-usage.json

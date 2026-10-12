@@ -1736,6 +1736,11 @@ const AppContent = () => {
   if (user.role === 'admin' || user.role === 'administrador') {
     navItems.push({ name: 'Administración', id: 'Admin' });
   }
+  // El Master (admin) también entra a Promotoría — ahí vive Finanzas, que ven
+  // las dos cuentas (Master y Promotoría). El servidor ya le daba acceso.
+  if (user.role === 'admin') {
+    navItems.push({ name: 'Promotoría', id: 'Promotoria' });
+  }
 
   return (
     <div className="app-container">
