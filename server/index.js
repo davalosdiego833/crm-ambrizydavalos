@@ -2941,6 +2941,8 @@ app.post('/api/migrate', authMiddleware, upload.single('file'), (req, res) => {
 // ======================================
 // Multi-tenant: la cuenta Master ('admin') supervisa ambos despachos; un
 // 'administrador' de despacho solo ve/gestiona usuarios de su propia company.
+// Equipos de la promotoría: a cuál pertenece cada asesor (se asigna en Administración).
+const EQUIPOS = ['promotoria', 'karen'];
 const isMasterAdmin = (req) => req.user.role === 'admin';
 // La cuenta de Promotoría supervisa ambos despachos igual que el Master,
 // aunque no puede crear más cuentas Master ni de Promotoría (eso sigue
@@ -2961,7 +2963,8 @@ app.get('/api/admin/users', authMiddleware, adminOnly, (req, res) => {
     whatsappBotEnabled: u.whatsappBotEnabled || false,
     claveAgente: u.claveAgente || '',
     createdAt: u.createdAt || null,
-    createdBy: u.createdBy || null
+    createdBy: u.createdBy || null,
+    team: u.team || ''
   })));
 });
 
@@ -2983,6 +2986,9 @@ app.post('/api/admin/users', authMiddleware, adminOnly, (req, res) => {
   const requestedCompany = hasGlobalScope(req) && COMPANIES[company] ? company : null;
   const targetCompany = requestedCompany || req.user.company || 'ambriz';
 
+  // Equipo (Promotoría / Gerencia de Karen): solo lo asigna Master o Promotoría.
+  const targetTeam = hasGlobalScope(req) && EQUIPOS.includes(req.body.team) ? req.body.team : '';
+
   const newUser = {
     id: users.length > 0 ? Math.max(...users.map(u => u.id)) + 1 : 1,
     email: cleanEmail,
@@ -2995,6 +3001,7 @@ app.post('/api/admin/users', authMiddleware, adminOnly, (req, res) => {
     whatsappNumber: '',
     whatsappBotEnabled: false,
     claveAgente: '',
+    team: targetTeam,
     clients: [],
     // Quién y cuándo creó la cuenta (para filtrar "los que yo creé" en Administración)
     createdAt: new Date().toISOString(),
@@ -3034,6 +3041,10 @@ app.put('/api/admin/users/:id', authMiddleware, adminOnly, (req, res) => {
   if (whatsappNumber !== undefined) user.whatsappNumber = String(whatsappNumber || '').trim();
   if (whatsappBotEnabled !== undefined) user.whatsappBotEnabled = !!whatsappBotEnabled;
   if (claveAgente !== undefined) user.claveAgente = String(claveAgente || '').trim();
+  // Equipo: solo Master / Promotoría (un administrador de despacho no clasifica equipos)
+  if (req.body.team !== undefined && hasGlobalScope(req)) {
+    user.team = EQUIPOS.includes(req.body.team) ? req.body.team : '';
+  }
   if (role) {
     // Evitar que se asigne el rol 'admin' (Master) a otra cuenta por seguridad;
     // 'promotoria' solo lo puede asignar el Master.
@@ -3047,6 +3058,42 @@ app.put('/api/admin/users/:id', authMiddleware, adminOnly, (req, res) => {
   }
   saveDB();
   res.json({ success: true });
+});
+
+// Prospección consolidada por equipo (Promotoría / Gerencia de Karen): una fila
+// por asesor y el total del equipo. Los equipos se mantienen separados: cada
+// consulta trae solo a los asesores marcados con ese equipo.
+app.get('/api/promotoria/prospeccion', authMiddleware, promotoriaAccess, (req, res) => {
+  const equipo = req.query.equipo === 'karen' ? 'karen' : 'promotoria';
+  const hoy = hoyMexico();
+  const asesoresCRM = users.filter(u => ['advisor', 'administrador'].includes(u.role));
+  const delEquipo = asesoresCRM.filter(u => u.team === equipo);
+
+  const asesores = delEquipo.map(u => {
+    const st = prospectos.calcularEstadisticas(u.prospects || [], hoy);
+    return {
+      id: u.id,
+      name: u.name,
+      company: u.company || 'ambriz',
+      blocked: !!u.blocked,
+      total: st.total,
+      clasificados: st.clasificados,
+      sinClasificar: st.sinClasificar,
+      embudo: st.embudo,
+      conversiones: st.conversiones,
+      seguimientos: st.seguimientos,
+      porEtapa: st.porEtapa
+    };
+  }).sort((a, b) => b.total - a.total || a.name.localeCompare(b.name));
+
+  const todos = delEquipo.flatMap(u => u.prospects || []);
+  res.json({
+    equipo,
+    hoy,
+    asesores,
+    totalEquipo: prospectos.calcularEstadisticas(todos, hoy),
+    sinAsignar: asesoresCRM.filter(u => !EQUIPOS.includes(u.team)).length
+  });
 });
 
 // Da un token de acceso de corta duración para actuar como un usuario

@@ -1202,6 +1202,9 @@ const AdminPanel = () => {
   const [editRole, setEditRole] = useState('advisor');
   const [newCompany, setNewCompany] = useState(user?.company === 'novaris' ? 'novaris' : 'ambriz');
   const [adminTab, setAdminTab] = useState('usuarios');
+  const [newTeam, setNewTeam] = useState('');
+  const [editTeam, setEditTeam] = useState('');
+  const teamLabel = (t) => (t === 'promotoria' ? 'Promotoría Ambriz' : t === 'karen' ? 'Gerencia Karen' : 'Sin asignar');
   const [userSort, setUserSort] = useState('recientes'); // recientes | antiguos | nombre
   const [creatorFilter, setCreatorFilter] = useState('todos'); // todos | mios | otros | sinregistro
   const isMasterAdmin = user?.role === 'admin';
@@ -1239,7 +1242,7 @@ const AdminPanel = () => {
     authFetch('/api/admin/users', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: newName, email: newEmail.trim(), password: newPassword, role: newRole, company: companyToUse })
+      body: JSON.stringify({ name: newName, email: newEmail.trim(), password: newPassword, role: newRole, company: companyToUse, team: hasGlobalScope ? newTeam : '' })
     })
     .then(res => res.json())
     .then(data => {
@@ -1249,6 +1252,7 @@ const AdminPanel = () => {
         handleCopyWelcome(tempUser);
         setNewName(''); setNewEmail(''); setNewPassword('');
         setNewRole('advisor');
+        setNewTeam('');
         loadUsers();
       } else { alert(data.error); }
     });
@@ -1262,6 +1266,7 @@ const AdminPanel = () => {
     setEditRole(u.role || 'advisor');
     setEditWhatsapp(u.whatsappNumber || '');
     setEditClave(u.claveAgente || '');
+    setEditTeam(u.team || '');
   };
 
   const saveEdit = (id) => {
@@ -1272,6 +1277,7 @@ const AdminPanel = () => {
     body.role = editRole;
     body.whatsappNumber = editWhatsapp.trim();
     body.claveAgente = editClave.trim();
+    if (hasGlobalScope) body.team = editTeam;
 
     authFetch(`/api/admin/users/${id}`, {
       method: 'PUT',
@@ -1398,6 +1404,12 @@ const AdminPanel = () => {
                   <option value="ambriz" style={{ background: 'var(--bg-surface)' }}>Ambriz & Dávalos (Vida/GMM)</option>
                   <option value="novaris" style={{ background: 'var(--bg-surface)' }}>Novaris (Autos)</option>
                 </select>
+                <label style={{ fontSize: '0.75rem', color: 'var(--text-dim)', margin: '12px 0 6px', display: 'block' }}>Equipo</label>
+                <select value={newTeam} onChange={(e) => setNewTeam(e.target.value)} style={inputStyle}>
+                  <option value="" style={{ background: 'var(--bg-surface)' }}>Sin asignar</option>
+                  <option value="promotoria" style={{ background: 'var(--bg-surface)' }}>Promotoría Ambriz</option>
+                  <option value="karen" style={{ background: 'var(--bg-surface)' }}>Gerencia Karen</option>
+                </select>
               </div>
             ) : (
               <p style={{ fontSize: '0.75rem', color: 'var(--text-dim)', margin: 0 }}>
@@ -1468,6 +1480,7 @@ const AdminPanel = () => {
                   <th className="sticky-name" style={{ padding: '16px' }}>Nombre</th>
                   <th style={{ padding: '16px' }}>Correo</th>
                   <th style={{ padding: '16px' }}>Despacho</th>
+                  <th style={{ padding: '16px' }}>Equipo</th>
                   <th style={{ padding: '16px' }}>Creado</th>
                   <th style={{ padding: '16px' }}>Contraseña</th>
                   <th style={{ padding: '16px' }}>Clientes</th>
@@ -1479,7 +1492,7 @@ const AdminPanel = () => {
               <tbody>
                 {filteredUsers.length === 0 ? (
                   <tr>
-                    <td colSpan="9" style={{ padding: '32px', textAlign: 'center', color: 'var(--text-muted)' }}>
+                    <td colSpan="10" style={{ padding: '32px', textAlign: 'center', color: 'var(--text-muted)' }}>
                       No se encontraron usuarios
                     </td>
                   </tr>
@@ -1546,6 +1559,25 @@ const AdminPanel = () => {
                         }}>
                           {companyLabel(u.company)}
                         </span>
+                      </td>
+                      <td style={{ padding: '16px' }}>
+                        {['admin', 'promotoria'].includes(u.role) ? (
+                          <span style={{ color: 'var(--text-dim)' }}>—</span>
+                        ) : editingUser === u.id && hasGlobalScope ? (
+                          <select value={editTeam} onChange={(e) => setEditTeam(e.target.value)} style={{ ...inputStyle, padding: '6px 8px', fontSize: '0.75rem', width: '150px' }}>
+                            <option value="" style={{ background: 'var(--bg-surface)' }}>Sin asignar</option>
+                            <option value="promotoria" style={{ background: 'var(--bg-surface)' }}>Promotoría Ambriz</option>
+                            <option value="karen" style={{ background: 'var(--bg-surface)' }}>Gerencia Karen</option>
+                          </select>
+                        ) : (
+                          <span style={{
+                            fontSize: '0.7rem', padding: '4px 10px', borderRadius: '20px', fontWeight: '600', whiteSpace: 'nowrap',
+                            background: u.team === 'karen' ? 'rgba(37, 99, 235, 0.12)' : u.team === 'promotoria' ? 'rgba(226, 176, 66, 0.15)' : 'rgba(255,255,255,0.05)',
+                            color: u.team === 'karen' ? '#2563eb' : u.team === 'promotoria' ? 'var(--accent-gold)' : 'var(--text-dim)'
+                          }}>
+                            {teamLabel(u.team)}
+                          </span>
+                        )}
                       </td>
                       <td style={{ padding: '16px', fontSize: '0.8rem', whiteSpace: 'nowrap' }}>
                         {u.createdBy || u.createdAt ? (

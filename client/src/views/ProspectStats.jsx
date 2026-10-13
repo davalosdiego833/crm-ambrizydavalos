@@ -22,7 +22,10 @@ const KpiCard = ({ label, value, hint, color }) => (
   </div>
 );
 
-const ProspectStats = () => {
+// Sin props: estadísticas del asesor en sesión (con unir referenciadores).
+// Con `data`: muestra esas estadísticas ya calculadas (vista de dirección):
+// solo lectura y sin encabezado propio.
+const ProspectStats = ({ data, embedded = false }) => {
   const { authFetch } = useAuth();
   const [stats, setStats] = useState(null);
   const [error, setError] = useState(false);
@@ -36,12 +39,13 @@ const ProspectStats = () => {
       .catch(() => setError(true));
   };
 
-  useEffect(load, []);
+  useEffect(() => { if (!data) load(); }, []);
+  const view = data || stats;
 
   if (error) return <div style={{ textAlign: 'center', padding: '80px', color: 'var(--text-dim)' }}>No se pudieron cargar las estadísticas de prospección.</div>;
-  if (!stats) return <div style={{ textAlign: 'center', padding: '80px', color: 'var(--text-dim)' }}>Cargando estadísticas de prospección...</div>;
+  if (!view) return <div style={{ textAlign: 'center', padding: '80px', color: 'var(--text-dim)' }}>Cargando estadísticas de prospección...</div>;
 
-  const { total, clasificados, sinClasificar, porEtapa, embudo, conversiones, seguimientos, referenciadores } = stats;
+  const { total, clasificados, sinClasificar, porEtapa, embudo, conversiones, seguimientos, referenciadores } = view;
   const maxCount = Math.max(1, ...porEtapa.map(e => e.count));
 
   const toggle = (nombre) =>
@@ -84,19 +88,22 @@ const ProspectStats = () => {
 
   return (
     <div className="animate-up" style={{ display: 'flex', flexDirection: 'column', gap: '28px' }}>
-      <div>
-        <h1 style={{ fontSize: '2.2rem', margin: 0, fontWeight: '700', color: 'var(--text-main)' }}>
-          Estadísticas de <span className="text-gradient-gold">Prospección</span>
-        </h1>
-        <p style={{ color: 'var(--text-dim)', marginTop: '4px', fontSize: '0.95rem' }}>
-          En qué etapa está cada prospecto, qué tan bien convierte tu prospección y quién te refiere más.
-        </p>
-      </div>
+      {!embedded && (
+        <div>
+          <h1 style={{ fontSize: '2.2rem', margin: 0, fontWeight: '700', color: 'var(--text-main)' }}>
+            Estadísticas de <span className="text-gradient-gold">Prospección</span>
+          </h1>
+          <p style={{ color: 'var(--text-dim)', marginTop: '4px', fontSize: '0.95rem' }}>
+            En qué etapa está cada prospecto, qué tan bien convierte tu prospección y quién te refiere más.
+          </p>
+        </div>
+      )}
 
       {sinClasificar > 0 && (
         <div className="glass-card" style={{ padding: '14px 20px', borderLeft: '4px solid var(--accent-gold)', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-          <strong style={{ color: 'var(--text-main)' }}>{sinClasificar}</strong> de tus {total} prospectos están <strong>sin clasificar</strong> (vienen de antes de las etapas).
-          No se cuentan en los porcentajes ni en las conversiones. Clasifícalos desde la pestaña Prospección (filtra por "Sin clasificar") y las estadísticas se irán completando.
+          <strong style={{ color: 'var(--text-main)' }}>{sinClasificar}</strong> de {data ? 'los' : 'tus'} {total} prospectos están <strong>sin clasificar</strong> (vienen de antes de las etapas).
+          No se cuentan en los porcentajes ni en las conversiones.
+          {data ? ' Se irán completando conforme cada asesor clasifique su base.' : ' Clasifícalos desde la pestaña Prospección (filtra por "Sin clasificar") y las estadísticas se irán completando.'}
         </div>
       )}
 
@@ -154,10 +161,10 @@ const ProspectStats = () => {
           <div>
             <h3 style={{ fontSize: '1.1rem', margin: 0 }}>Referenciadores</h3>
             <p style={{ fontSize: '0.75rem', color: 'var(--text-dim)', marginTop: '4px' }}>
-              Quién te da más prospectos y cuántos llegaron a cita y a venta. Si un nombre está escrito distinto, márcalos y únelos.
+              {data ? 'Quién da más prospectos al equipo y cuántos llegaron a cita y a venta.' : 'Quién te da más prospectos y cuántos llegaron a cita y a venta. Si un nombre está escrito distinto, márcalos y únelos.'}
             </p>
           </div>
-          <button
+          {!data && <button
             onClick={mergeSelected}
             disabled={selected.length < 2 || merging}
             style={{
@@ -168,13 +175,13 @@ const ProspectStats = () => {
             }}
           >
             Unir seleccionados
-          </button>
+          </button>}
         </div>
         <div style={{ overflowX: 'auto' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
             <thead>
               <tr style={{ borderTop: '1px solid var(--glass-border)', borderBottom: '1px solid var(--glass-border)' }}>
-                {['', '#', 'Referenciador', 'Prospectos', 'Citas', 'Ventas', 'Cita %', 'Venta %'].map((h, i) => (
+                {[...(data ? [] : ['']), '#', 'Referenciador', 'Prospectos', 'Citas', 'Ventas', 'Cita %', 'Venta %'].map((h, i) => (
                   <th key={i} style={{ padding: '12px 16px', color: 'var(--text-muted)', fontWeight: '600', fontSize: '0.8rem' }}>{h}</th>
                 ))}
               </tr>
@@ -186,9 +193,11 @@ const ProspectStats = () => {
                 </td></tr>
               ) : referenciadores.map((r, i) => (
                 <tr key={r.nombre} style={{ borderBottom: '1px solid var(--glass-border)' }}>
-                  <td style={{ padding: '12px 16px' }}>
-                    <input type="checkbox" checked={selected.includes(r.nombre)} onChange={() => toggle(r.nombre)} />
-                  </td>
+                  {!data && (
+                    <td style={{ padding: '12px 16px' }}>
+                      <input type="checkbox" checked={selected.includes(r.nombre)} onChange={() => toggle(r.nombre)} />
+                    </td>
+                  )}
                   <td style={{ padding: '12px 16px', color: 'var(--text-dim)', fontSize: '0.85rem' }}>{i + 1}</td>
                   <td style={{ padding: '12px 16px', fontWeight: '700' }}>
                     {r.nombre}

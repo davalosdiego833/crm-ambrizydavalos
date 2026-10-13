@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import Finanzas from './Finanzas';
+import ProspectStats from './ProspectStats';
 
 // Hook para acceder al contexto de auth (mismo patrón que el resto de las vistas)
 const useAuth = () => {
@@ -1062,6 +1063,87 @@ const CancelacionesTab = ({ authFetch, apiBase }) => {
 // separados en el servidor. Karen no tiene pestaña de Asesores: sus
 // asesores se detectan automáticamente en el portal, no hay una lista
 // curada con cumpleaños/firma como la de Promotoría.
+// Prospección consolidada del equipo (Promotoría o Gerencia de Karen): una fila
+// por asesor + el total del equipo. Los asesores se asignan a un equipo en
+// Administración (campo "Equipo").
+const ProspeccionTab = ({ authFetch, equipo, accent }) => {
+  const [data, setData] = useState(null);
+  const [error, setError] = useState(false);
+
+  useEffect(() => {
+    authFetch(`/api/promotoria/prospeccion?equipo=${equipo}`)
+      .then(res => { if (!res.ok) throw new Error('error'); return res.json(); })
+      .then(setData)
+      .catch(() => setError(true));
+  }, [equipo]);
+
+  if (error) return <div style={{ padding: '60px', textAlign: 'center', color: 'var(--text-dim)' }}>No se pudo cargar la prospección del equipo.</div>;
+  if (!data) return <div style={{ padding: '60px', textAlign: 'center', color: 'var(--text-dim)' }}>Cargando prospección del equipo...</div>;
+
+  const pct = (v) => (v === null || v === undefined ? '—' : `${v}%`);
+  const th = { padding: '12px 14px', color: 'var(--text-muted)', fontWeight: '600', fontSize: '0.78rem', whiteSpace: 'nowrap' };
+  const td = { padding: '12px 14px', fontSize: '0.85rem', whiteSpace: 'nowrap' };
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+      {data.sinAsignar > 0 && (
+        <div className="glass-card" style={{ padding: '14px 20px', borderLeft: `4px solid ${accent}`, fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+          Hay <strong style={{ color: 'var(--text-main)' }}>{data.sinAsignar}</strong> {data.sinAsignar === 1 ? 'asesor' : 'asesores'} sin equipo asignado y no aparecen aquí.
+          Asígnalos en Administración (columna "Equipo").
+        </div>
+      )}
+
+      {data.asesores.length === 0 ? (
+        <div className="glass-card" style={{ padding: '40px', textAlign: 'center', color: 'var(--text-dim)' }}>
+          Todavía no hay asesores asignados a este equipo. Asígnalos desde Administración, en la columna "Equipo".
+        </div>
+      ) : (
+        <>
+          <div className="glass-card" style={{ padding: 0, overflow: 'hidden' }}>
+            <div style={{ padding: '20px 24px' }}>
+              <h3 style={{ fontSize: '1.1rem', margin: 0 }}>Prospección por asesor</h3>
+              <p style={{ fontSize: '0.75rem', color: 'var(--text-dim)', marginTop: '4px' }}>
+                Cada fila es un asesor del equipo. Llamadas, citas y ventas cuentan lo más lejos que llegó cada prospecto.
+              </p>
+            </div>
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+                <thead>
+                  <tr style={{ borderTop: '1px solid var(--glass-border)', borderBottom: '1px solid var(--glass-border)' }}>
+                    {['Asesor', 'Prospectos', 'Sin clasificar', 'Llamadas', 'Citas', 'Ventas', 'Llamada → cita', 'Cita → venta', 'No interesados', 'Seg. vencidos', 'Seg. hoy'].map(h => (
+                      <th key={h} style={th}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.asesores.map(a => (
+                    <tr key={a.id} style={{ borderBottom: '1px solid var(--glass-border)', opacity: a.blocked ? 0.55 : 1 }}>
+                      <td style={{ ...td, fontWeight: '700' }}>{a.name}{a.blocked ? ' (bloqueado)' : ''}</td>
+                      <td style={{ ...td, fontWeight: '700' }}>{a.total}</td>
+                      <td style={{ ...td, color: a.sinClasificar ? 'var(--accent-gold)' : 'var(--text-dim)' }}>{a.sinClasificar}</td>
+                      <td style={td}>{a.embudo.contactados}</td>
+                      <td style={td}>{a.embudo.citas}</td>
+                      <td style={{ ...td, color: a.embudo.ventas ? '#10b981' : undefined, fontWeight: a.embudo.ventas ? '700' : undefined }}>{a.embudo.ventas}</td>
+                      <td style={td}>{pct(a.conversiones.llamadaACita)}</td>
+                      <td style={td}>{pct(a.conversiones.citaAVenta)}</td>
+                      <td style={td}>{pct(a.conversiones.noInteresado)}</td>
+                      <td style={{ ...td, color: a.seguimientos.vencidos ? '#ef4444' : 'var(--text-dim)', fontWeight: a.seguimientos.vencidos ? '700' : undefined }}>{a.seguimientos.vencidos}</td>
+                      <td style={td}>{a.seguimientos.hoy}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <h3 style={{ fontSize: '1.2rem', margin: '8px 0 -8px' }}>Total del equipo</h3>
+          <ProspectStats data={data.totalEquipo} embedded />
+        </>
+      )}
+    </div>
+  );
+};
+
 const ORGS = [
   { id: 'promotoria', label: 'PROMOTORÍA AMBRIZ', apiBase: '/api/promotoria', accent: 'var(--accent-gold)', accentGlow: 'rgba(226,176,66,0.12)' },
   { id: 'karen', label: 'GERENCIA KAREN', apiBase: '/api/karen', accent: '#2563eb', accentGlow: 'rgba(37,99,235,0.10)' }
@@ -1077,12 +1159,14 @@ const Promotoria = () => {
   const tabs = org === 'karen'
     ? [
         { id: 'cancelaciones', label: 'Cancelaciones' },
-        { id: 'preContratos', label: 'Pre-contratos' }
+        { id: 'preContratos', label: 'Pre-contratos' },
+        { id: 'prospeccion', label: 'Prospección' }
       ]
     : [
         { id: 'asesores', label: 'Asesores' },
         { id: 'cancelaciones', label: 'Cancelaciones' },
         { id: 'preContratos', label: 'Pre-contratos' },
+        { id: 'prospeccion', label: 'Prospección' },
         { id: 'finanzas', label: 'Finanzas' }
       ];
 
@@ -1145,6 +1229,7 @@ const Promotoria = () => {
       {tab === 'asesores' && org === 'promotoria' && <AsesoresTab authFetch={authFetch} />}
       {tab === 'cancelaciones' && <CancelacionesTab key={currentOrg.id} authFetch={authFetch} apiBase={currentOrg.apiBase} />}
       {tab === 'preContratos' && <PreContratosTab key={currentOrg.id} authFetch={authFetch} apiBase={currentOrg.apiBase} />}
+      {tab === 'prospeccion' && <ProspeccionTab key={currentOrg.id} authFetch={authFetch} equipo={currentOrg.id} accent={currentOrg.accent} />}
       {tab === 'finanzas' && org === 'promotoria' && <Finanzas />}
     </div>
   );
