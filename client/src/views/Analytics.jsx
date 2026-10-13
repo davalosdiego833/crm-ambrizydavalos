@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useAuth } from '../App';
+import ProspectStats from './ProspectStats';
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
   PieChart, Pie, Cell, LineChart, Line, BarChart, Bar, FunnelChart, Funnel, LabelList
@@ -19,6 +20,7 @@ const Analytics = () => {
   const [month, setMonth] = useState(String(new Date().getMonth() + 1).padStart(2, '0')); // Predeterminado al mes actual
   const [activeSubTab, setActiveSubTab] = useState('consolidado'); // 'consolidado', 'udi', 'usd', 'gmm'
   const [drillDown, setDrillDown] = useState(null); // { title: string, list: array }
+  const [section, setSection] = useState('financieras'); // 'financieras' | 'prospeccion'
 
   const fetchAnalytics = () => {
     setLoading(true);
@@ -89,6 +91,25 @@ const Analytics = () => {
       lists: s.lists || { collected: [], pending: [], closed: [], active: [] }
     });
   };
+
+  const sectionSwitch = (
+    <div style={{ display: 'flex', gap: '8px', marginBottom: '24px', flexWrap: 'wrap' }}>
+      {[{ id: 'financieras', label: isAmbriz ? 'Financieras' : 'Cartera' }, { id: 'prospeccion', label: 'Prospección' }].map(t => (
+        <button key={t.id} onClick={() => setSection(t.id)} style={{
+          padding: '8px 18px', borderRadius: '20px', fontSize: '0.85rem', fontWeight: '600', cursor: 'pointer',
+          background: section === t.id ? 'var(--accent-gold)' : 'transparent',
+          color: section === t.id ? '#0f172a' : 'var(--text-muted)',
+          border: `1px solid ${section === t.id ? 'var(--accent-gold)' : 'var(--glass-border)'}`
+        }}>
+          {t.label}
+        </button>
+      ))}
+    </div>
+  );
+
+  if (section === 'prospeccion') {
+    return <div style={{ paddingBottom: '60px' }}>{sectionSwitch}<ProspectStats /></div>;
+  }
 
   if (loading || !data) return <div style={{ textAlign: 'center', padding: '100px', color: 'var(--text-dim)' }}>Cargando inteligencia de negocio...</div>;
 
@@ -530,7 +551,7 @@ const Analytics = () => {
         }
       `}</style>
       <div className="animate-up">
-      
+      {sectionSwitch}
       {/* CABECERA Y FILTROS */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '32px', flexWrap: 'wrap', gap: '20px' }}>
         <div>

@@ -11,6 +11,7 @@ const { COMPANIES } = require('./config/companies');
 
 
 
+const prospectos = require('./prospectos');
 const app = express();
 const PORT = process.env.PORT || 5001;
 const JWT_SECRET = 'ambriz-crm-elite-2024-secret';
@@ -1237,11 +1238,12 @@ app.get('/api/prospects', authMiddleware, (req, res) => {
 
 // Crear prospecto
 app.post('/api/prospects', authMiddleware, (req, res) => {
-  const { name, referredBy, phone, source, searchCommitmentDate, comments } = req.body;
+  const { name, referredBy, phone, source, searchCommitmentDate, comments, stage } = req.body;
   if (!name) return res.status(400).json({ error: 'El nombre del prospecto es requerido' });
 
   const prospects = req.user.prospects || [];
   const nextId = prospects.length > 0 ? Math.max(...prospects.map(p => p.id)) + 1 : 1;
+  const now = new Date().toISOString();
 
   const newProspect = {
     id: nextId,
@@ -1251,8 +1253,11 @@ app.post('/api/prospects', authMiddleware, (req, res) => {
     source: source || '',
     searchCommitmentDate: searchCommitmentDate || '',
     comments: comments || '',
-    createdAt: new Date().toISOString()
+    createdAt: now
   };
+  // Un prospecto nuevo nace "Por contactar" (los migrados de antes sin etapa
+  // se quedan "Sin clasificar" hasta que el asesor los clasifique).
+  prospectos.aplicarEtapa(newProspect, prospectos.normalizarEtapa(stage) || 'Por contactar', now);
 
   prospects.push(newProspect);
   req.user.prospects = prospects;
@@ -1267,16 +1272,78 @@ app.put('/api/prospects/:prospectId', authMiddleware, (req, res) => {
   const index = prospects.findIndex(p => p.id == req.params.prospectId);
   if (index === -1) return res.status(404).json({ error: 'Prospecto no encontrado' });
 
-  const { name, referredBy, phone, source, searchCommitmentDate, comments } = req.body;
+  const { name, referredBy, phone, source, searchCommitmentDate, comments, stage } = req.body;
+  if (stage !== undefined && stage !== '' && !prospectos.normalizarEtapa(stage)) {
+    return res.status(400).json({ error: 'Etapa comercial no válida' });
+  }
   if (name) prospects[index].name = name;
   prospects[index].referredBy = referredBy !== undefined ? referredBy : prospects[index].referredBy;
   prospects[index].phone = phone !== undefined ? phone : prospects[index].phone;
   prospects[index].source = source !== undefined ? source : prospects[index].source;
   prospects[index].searchCommitmentDate = searchCommitmentDate !== undefined ? searchCommitmentDate : prospects[index].searchCommitmentDate;
   prospects[index].comments = comments !== undefined ? comments : prospects[index].comments;
+  if (stage) prospectos.aplicarEtapa(prospects[index], prospectos.normalizarEtapa(stage));
 
   saveDB();
   res.json({ success: true, prospect: prospects[index] });
+});
+
+// Registrar un contacto: resultado + etapa + próxima fecha de seguimiento
+app.post('/api/prospects/:prospectId/contact', authMiddleware, (req, res) => {
+  const prospects = req.user.prospects || [];
+  const prospect = prospects.find(p => p.id == req.params.prospectId);
+  if (!prospect) return res.status(404).json({ error: 'Prospecto no encontrado' });
+
+  const { result, stage, nextDate } = req.body;
+  const etapa = stage ? prospectos.normalizarEtapa(stage) : '';
+  if (stage && !etapa) return res.status(400).json({ error: 'Etapa comercial no válida' });
+  if (nextDate && !/^\d{4}-\d{2}-\d{2}$/.test(nextDate)) {
+    return res.status(400).json({ error: 'Fecha de seguimiento no válida' });
+  }
+
+  const now = new Date().toISOString();
+  if (etapa) prospectos.aplicarEtapa(prospect, etapa, now);
+
+  // Si el prospecto queda en una etapa cerrada (venta / no interesado) ya no
+  // hay seguimiento que programar.
+  const cerrada = prospectos.ETAPAS_CERRADAS.includes(prospect.stage);
+  prospect.searchCommitmentDate = cerrada ? '' : (nextDate || '');
+
+  if (!Array.isArray(prospect.contacts)) prospect.contacts = [];
+  prospect.contacts.push({
+    date: now,
+    result: String(result || '').trim(),
+    stage: prospect.stage || '',
+    nextDate: prospect.searchCommitmentDate
+  });
+
+  saveDB();
+  res.json({ success: true, prospect });
+});
+
+// Estadísticas de prospección del asesor (etapas, embudo, referenciadores)
+app.get('/api/prospects/stats', authMiddleware, (req, res) => {
+  const hoy = hoyMexico();
+  res.json({ hoy, ...prospectos.calcularEstadisticas(req.user.prospects || [], hoy) });
+});
+
+// Unir nombres de referenciador escritos distinto ("Tania" -> "Tania Uribe")
+app.post('/api/prospects/referrers/merge', authMiddleware, (req, res) => {
+  const { from, to } = req.body;
+  const destino = String(to || '').trim();
+  if (!Array.isArray(from) || from.length === 0 || !destino) {
+    return res.status(400).json({ error: 'Indica los nombres a unir y el nombre final' });
+  }
+  const llaves = new Set(from.map(prospectos.llaveReferenciador));
+  let changed = 0;
+  (req.user.prospects || []).forEach(p => {
+    if (p.referredBy && llaves.has(prospectos.llaveReferenciador(p.referredBy)) && p.referredBy !== destino) {
+      p.referredBy = destino;
+      changed++;
+    }
+  });
+  saveDB();
+  res.json({ success: true, changed });
 });
 
 // Eliminar prospecto
@@ -1320,7 +1387,8 @@ app.post('/api/migrate-prospects', authMiddleware, upload.single('file'), (req, 
     const possibleSource = ['fuente', 'origen', 'de donde salio', 'de dónde salió'];
     const possibleReferredBy = ['referenciado por', 'referido por', 'referencia', 'quien lo refirio', 'quién lo refirió', 'recomendado por'];
     const possiblePhone = ['celular', 'teléfono', 'telefono', 'tel', 'whatsapp', 'número', 'numero'];
-    const possibleCommitment = ['fecha de compromiso de búsqueda', 'fecha de compromiso de busqueda', 'compromiso de busqueda', 'compromiso de búsqueda', 'compromiso', 'fecha compromiso'];
+    const possibleStage = ['etapa comercial', 'etapa', 'etapa del prospecto'];
+    const possibleCommitment = ['próximo seguimiento', 'proximo seguimiento', 'fecha de seguimiento', 'fecha próximo seguimiento', 'fecha proximo seguimiento', 'fecha de compromiso de búsqueda', 'fecha de compromiso de busqueda', 'compromiso de busqueda', 'compromiso de búsqueda', 'compromiso', 'fecha compromiso'];
     const possibleComments = ['observación', 'observacion', 'comentarios', 'comentario', 'comentarios/observacion', 'observaciones', 'status', 'estatus', 'notas', 'nota'];
 
     const prospects = req.user.prospects || [];
@@ -1349,6 +1417,7 @@ app.post('/api/migrate-prospects', authMiddleware, upload.single('file'), (req, 
       const rawPhone = getHeaderValue(row, possiblePhone);
       const rawCommitment = getHeaderValue(row, possibleCommitment);
       const rawComments = getHeaderValue(row, possibleComments);
+      const importedStage = prospectos.normalizarEtapa(getHeaderValue(row, possibleStage));
 
       const newProspect = {
         id: nextId++,
@@ -1360,6 +1429,9 @@ app.post('/api/migrate-prospects', authMiddleware, upload.single('file'), (req, 
         comments: String(rawComments || '').trim(),
         createdAt: new Date().toISOString()
       };
+
+      // Sin columna Etapa (o etapa irreconocible) queda "Sin clasificar".
+      if (importedStage) prospectos.aplicarEtapa(newProspect, importedStage, newProspect.createdAt);
 
       prospects.push(newProspect);
       addedCount++;
