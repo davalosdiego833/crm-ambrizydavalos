@@ -2959,7 +2959,9 @@ app.get('/api/admin/users', authMiddleware, adminOnly, (req, res) => {
     totalClients: u.clients.length,
     whatsappNumber: u.whatsappNumber || '',
     whatsappBotEnabled: u.whatsappBotEnabled || false,
-    claveAgente: u.claveAgente || ''
+    claveAgente: u.claveAgente || '',
+    createdAt: u.createdAt || null,
+    createdBy: u.createdBy || null
   })));
 });
 
@@ -2993,7 +2995,10 @@ app.post('/api/admin/users', authMiddleware, adminOnly, (req, res) => {
     whatsappNumber: '',
     whatsappBotEnabled: false,
     claveAgente: '',
-    clients: []
+    clients: [],
+    // Quién y cuándo creó la cuenta (para filtrar "los que yo creé" en Administración)
+    createdAt: new Date().toISOString(),
+    createdBy: { id: req.user.id, name: req.user.name }
   };
   users.push(newUser);
   saveDB();

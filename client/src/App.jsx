@@ -1202,6 +1202,8 @@ const AdminPanel = () => {
   const [editRole, setEditRole] = useState('advisor');
   const [newCompany, setNewCompany] = useState(user?.company === 'novaris' ? 'novaris' : 'ambriz');
   const [adminTab, setAdminTab] = useState('usuarios');
+  const [userSort, setUserSort] = useState('recientes'); // recientes | antiguos | nombre
+  const [creatorFilter, setCreatorFilter] = useState('todos'); // todos | mios | otros | sinregistro
   const isMasterAdmin = user?.role === 'admin';
   // La cuenta de Promotoría también supervisa ambos despachos, igual que el Master.
   const hasGlobalScope = user?.role === 'admin' || user?.role === 'promotoria';
@@ -1311,10 +1313,26 @@ const AdminPanel = () => {
       .then(() => loadUsers());
   };
 
-  const filteredUsers = usersList.filter(u => 
-    u.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    u.email?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  // El id crece con cada alta, así que sirve para ordenar por antigüedad aun
+  // en las cuentas anteriores a que se guardara la fecha de creación.
+  const matchesCreator = (u) => {
+    if (creatorFilter === 'todos') return true;
+    if (creatorFilter === 'sinregistro') return !u.createdBy;
+    if (!u.createdBy) return false;
+    return creatorFilter === 'mios' ? u.createdBy.id === user?.id : u.createdBy.id !== user?.id;
+  };
+  const filteredUsers = usersList
+    .filter(u =>
+      u.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      u.email?.toLowerCase().includes(searchTerm.toLowerCase())
+    )
+    .filter(matchesCreator)
+    .sort((a, b) => {
+      if (userSort === 'nombre') return (a.name || '').localeCompare(b.name || '');
+      return userSort === 'antiguos' ? a.id - b.id : b.id - a.id;
+    });
+  const formatCreated = (iso) =>
+    iso ? new Date(iso).toLocaleDateString('es-MX', { day: 'numeric', month: 'short', year: 'numeric' }) : null;
 
   const inputStyle = { padding: '10px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--glass-border)', borderRadius: '8px', color: 'var(--text-main)', fontSize: '0.85rem', width: '100%', boxSizing: 'border-box' };
 
@@ -1418,15 +1436,39 @@ const AdminPanel = () => {
                 }}
               />
             </div>
+
+            {/* Orden y filtro por quién creó la cuenta */}
+            <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+              <select value={userSort} onChange={(e) => setUserSort(e.target.value)} style={{ ...inputStyle, width: 'auto', padding: '8px 12px', fontSize: '0.8rem' }}>
+                <option value="recientes" style={{ background: 'var(--bg-surface)' }}>Orden: más recientes primero</option>
+                <option value="antiguos" style={{ background: 'var(--bg-surface)' }}>Orden: más antiguos primero</option>
+                <option value="nombre" style={{ background: 'var(--bg-surface)' }}>Orden: nombre A-Z</option>
+              </select>
+              <select value={creatorFilter} onChange={(e) => setCreatorFilter(e.target.value)} style={{ ...inputStyle, width: 'auto', padding: '8px 12px', fontSize: '0.8rem' }}>
+                <option value="todos" style={{ background: 'var(--bg-surface)' }}>Creados por: todos</option>
+                <option value="mios" style={{ background: 'var(--bg-surface)' }}>Creados por mí</option>
+                <option value="otros" style={{ background: 'var(--bg-surface)' }}>Creados por otra cuenta</option>
+                <option value="sinregistro" style={{ background: 'var(--bg-surface)' }}>Anteriores (sin registro)</option>
+              </select>
+              <span style={{ alignSelf: 'center', fontSize: '0.75rem', color: 'var(--text-dim)' }}>{filteredUsers.length} de {usersList.length} cuentas</span>
+            </div>
           </div>
 
-          <div style={{ maxHeight: '420px', overflowY: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+          <div style={{ maxHeight: '420px', overflow: 'auto' }}>
+            <style>{`
+              /* Columna Nombre fija al desplazar la tabla hacia la derecha */
+              .users-table .sticky-name { position: sticky; left: 0; z-index: 5; background: var(--bg-surface); box-shadow: 1px 0 0 var(--glass-border); }
+              .users-table thead .sticky-name { z-index: 12; }
+              .users-table tr.user-blocked td:not(.sticky-name) { opacity: 0.5; }
+              .users-table tr.user-blocked td.sticky-name > * { opacity: 0.5; }
+            `}</style>
+            <table className="users-table" style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
               <thead style={{ position: 'sticky', top: 0, zIndex: 10, background: 'var(--bg-surface)' }}>
                 <tr style={{ borderBottom: '1px solid var(--glass-border)' }}>
-                  <th style={{ padding: '16px' }}>Nombre</th>
+                  <th className="sticky-name" style={{ padding: '16px' }}>Nombre</th>
                   <th style={{ padding: '16px' }}>Correo</th>
                   <th style={{ padding: '16px' }}>Despacho</th>
+                  <th style={{ padding: '16px' }}>Creado</th>
                   <th style={{ padding: '16px' }}>Contraseña</th>
                   <th style={{ padding: '16px' }}>Clientes</th>
                   <th style={{ padding: '16px' }}>Estatus</th>
@@ -1437,14 +1479,14 @@ const AdminPanel = () => {
               <tbody>
                 {filteredUsers.length === 0 ? (
                   <tr>
-                    <td colSpan="8" style={{ padding: '32px', textAlign: 'center', color: 'var(--text-muted)' }}>
+                    <td colSpan="9" style={{ padding: '32px', textAlign: 'center', color: 'var(--text-muted)' }}>
                       No se encontraron usuarios
                     </td>
                   </tr>
                 ) : (
                   filteredUsers.map(u => (
-                    <tr key={u.id} style={{ borderBottom: '1px solid var(--glass-border)', opacity: u.blocked ? 0.5 : 1 }}>
-                      <td style={{ padding: '16px' }}>
+                    <tr key={u.id} className={u.blocked ? 'user-blocked' : ''} style={{ borderBottom: '1px solid var(--glass-border)' }}>
+                      <td className="sticky-name" style={{ padding: '16px' }}>
                         {editingUser === u.id ? (
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                             <input value={editName} onChange={(e) => setEditName(e.target.value)} style={{ ...inputStyle, padding: '6px 8px' }} />
@@ -1504,6 +1546,20 @@ const AdminPanel = () => {
                         }}>
                           {companyLabel(u.company)}
                         </span>
+                      </td>
+                      <td style={{ padding: '16px', fontSize: '0.8rem', whiteSpace: 'nowrap' }}>
+                        {u.createdBy || u.createdAt ? (
+                          <div>
+                            <div>{formatCreated(u.createdAt) || '—'}</div>
+                            {u.createdBy && (
+                              <div style={{ fontSize: '0.7rem', color: 'var(--text-dim)' }}>
+                                por {u.createdBy.id === user?.id ? 'mí' : u.createdBy.name}
+                              </div>
+                            )}
+                          </div>
+                        ) : (
+                          <span style={{ color: 'var(--text-dim)' }}>—</span>
+                        )}
                       </td>
                       <td style={{ padding: '16px', fontSize: '0.85rem', fontFamily: 'monospace' }}>
                         {editingUser === u.id ? (
