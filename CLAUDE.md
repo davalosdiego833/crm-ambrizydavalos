@@ -265,6 +265,12 @@ eventos; resultado = neto - gastos; rentabilidad = resultado / bruto.
   septiembre, y en septiembre la fórmula de gastos totales apuntaba a la fila
   de FER CARLOS en vez del TOTAL NÓMINA (rentabilidad de septiembre mostrada
   69.2% vs 43.1% real). Títulos de abril-septiembre decían "MARZO".
+- **Rubro "automático desde nómina"** (`fuente: 'nomina'` en la categoría del
+  presupuesto, ej. "Nominas Staff"): su gasto real es la **nómina sin bonos**
+  de los meses ya pagados (cerrados o anteriores al mes en curso); el mes
+  abierto en curso no cuenta hasta cerrarse. Los renglones de nómina no llevan
+  rubro, por eso se calcula aparte. Los gastos admin./eventos "sin rubro" se
+  pueden asignar desde el botón "Revisar y asignar" de Presupuesto vs real.
 - WhatsApp (solo admin/promotoria): `consultar_finanzas` (vistas mes / anual /
   presupuesto / nomina / buscar), `registrar_gasto_finanzas`,
   `registrar_ingreso_finanzas` (no sobrescribe un ingreso ya capturado sin

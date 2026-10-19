@@ -432,7 +432,7 @@ module.exports = function registrarFinanzas({ app, authMiddleware, promotoriaAcc
     const anio = Number(req.query.anio) || Number(hoyMexico().slice(0, 4));
     const lineas = lineasDeAnio(anio);
     // Rubros con fuente 'nomina' (ej. "Nómina staff"): su gasto real sale solo
-    // de la nómina + bonos de los meses ya pagados (cerrados o ya pasados),
+    // de la nómina (sin bonos) de los meses ya pagados (cerrados o ya pasados),
     // porque esos renglones no llevan rubro. El mes en curso, si sigue abierto,
     // todavía no cuenta.
     const mesActual = hoyMexico().slice(0, 7);
@@ -441,7 +441,7 @@ module.exports = function registrarFinanzas({ app, authMiddleware, promotoriaAcc
       .sort();
     const realNomina = r2(mesesPagados.reduce((s, ym) => {
       const c = calcular(data.meses[ym]);
-      return s + c.totalNomina + c.totalBonos;
+      return s + c.totalNomina;
     }, 0));
     const categorias = data.categorias
       .filter((c) => c.anio === anio)

@@ -629,7 +629,7 @@ const PresupuestoView = ({ call, anio }) => {
   return (
     <div>
       <div className="glass-card" style={{ padding: '14px 20px', marginBottom: '20px', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-        El gasto real de cada rubro se suma solo de los gastos administrativos y eventos que tengan ese rubro asignado. Los que no tienen rubro aparecen abajo como "Sin rubro". Un rubro marcado como "Automático desde nómina" toma su gasto real de la nómina y los bonos de los meses ya pagados.
+        El gasto real de cada rubro se suma solo de los gastos administrativos y eventos que tengan ese rubro asignado. Los que no tienen rubro aparecen abajo como "Sin rubro". Un rubro marcado como "Automático desde nómina" toma su gasto real de la nómina (sin bonos) de los meses ya pagados.
       </div>
       <div className="glass-card" style={{ padding: 0, overflow: 'hidden' }}>
         <div style={{ padding: '16px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--glass-border)' }}>
@@ -654,7 +654,7 @@ const PresupuestoView = ({ call, anio }) => {
                 <tr><td colSpan="7" style={{ ...td, textAlign: 'center', color: 'var(--text-dim)', padding: '32px' }}>No hay rubros de presupuesto para {anio}.</td></tr>
               ) : p.categorias.map((c) => (
                 <tr key={c.id} style={{ borderBottom: '1px solid var(--glass-border)' }}>
-                  <td style={{ ...td, fontWeight: '700' }}>{c.nombre}<div style={{ fontSize: '0.72rem', color: 'var(--text-dim)', fontWeight: '500' }}>{c.fuente === 'nomina' ? `Automático desde nómina y bonos · ${c.movimientos} ${c.movimientos === 1 ? 'mes pagado' : 'meses pagados'}` : `${c.movimientos} ${c.movimientos === 1 ? 'movimiento' : 'movimientos'}`}</div></td>
+                  <td style={{ ...td, fontWeight: '700' }}>{c.nombre}<div style={{ fontSize: '0.72rem', color: 'var(--text-dim)', fontWeight: '500' }}>{c.fuente === 'nomina' ? `Automático desde nómina (sin bonos) · ${c.movimientos} ${c.movimientos === 1 ? 'mes pagado' : 'meses pagados'}` : `${c.movimientos} ${c.movimientos === 1 ? 'movimiento' : 'movimientos'}`}</div></td>
                   <td style={{ ...td, color: 'var(--text-dim)', whiteSpace: 'nowrap' }}>{c.detalle || '—'}</td>
                   <td style={{ ...td, ...num }}>{money(c.anual)}</td>
                   <td style={{ ...td, ...num, fontWeight: '700' }}>{money(c.real)}</td>
@@ -713,7 +713,7 @@ const PresupuestoView = ({ call, anio }) => {
             </div>
             <label style={{ display: 'flex', gap: '10px', alignItems: 'flex-start', fontSize: '0.82rem', color: '#334155', cursor: 'pointer' }}>
               <input type="checkbox" checked={form.deNomina} onChange={(e) => setForm((f) => ({ ...f, deNomina: e.target.checked }))} style={{ marginTop: '3px' }} />
-              <span>Automático desde nómina: el gasto real de este rubro es la nómina y los bonos de los meses ya pagados (cerrados o pasados), tomados del estado de resultados.</span>
+              <span>Automático desde nómina: el gasto real de este rubro es la nómina (sin bonos) de los meses ya pagados (cerrados o pasados), tomada del estado de resultados.</span>
             </label>
             <ModalButtons onCancel={() => setModal(null)} submitLabel={modal.cat ? 'Guardar cambios' : 'Agregar rubro'} />
           </form>

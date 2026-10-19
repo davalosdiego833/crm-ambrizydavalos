@@ -579,7 +579,7 @@ function herramientasFinanzas(token) {
             presupuesto_anual: { type: 'number', description: 'Monto anual proyectado en pesos.' },
             detalle: { type: 'string', description: 'Texto libre (ej. "$500 p/p").' },
             nuevo_nombre: { type: 'string', description: 'Solo "cambiar": renombrar el rubro.' },
-            automatico_desde_nomina: { type: 'boolean', description: 'true = el gasto real del rubro se toma solo de la nómina y bonos de los meses ya pagados (ej. rubro "Nómina staff").' },
+            automatico_desde_nomina: { type: 'boolean', description: 'true = el gasto real del rubro se toma solo de la nómina (sin bonos) de los meses ya pagados (ej. rubro "Nómina staff").' },
           },
           required: ['accion', 'rubro'],
         },
