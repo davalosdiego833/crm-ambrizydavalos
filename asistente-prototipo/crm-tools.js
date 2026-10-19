@@ -579,15 +579,16 @@ function herramientasFinanzas(token) {
             presupuesto_anual: { type: 'number', description: 'Monto anual proyectado en pesos.' },
             detalle: { type: 'string', description: 'Texto libre (ej. "$500 p/p").' },
             nuevo_nombre: { type: 'string', description: 'Solo "cambiar": renombrar el rubro.' },
+            automatico_desde_nomina: { type: 'boolean', description: 'true = el gasto real del rubro se toma solo de la nómina y bonos de los meses ya pagados (ej. rubro "Nómina staff").' },
           },
           required: ['accion', 'rubro'],
         },
       },
-      run: async ({ accion, rubro, anio, presupuesto_anual, detalle, nuevo_nombre }) => {
+      run: async ({ accion, rubro, anio, presupuesto_anual, detalle, nuevo_nombre, automatico_desde_nomina }) => {
         const anioUsar = anio || Number(hoyMexicoBot().slice(0, 4));
         if (accion === 'agregar') {
           if (presupuesto_anual === undefined) return { error: 'Falta el presupuesto anual del rubro nuevo.' };
-          return crmJson(token, 'POST', '/api/finanzas/presupuesto/categorias', { anio: anioUsar, nombre: rubro, anual: presupuesto_anual, detalle });
+          return crmJson(token, 'POST', '/api/finanzas/presupuesto/categorias', { anio: anioUsar, nombre: rubro, anual: presupuesto_anual, detalle, fuente: automatico_desde_nomina ? 'nomina' : undefined });
         }
         const pres = await crmJson(token, 'GET', `/api/finanzas/presupuesto?anio=${anioUsar}`);
         if (pres.error) return pres;
@@ -600,6 +601,7 @@ function herramientasFinanzas(token) {
         if (presupuesto_anual !== undefined) body.anual = presupuesto_anual;
         if (detalle !== undefined) body.detalle = detalle;
         if (nuevo_nombre !== undefined) body.nombre = nuevo_nombre;
+        if (automatico_desde_nomina !== undefined) body.fuente = automatico_desde_nomina ? 'nomina' : '';
         return crmJson(token, 'PUT', `/api/finanzas/presupuesto/categorias/${coinc[0].id}`, body);
       },
     },

@@ -431,9 +431,28 @@ module.exports = function registrarFinanzas({ app, authMiddleware, promotoriaAcc
   app.get('/api/finanzas/presupuesto', ...acceso, (req, res) => {
     const anio = Number(req.query.anio) || Number(hoyMexico().slice(0, 4));
     const lineas = lineasDeAnio(anio);
+    // Rubros con fuente 'nomina' (ej. "Nómina staff"): su gasto real sale solo
+    // de la nómina + bonos de los meses ya pagados (cerrados o ya pasados),
+    // porque esos renglones no llevan rubro. El mes en curso, si sigue abierto,
+    // todavía no cuenta.
+    const mesActual = hoyMexico().slice(0, 7);
+    const mesesPagados = Object.keys(data.meses)
+      .filter((ym) => ym.startsWith(`${anio}-`) && (ym < mesActual || data.meses[ym].ingresoBruto !== null))
+      .sort();
+    const realNomina = r2(mesesPagados.reduce((s, ym) => {
+      const c = calcular(data.meses[ym]);
+      return s + c.totalNomina + c.totalBonos;
+    }, 0));
     const categorias = data.categorias
       .filter((c) => c.anio === anio)
       .map((c) => {
+        if (c.fuente === 'nomina') {
+          return {
+            ...c, real: realNomina, diferencia: r2(c.anual - realNomina),
+            porcentaje: c.anual ? realNomina / c.anual : null,
+            movimientos: mesesPagados.length, unidadMovimientos: 'meses de nómina',
+          };
+        }
         const propias = lineas.filter((l) => l.categoriaId === c.id);
         const real = suma(propias, 'importe');
         return {
@@ -470,6 +489,7 @@ module.exports = function registrarFinanzas({ app, authMiddleware, promotoriaAcc
       return res.status(400).json({ error: `Ya existe el rubro "${nombre}" en ${anio}.` });
     }
     const c = { id: nuevoId(), anio, nombre, detalle: String(b.detalle || '').trim(), anual };
+    if (b.fuente === 'nomina') c.fuente = 'nomina';
     data.categorias.push(c);
     save();
     res.json({ success: true, categoria: c });
@@ -485,6 +505,7 @@ module.exports = function registrarFinanzas({ app, authMiddleware, promotoriaAcc
       c.nombre = n;
     }
     if (b.detalle !== undefined) c.detalle = String(b.detalle || '').trim();
+    if (b.fuente !== undefined) { if (b.fuente === 'nomina') c.fuente = 'nomina'; else delete c.fuente; }
     if (b.anual !== undefined) {
       const a = parseMonto(b.anual);
       if (a === null || a < 0) return res.status(400).json({ error: 'El presupuesto anual debe ser un importe válido.' });

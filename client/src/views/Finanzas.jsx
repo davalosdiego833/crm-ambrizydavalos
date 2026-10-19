@@ -571,7 +571,8 @@ const EstadoResultados = ({ call, anio, mes, setMes }) => {
 const PresupuestoView = ({ call, anio }) => {
   const [p, setP] = useState(null);
   const [modal, setModal] = useState(null); // { cat } (cat null = nuevo)
-  const [form, setForm] = useState({ nombre: '', detalle: '', anual: '' });
+  const [form, setForm] = useState({ nombre: '', detalle: '', anual: '', deNomina: false });
+  const [sinRubro, setSinRubro] = useState(null); // lista de movimientos sin rubro (modal)
 
   const cargar = async () => {
     const r = await call('GET', `/api/finanzas/presupuesto?anio=${anio}`);
@@ -580,13 +581,24 @@ const PresupuestoView = ({ call, anio }) => {
   useEffect(() => { cargar(); }, [anio]);
 
   const abrir = (cat) => {
-    setForm(cat ? { nombre: cat.nombre, detalle: cat.detalle || '', anual: cat.anual } : { nombre: '', detalle: '', anual: '' });
+    setForm(cat ? { nombre: cat.nombre, detalle: cat.detalle || '', anual: cat.anual, deNomina: cat.fuente === 'nomina' } : { nombre: '', detalle: '', anual: '', deNomina: false });
     setModal({ cat });
+  };
+  const abrirSinRubro = async () => {
+    const r = await call('GET', `/api/finanzas/lineas?anio=${anio}&categoria=${encodeURIComponent('sin categoria')}`);
+    if (r) setSinRubro(r.lineas.filter((l) => l.seccion === 'gastosAdmin' || l.seccion === 'eventos'));
+  };
+  const asignarRubro = async (l, categoriaId) => {
+    const r = await call('PUT', `/api/finanzas/mes/${l.mes}/${l.seccion}/${l.id}`, { categoriaId: categoriaId ? Number(categoriaId) : null });
+    if (r) {
+      setSinRubro((prev) => prev.filter((x) => !(x.id === l.id && x.seccion === l.seccion && x.mes === l.mes)));
+      cargar();
+    }
   };
   const guardar = async (e) => {
     e.preventDefault();
     if (!form.nombre.trim() || form.anual === '') return alert('Captura el nombre y el presupuesto anual');
-    const body = { nombre: form.nombre, detalle: form.detalle, anual: Number(form.anual) };
+    const body = { nombre: form.nombre, detalle: form.detalle, anual: Number(form.anual), fuente: form.deNomina ? 'nomina' : '' };
     const r = modal.cat
       ? await call('PUT', `/api/finanzas/presupuesto/categorias/${modal.cat.id}`, body)
       : await call('POST', '/api/finanzas/presupuesto/categorias', { ...body, anio });
@@ -617,7 +629,7 @@ const PresupuestoView = ({ call, anio }) => {
   return (
     <div>
       <div className="glass-card" style={{ padding: '14px 20px', marginBottom: '20px', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-        El gasto real se suma solo de los gastos administrativos y eventos que tengan asignado un rubro. Los que no tienen rubro aparecen abajo como "Sin rubro".
+        El gasto real de cada rubro se suma solo de los gastos administrativos y eventos que tengan ese rubro asignado. Los que no tienen rubro aparecen abajo como "Sin rubro". Un rubro marcado como "Automático desde nómina" toma su gasto real de la nómina y los bonos de los meses ya pagados.
       </div>
       <div className="glass-card" style={{ padding: 0, overflow: 'hidden' }}>
         <div style={{ padding: '16px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--glass-border)' }}>
@@ -642,7 +654,7 @@ const PresupuestoView = ({ call, anio }) => {
                 <tr><td colSpan="7" style={{ ...td, textAlign: 'center', color: 'var(--text-dim)', padding: '32px' }}>No hay rubros de presupuesto para {anio}.</td></tr>
               ) : p.categorias.map((c) => (
                 <tr key={c.id} style={{ borderBottom: '1px solid var(--glass-border)' }}>
-                  <td style={{ ...td, fontWeight: '700' }}>{c.nombre}<div style={{ fontSize: '0.72rem', color: 'var(--text-dim)', fontWeight: '500' }}>{c.movimientos} {c.movimientos === 1 ? 'movimiento' : 'movimientos'}</div></td>
+                  <td style={{ ...td, fontWeight: '700' }}>{c.nombre}<div style={{ fontSize: '0.72rem', color: 'var(--text-dim)', fontWeight: '500' }}>{c.fuente === 'nomina' ? `Automático desde nómina y bonos · ${c.movimientos} ${c.movimientos === 1 ? 'mes pagado' : 'meses pagados'}` : `${c.movimientos} ${c.movimientos === 1 ? 'movimiento' : 'movimientos'}`}</div></td>
                   <td style={{ ...td, color: 'var(--text-dim)', whiteSpace: 'nowrap' }}>{c.detalle || '—'}</td>
                   <td style={{ ...td, ...num }}>{money(c.anual)}</td>
                   <td style={{ ...td, ...num, fontWeight: '700' }}>{money(c.real)}</td>
@@ -659,7 +671,12 @@ const PresupuestoView = ({ call, anio }) => {
                 <td style={td} />
                 <td style={td} />
                 <td style={{ ...td, ...num, fontWeight: '700' }}>{money(p.sinCategoria.real)}</td>
-                <td colSpan="3" style={{ ...td, color: 'var(--text-dim)', fontSize: '0.78rem' }}>No cuenta contra ningún presupuesto. Asígnales un rubro desde Estado de resultados.</td>
+                <td colSpan="2" style={{ ...td, color: 'var(--text-dim)', fontSize: '0.78rem' }}>
+                  Gastos reales que todavía no se asignan a ningún rubro, así que no restan de ningún presupuesto.
+                </td>
+                <td style={{ ...td, textAlign: 'center' }}>
+                  {p.sinCategoria.movimientos > 0 && <button onClick={abrirSinRubro} style={linkBtn('var(--accent-gold)')}>Revisar y asignar</button>}
+                </td>
               </tr>
             </tbody>
             <tfoot>
@@ -694,8 +711,39 @@ const PresupuestoView = ({ call, anio }) => {
                 <input type="number" step="0.01" min="0" style={inputStyle} value={form.anual} onChange={(e) => setForm((f) => ({ ...f, anual: e.target.value }))} required />
               </div>
             </div>
+            <label style={{ display: 'flex', gap: '10px', alignItems: 'flex-start', fontSize: '0.82rem', color: '#334155', cursor: 'pointer' }}>
+              <input type="checkbox" checked={form.deNomina} onChange={(e) => setForm((f) => ({ ...f, deNomina: e.target.checked }))} style={{ marginTop: '3px' }} />
+              <span>Automático desde nómina: el gasto real de este rubro es la nómina y los bonos de los meses ya pagados (cerrados o pasados), tomados del estado de resultados.</span>
+            </label>
             <ModalButtons onCancel={() => setModal(null)} submitLabel={modal.cat ? 'Guardar cambios' : 'Agregar rubro'} />
           </form>
+        </ModalShell>
+      )}
+
+      {sinRubro && (
+        <ModalShell title="Gastos sin rubro" onClose={() => setSinRubro(null)} maxWidth="720px">
+          <p style={{ fontSize: '0.82rem', color: '#475569', marginTop: '-10px', marginBottom: '16px' }}>
+            Elige un rubro para cada gasto; en cuanto lo asignes pasa a contar contra ese presupuesto y sale de esta lista.
+          </p>
+          {sinRubro.length === 0 ? (
+            <p style={{ color: '#475569' }}>No quedan gastos sin rubro.</p>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              {sinRubro.map((l) => (
+                <div key={`${l.mes}-${l.seccion}-${l.id}`} style={{ display: 'grid', gridTemplateColumns: '1fr 100px 190px', gap: '10px', alignItems: 'center', padding: '8px 12px', border: '1px solid #e2e8f0', borderRadius: '10px' }}>
+                  <div>
+                    <div style={{ fontWeight: '700', fontSize: '0.86rem' }}>{l.concepto}{l.detalles ? ` · ${l.detalles}` : ''}</div>
+                    <div style={{ fontSize: '0.72rem', color: '#64748b' }}>{MESES[Number(l.mes.slice(5)) - 1]} · {l.seccion === 'eventos' ? 'Evento' : 'Gasto administrativo'}</div>
+                  </div>
+                  <div style={{ textAlign: 'right', fontWeight: '700', fontSize: '0.86rem' }}>{money(l.importe)}</div>
+                  <select style={{ ...inputStyle, padding: '6px 8px' }} value="" onChange={(e) => asignarRubro(l, e.target.value)}>
+                    <option value="">Asignar rubro...</option>
+                    {p.categorias.filter((c) => c.fuente !== 'nomina').map((c) => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+                  </select>
+                </div>
+              ))}
+            </div>
+          )}
         </ModalShell>
       )}
     </div>
