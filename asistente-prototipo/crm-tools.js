@@ -28,6 +28,15 @@ export function normalizar(texto) {
     .trim();
 }
 
+// Los nombres del CRM vienen completos ("MONICA ANDREA AMBRIZ GOMEZ"), pero la
+// gente los pide a medias ("Mónica Ambriz"): coincide si TODAS las palabras de
+// la consulta aparecen en el nombre, en cualquier orden y sin acentos.
+function coincideNombre(texto, consulta) {
+  const t = normalizar(texto);
+  const palabras = normalizar(consulta).split(/\s+/).filter(Boolean);
+  return palabras.length > 0 && palabras.every((p) => t.includes(p));
+}
+
 export async function loginCRM(email, password) {
   const res = await fetchCRM(`${CRM_URL}/api/login`, {
     method: 'POST',
@@ -138,7 +147,7 @@ async function buscarEnLista(token, path, identificador, campoClaveExacta) {
   const lista = await crmGet(token, path);
   const q = normalizar(identificador);
   return lista.filter(
-    (item) => normalizar(item.nombre).includes(q) || normalizar(item[campoClaveExacta]) === q
+    (item) => coincideNombre(item.nombre, identificador) || normalizar(item[campoClaveExacta]) === q
   );
 }
 
@@ -199,13 +208,13 @@ const SCHEMA_CONSULTA_CANCELACIONES = {
     fecha_detectado: {
       type: 'string',
       description:
-        'YYYY-MM-DD. Trae solo lo que el reporte detectó ESE día. Úsalo para "cancelaciones de hoy / de ayer / ' +
-        'del 7 de octubre" (para "hoy" usa la fecha "hoy" del resultado de esta misma herramienta, o la de ' +
-        'la fecha actual). NO es el seguimiento de reactivación.',
+        'YYYY-MM-DD, o las palabras "hoy" / "ayer" (el sistema las convierte con la fecha de México). Trae ' +
+        'solo lo que el reporte detectó ESE día. Úsalo para "cancelaciones de hoy / de ayer / del 7 de ' +
+        'octubre". NO es el seguimiento de reactivación.',
     },
     desde: {
       type: 'string',
-      description: 'YYYY-MM-DD. Trae lo detectado desde esa fecha en adelante (ej. "de la última semana").',
+      description: 'YYYY-MM-DD (o "hoy"/"ayer"). Trae lo detectado desde esa fecha en adelante (ej. "de la última semana": calcula la fecha de hace 7 días a partir de "hoy" que trae el resultado, o consulta primero sin filtro).',
     },
     solo_anuladas: {
       type: 'boolean',
@@ -216,12 +225,48 @@ const SCHEMA_CONSULTA_CANCELACIONES = {
   },
 };
 
+// El modelo no sabe qué día es, así que manda "hoy"/"ayer" tal cual: se
+// convierten aquí con la fecha de México que trae el CRM. Una fecha que no se
+// entiende regresa error — nunca un vacío que parezca "no hubo cancelaciones".
+function resolverFechasFiltro(filtros = {}, hoy) {
+  const out = { ...filtros };
+  const sumarDias = (iso, n) => {
+    const d = new Date(`${iso}T12:00:00Z`);
+    d.setUTCDate(d.getUTCDate() + n);
+    return d.toISOString().slice(0, 10);
+  };
+  for (const campo of ['fecha_detectado', 'desde', 'fecha_reactivacion']) {
+    const v = out[campo];
+    if (!v) continue;
+    const k = normalizar(v);
+    if (/^\d{4}-\d{2}-\d{2}$/.test(k)) continue;
+    if (k === 'hoy') out[campo] = hoy;
+    else if (k === 'ayer') out[campo] = sumarDias(hoy, -1);
+    else if (k === 'manana') out[campo] = sumarDias(hoy, 1);
+    else return { error: `No entendí la fecha "${v}" en "${campo}". Usa YYYY-MM-DD, "hoy" o "ayer" (hoy es ${hoy}).` };
+  }
+  return { filtros: out };
+}
+
+// Un 0 por filtro mal puesto no debe leerse como "no hubo nada": se avisa con
+// qué filtros se buscó y cuántas filas existen sin filtrar.
+function notaSinResultados(todas, filtros) {
+  const totales = (todas || []).length;
+  if (totales === 0) return 'El reporte está vacío.';
+  const ultima = (todas || []).reduce((m, r) => (String(r.fechaDetectado) > m ? String(r.fechaDetectado) : m), '');
+  return `Ninguna fila cumple los filtros usados (${JSON.stringify(filtros)}), pero el reporte tiene ${totales} filas ` +
+    `(la más reciente detectada: ${ultima}). Antes de decir que "no hay", dile a la persona con qué criterios ` +
+    'buscaste, o prueba un filtro más amplio (ej. solo parte del nombre, o sin fecha).';
+}
+
 // Filtros compartidos entre la consulta de Promotoría y la de Karen.
 function filtrarCancelaciones(rows, { asesor, contratante, tipo, seguimiento, fecha_reactivacion, fecha_detectado, desde, solo_anuladas } = {}) {
   let out = rows || [];
-  if (asesor) out = out.filter((r) => normalizar(r.asesor).includes(normalizar(asesor)));
-  if (contratante) out = out.filter((r) => normalizar(r.contratante).includes(normalizar(contratante)));
-  if (tipo) out = out.filter((r) => normalizar(r.tipo).includes(normalizar(tipo)));
+  if (asesor) out = out.filter((r) => coincideNombre(r.asesor, asesor));
+  if (contratante) out = out.filter((r) => coincideNombre(r.contratante, contratante));
+  // "tipo" solo trae "Cambio"/"Póliza nueva": pedir "cancelación"/"anulada" es pedir las Anuladas.
+  if (tipo && /cancel|anul/.test(normalizar(tipo))) solo_anuladas = true;
+  else if (tipo) out = out.filter((r) => normalizar(r.tipo).includes(normalizar(tipo)));
   if (seguimiento && FILTROS_SEGUIMIENTO[seguimiento]) out = out.filter(FILTROS_SEGUIMIENTO[seguimiento]);
   if (fecha_reactivacion) out = out.filter((r) => r.fechaReactivacion === fecha_reactivacion && !r.reactivado);
   if (fecha_detectado) out = out.filter((r) => String(r.fechaDetectado) === fecha_detectado);
@@ -1187,8 +1232,10 @@ export function construirHerramientas(token, role, claveAgente) {
         },
         run: async (filtros = {}) => {
           const reporte = await crmGet(token, '/api/promotoria/cancelaciones');
-          const rows = filtrarCancelaciones(reporte.rows, filtros);
-          return { hoy: reporte.hoy, importedAt: reporte.importedAt, sourceFile: reporte.sourceFile, total_encontradas: rows.length, rows };
+          const resuelto = resolverFechasFiltro(filtros, reporte.hoy);
+          if (resuelto.error) return { error: resuelto.error };
+          const rows = filtrarCancelaciones(reporte.rows, resuelto.filtros);
+          return { hoy: reporte.hoy, importedAt: reporte.importedAt, sourceFile: reporte.sourceFile, total_encontradas: rows.length, rows, ...(rows.length === 0 ? { nota: notaSinResultados(reporte.rows, resuelto.filtros) } : {}) };
         },
       },
       herramientaSeguimientoCancelacion(token, 'registrar_seguimiento_cancelacion', '/api/promotoria', 'la promotoría'),
@@ -1293,8 +1340,10 @@ export function construirHerramientas(token, role, claveAgente) {
         },
         run: async (filtros = {}) => {
           const reporte = await crmGet(token, '/api/karen/cancelaciones');
-          const rows = filtrarCancelaciones(reporte.rows, filtros);
-          return { hoy: reporte.hoy, importedAt: reporte.importedAt, sourceFile: reporte.sourceFile, total_encontradas: rows.length, rows };
+          const resuelto = resolverFechasFiltro(filtros, reporte.hoy);
+          if (resuelto.error) return { error: resuelto.error };
+          const rows = filtrarCancelaciones(reporte.rows, resuelto.filtros);
+          return { hoy: reporte.hoy, importedAt: reporte.importedAt, sourceFile: reporte.sourceFile, total_encontradas: rows.length, rows, ...(rows.length === 0 ? { nota: notaSinResultados(reporte.rows, resuelto.filtros) } : {}) };
         },
       },
       herramientaSeguimientoCancelacion(token, 'registrar_seguimiento_cancelacion_karen', '/api/karen', 'la Gerencia de Karen'),
