@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 
 // Finanzas de la promotoría: estado de resultados mensual, presupuesto vs real
@@ -321,9 +321,15 @@ const EstadoResultados = ({ call, anio, mes, setMes }) => {
   const [rubroF, setRubroF] = useState('todos');
   const [modal, setModal] = useState(null); // { tipo: 'linea', seccion, linea } | { tipo: 'ingresos' } | { tipo: 'plantilla' }
 
+  // Si el usuario cambia de mes rápido, la respuesta de un mes anterior puede
+  // llegar DESPUÉS que la del mes actual y pisarla (ej. Oct -> Sep mostraba
+  // Sep con los datos de Oct: "Pendiente"). Solo se acepta la última petición.
+  const peticion = useRef(0);
   const cargar = async () => {
+    const id = ++peticion.current;
     setCargando(true);
     const r = await call('GET', `/api/finanzas/mes/${mes}`);
+    if (id !== peticion.current) return;
     if (r) setD(r);
     setCargando(false);
   };
@@ -351,7 +357,24 @@ const EstadoResultados = ({ call, anio, mes, setMes }) => {
     if (r) setD(r.mes);
   };
 
-  if (!d) return <p style={{ color: 'var(--text-dim)' }}>{cargando ? 'Cargando...' : 'No se pudo cargar el mes.'}</p>;
+  // Los botones de mes siempre se muestran, incluso mientras carga otro mes.
+  const chipsMeses = (
+    <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '20px' }}>
+      {MESES_CORTO.map((nombre, i) => {
+        const val = ym(anio, i + 1);
+        return <button key={val} onClick={() => setMes(val)} style={pill(mes === val)}>{nombre}</button>;
+      })}
+    </div>
+  );
+  // Nunca mostrar los datos de otro mes mientras llega el que se eligió.
+  if (!d || d.mes !== mes) {
+    return (
+      <div>
+        {chipsMeses}
+        <p style={{ color: 'var(--text-dim)' }}>{cargando ? 'Cargando...' : 'No se pudo cargar el mes.'}</p>
+      </div>
+    );
+  }
 
   const filtrosActivos = seccionF !== 'todo' || buscar.trim() !== '' || rubroF !== 'todos';
   const q = buscar.trim().toLowerCase();
@@ -445,13 +468,7 @@ const EstadoResultados = ({ call, anio, mes, setMes }) => {
 
   return (
     <div>
-      {/* Meses del año */}
-      <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '20px' }}>
-        {MESES_CORTO.map((nombre, i) => {
-          const val = ym(anio, i + 1);
-          return <button key={val} onClick={() => setMes(val)} style={pill(mes === val)}>{nombre}</button>;
-        })}
-      </div>
+      {chipsMeses}
 
       {/* KPIs */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: '16px', marginBottom: '24px' }}>
@@ -581,9 +598,11 @@ const PresupuestoView = ({ call, anio }) => {
   const [form, setForm] = useState({ nombre: '', detalle: '', anual: '', deNomina: false });
   const [sinRubro, setSinRubro] = useState(null); // lista de movimientos sin rubro (modal)
 
+  const peticion = useRef(0);
   const cargar = async () => {
+    const id = ++peticion.current;
     const r = await call('GET', `/api/finanzas/presupuesto?anio=${anio}`);
-    if (r) setP(r);
+    if (id === peticion.current && r) setP(r);
   };
   useEffect(() => { cargar(); }, [anio]);
 
@@ -762,7 +781,11 @@ const PresupuestoView = ({ call, anio }) => {
 // ======================================
 const AnualView = ({ call, anio, onAbrirMes }) => {
   const [r, setR] = useState(null);
-  useEffect(() => { call('GET', `/api/finanzas/resumen?anio=${anio}`).then((x) => x && setR(x)); }, [anio]);
+  useEffect(() => {
+    let vigente = true;
+    call('GET', `/api/finanzas/resumen?anio=${anio}`).then((x) => { if (vigente && x) setR(x); });
+    return () => { vigente = false; };
+  }, [anio]);
   if (!r) return <p style={{ color: 'var(--text-dim)' }}>Cargando...</p>;
   const tot = r.totales;
   const th = { ...thBase, padding: '12px 10px' };
