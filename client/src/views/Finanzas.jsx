@@ -185,10 +185,10 @@ const IngresosModal = ({ d, onClose, onSave }) => {
     <ModalShell title={`Ingresos de ${MESES[Number(d.mes.slice(5)) - 1]} ${d.anio}`} onClose={onClose}>
       <form onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
         <div>
-          <label style={labelStyle}>Ingreso bruto del mes</label>
+          <label style={labelStyle}>Ingreso bruto del mes (percepciones sin IVA)</label>
           <input type="number" step="0.01" min="0" inputMode="decimal" style={inputStyle} value={form.ingresoBruto} onChange={(e) => set('ingresoBruto', e.target.value)} autoFocus />
           <p style={{ fontSize: '0.75rem', color: '#64748b', margin: '6px 0 0' }}>
-            Se captura al cierre de mes. Al guardarlo, el mes se cierra y su nómina queda congelada. Déjalo vacío para mantener el mes abierto.
+            Usa el "Total Percepciones" del mes en la radiografía de ventas (sin IVA). Se captura al cierre de mes: al guardarlo, el mes se cierra y su nómina queda congelada. Déjalo vacío para mantener el mes abierto.
           </p>
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>

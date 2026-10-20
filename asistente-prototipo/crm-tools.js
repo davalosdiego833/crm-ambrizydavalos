@@ -427,7 +427,7 @@ function herramientasFinanzas(token) {
           type: 'object',
           properties: {
             mes: MES_SCHEMA,
-            ingreso_bruto: { type: 'number', description: 'Ingreso bruto del mes en pesos.' },
+            ingreso_bruto: { type: 'number', description: 'Ingreso bruto del mes en pesos: el "Total Percepciones" de la radiografía de ventas, SIN IVA (no el Total del estado de cuenta, que incluye IVA).' },
             renta: { type: 'number', description: 'Opcional: renta del mes si cambió.' },
             reemplazar: { type: 'boolean', description: 'true solo si el directivo confirmó reemplazar un ingreso ya capturado.' },
           },

@@ -265,6 +265,12 @@ eventos; resultado = neto - gastos; rentabilidad = resultado / bruto.
   septiembre, y en septiembre la fórmula de gastos totales apuntaba a la fila
   de FER CARLOS en vez del TOTAL NÓMINA (rentabilidad de septiembre mostrada
   69.2% vs 43.1% real). Títulos de abril-septiembre decían "MARZO".
+- **El ingreso bruto es SIN IVA** (decisión de Diego, 2026-10-19): es el "Total
+  Percepciones" mensual de la *Radiografía de ventas* de la aseguradora (última
+  línea de la hoja de Percepciones), igual a "Total percepciones brutas" del
+  Estado de cuenta fiscal. Antes se capturaba el Total del estado de cuenta, que
+  incluye IVA 16% (inflaba la rentabilidad); enero-septiembre ya se corrigieron
+  a percepciones sin IVA (en abril estaba copiado el valor de marzo).
 - **Rubro "automático desde nómina"** (`fuente: 'nomina'` en la categoría del
   presupuesto, ej. "Nominas Staff"): su gasto real es la **nómina sin bonos**
   de los meses ya pagados (cerrados o anteriores al mes en curso); el mes
