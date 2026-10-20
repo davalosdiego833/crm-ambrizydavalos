@@ -8,7 +8,7 @@
 //
 // Reglas del Excel original que se respetan tal cual:
 //   facturas        = ingreso bruto x 6%
-//   ingreso neto    = ingreso bruto - renta - facturas
+//   ingreso neto    = ingreso bruto - renta - facturas - impuestos fijos
 //   gastos totales  = nómina + bonos + gastos administrativos + eventos
 //   resultado       = ingreso neto - gastos totales
 //   rentabilidad    = resultado / ingreso bruto
@@ -51,7 +51,7 @@ module.exports = function registrarFinanzas({ app, authMiddleware, promotoriaAcc
   // ======================================
   const defaults = () => ({
     seq: 1000,
-    config: { facturasPct: 0.06, rentaDefault: 80993 },
+    config: { facturasPct: 0.06, rentaDefault: 80993, impuestosDefault: 25000 },
     nomina: [], // plantilla fija de nómina: { id, nombre, sueldo, activo }
     categorias: [], // rubros del presupuesto anual: { id, anio, nombre, detalle, anual }
     meses: {}, // "YYYY-MM" -> mes (ver mesVacio)
@@ -62,7 +62,16 @@ module.exports = function registrarFinanzas({ app, authMiddleware, promotoriaAcc
     if (fs.existsSync(FINANZAS_FILE)) {
       const base = defaults();
       const guardado = JSON.parse(fs.readFileSync(FINANZAS_FILE, 'utf8'));
-      return { ...base, ...guardado, config: { ...base.config, ...(guardado.config || {}) } };
+      const d = { ...base, ...guardado, config: { ...base.config, ...(guardado.config || {}) } };
+      // Migración: los meses guardados antes de existir "impuestos" (gasto fijo
+      // mensual que se resta del ingreso, igual que la renta) lo reciben con el
+      // monto por defecto, para que todos los meses pasados lo contemplen.
+      let migrado = false;
+      for (const mes of Object.values(d.meses)) {
+        if (mes.impuestos === undefined) { mes.impuestos = d.config.impuestosDefault; migrado = true; }
+      }
+      if (migrado) fs.writeFileSync(FINANZAS_FILE, JSON.stringify(d, null, 2));
+      return d;
     }
     const d = defaults();
     fs.writeFileSync(FINANZAS_FILE, JSON.stringify(d, null, 2));
@@ -84,6 +93,7 @@ module.exports = function registrarFinanzas({ app, authMiddleware, promotoriaAcc
   const mesVacio = () => ({
     ingresoBruto: null,
     renta: data.config.rentaDefault,
+    impuestos: data.config.impuestosDefault,
     facturasPct: data.config.facturasPct,
     nomina: null,
     bonos: [],
@@ -117,7 +127,8 @@ module.exports = function registrarFinanzas({ app, authMiddleware, promotoriaAcc
     const gastos = r2(totalNomina + totalBonos + totalAdmin + totalEventos);
     const bruto = typeof mes.ingresoBruto === 'number' ? mes.ingresoBruto : null;
     const facturas = bruto === null ? null : r2(bruto * mes.facturasPct);
-    const neto = bruto === null ? null : r2(bruto - mes.renta - facturas);
+    const impuestos = mes.impuestos ?? data.config.impuestosDefault;
+    const neto = bruto === null ? null : r2(bruto - mes.renta - facturas - impuestos);
     const resultado = neto === null ? null : r2(neto - gastos);
     const rentabilidad = bruto ? resultado / bruto : null;
     return { nomina, totalNomina, totalBonos, totalAdmin, totalEventos, gastos, bruto, facturas, neto, resultado, rentabilidad };
@@ -136,7 +147,7 @@ module.exports = function registrarFinanzas({ app, authMiddleware, promotoriaAcc
       almacenado: !!data.meses[ym],
       abierto: c.bruto === null,
       nominaModo: mes.nomina ? 'propia' : 'plantilla',
-      ingreso: { bruto: c.bruto, renta: mes.renta, facturasPct: mes.facturasPct, facturas: c.facturas, neto: c.neto },
+      ingreso: { bruto: c.bruto, renta: mes.renta, impuestos: mes.impuestos ?? data.config.impuestosDefault, facturasPct: mes.facturasPct, facturas: c.facturas, neto: c.neto },
       nomina: c.nomina,
       bonos: mes.bonos,
       gastosAdmin: conCategoria(mes.gastosAdmin),
@@ -245,6 +256,11 @@ module.exports = function registrarFinanzas({ app, authMiddleware, promotoriaAcc
       const m = parseMonto(b.renta);
       if (m === null || m < 0) return res.status(400).json({ error: 'La renta debe ser un importe válido.' });
       cambios.renta = m;
+    }
+    if (b.impuestos !== undefined) {
+      const m = parseMonto(b.impuestos);
+      if (m === null || m < 0) return res.status(400).json({ error: 'Los impuestos deben ser un importe válido.' });
+      cambios.impuestos = m;
     }
     if (b.facturasPct !== undefined) {
       let p = Number(b.facturasPct);
@@ -682,6 +698,7 @@ module.exports = function registrarFinanzas({ app, authMiddleware, promotoriaAcc
         const mes = {
           ingresoBruto: p.ingresoBruto,
           renta: p.renta ?? nuevo.config.rentaDefault,
+          impuestos: nuevo.config.impuestosDefault,
           facturasPct: nuevo.config.facturasPct,
           nomina: p.ingresoBruto === null ? null : p.nomina.map((x) => ({ id: nid(), ...x })),
           bonos: p.bonos.map((x) => ({ id: nid(), ...x })),

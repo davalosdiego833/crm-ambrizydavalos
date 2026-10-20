@@ -236,8 +236,8 @@ con `backupFile` como db/promotoria/karen), UI en
 `client/src/views/Finanzas.jsx`, herramientas del bot en
 `asistente-prototipo/crm-tools.js` (`herramientasFinanzas`).
 
-Reglas de negocio (las mismas fórmulas del Excel): facturas = bruto x 6%;
-neto = bruto - renta - facturas; gastos = nómina + bonos + gastos admin +
+Reglas de negocio (las fórmulas del Excel + los impuestos fijos): facturas =
+bruto x 6%; neto = bruto - renta - impuestos fijos - facturas; gastos = nómina + bonos + gastos admin +
 eventos; resultado = neto - gastos; rentabilidad = resultado / bruto.
 - El **ingreso bruto se captura al cierre de mes**. Mientras no exista, el mes
   está "abierto": no hay neto/resultado/rentabilidad (el servidor regresa
@@ -265,6 +265,10 @@ eventos; resultado = neto - gastos; rentabilidad = resultado / bruto.
   septiembre, y en septiembre la fórmula de gastos totales apuntaba a la fila
   de FER CARLOS en vez del TOTAL NÓMINA (rentabilidad de septiembre mostrada
   69.2% vs 43.1% real). Títulos de abril-septiembre decían "MARZO".
+- **Impuestos fijos** ($25,000 al mes, `mes.impuestos`, `config.impuestosDefault`):
+  se restan del ingreso igual que la renta; son distintos del 6% de facturas
+  (decisión de Diego, 2026-10-19). Al arrancar, el servidor los agregó a todos
+  los meses ya guardados y los meses nuevos nacen con ese monto.
 - **El ingreso bruto es SIN IVA** (decisión de Diego, 2026-10-19): es el "Total
   Percepciones" mensual de la *Radiografía de ventas* de la aseguradora (última
   línea de la hoja de Percepciones), igual a "Total percepciones brutas" del

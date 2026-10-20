@@ -163,19 +163,21 @@ const IngresosModal = ({ d, onClose, onSave }) => {
   const [form, setForm] = useState({
     ingresoBruto: d.ingreso.bruto ?? '',
     renta: d.ingreso.renta ?? '',
+    impuestos: d.ingreso.impuestos ?? '',
     facturasPct: d.ingreso.facturasPct != null ? +(d.ingreso.facturasPct * 100).toFixed(2) : 6,
     notas: d.notas || '',
   });
   const set = (k, v) => setForm((p) => ({ ...p, [k]: v }));
   const brutoNum = form.ingresoBruto === '' ? null : Number(form.ingresoBruto);
   const facturas = brutoNum === null ? null : brutoNum * (Number(form.facturasPct) / 100);
-  const neto = brutoNum === null ? null : brutoNum - Number(form.renta || 0) - facturas;
+  const neto = brutoNum === null ? null : brutoNum - Number(form.renta || 0) - facturas - Number(form.impuestos || 0);
 
   const submit = (e) => {
     e.preventDefault();
     onSave({
       ingresoBruto: form.ingresoBruto === '' ? null : Number(form.ingresoBruto),
       renta: Number(form.renta || 0),
+      impuestos: Number(form.impuestos || 0),
       facturasPct: Number(form.facturasPct) / 100,
       notas: form.notas,
     });
@@ -191,10 +193,14 @@ const IngresosModal = ({ d, onClose, onSave }) => {
             Usa el "Total Percepciones" del mes en la radiografía de ventas (sin IVA). Se captura al cierre de mes: al guardarlo, el mes se cierra y su nómina queda congelada. Déjalo vacío para mantener el mes abierto.
           </p>
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px' }}>
           <div>
             <label style={labelStyle}>Renta</label>
             <input type="number" step="0.01" min="0" inputMode="decimal" style={inputStyle} value={form.renta} onChange={(e) => set('renta', e.target.value)} />
+          </div>
+          <div>
+            <label style={labelStyle}>Impuestos (fijos)</label>
+            <input type="number" step="0.01" min="0" inputMode="decimal" style={inputStyle} value={form.impuestos} onChange={(e) => set('impuestos', e.target.value)} />
           </div>
           <div>
             <label style={labelStyle}>Facturas (% del bruto)</label>
@@ -450,7 +456,7 @@ const EstadoResultados = ({ call, anio, mes, setMes }) => {
       {/* KPIs */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: '16px', marginBottom: '24px' }}>
         <Kpi titulo="Ingreso bruto" valor={d.abierto ? 'Pendiente' : money(d.ingreso.bruto)} nota={d.abierto ? 'Se captura al cierre de mes' : null} color={d.abierto ? 'var(--text-dim)' : null} />
-        <Kpi titulo="Ingreso neto" valor={money(d.ingreso.neto)} nota="Bruto - renta - facturas" />
+        <Kpi titulo="Ingreso neto" valor={money(d.ingreso.neto)} nota="Bruto - renta - facturas - impuestos" />
         <Kpi titulo="Gastos totales" valor={money(t.gastos)} nota="Nómina + bonos + admin + eventos" />
         <Kpi titulo="Resultado" valor={money(d.resultado)} color={colorDe(d.resultado)} />
         <Kpi titulo="Rentabilidad" valor={pct(d.rentabilidad)} color={colorDe(d.rentabilidad)} />
@@ -496,6 +502,7 @@ const EstadoResultados = ({ call, anio, mes, setMes }) => {
               {[
                 ['Ingreso bruto', d.abierto ? 'Pendiente' : money(d.ingreso.bruto), true],
                 ['(-) Renta', money(d.ingreso.renta)],
+                ['(-) Impuestos (fijos)', money(d.ingreso.impuestos)],
                 [`(-) Facturas (${(d.ingreso.facturasPct * 100).toFixed(d.ingreso.facturasPct * 100 % 1 ? 2 : 0)}% del bruto)`, money(d.ingreso.facturas)],
                 ['Ingreso neto', money(d.ingreso.neto), true],
               ].map(([k, v, fuerte]) => (

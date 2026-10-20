@@ -317,7 +317,7 @@ function herramientasFinanzas(token) {
         name: 'consultar_finanzas',
         description:
           'Consulta las FINANZAS de la promotoría (el estado de resultados que antes vivía en el Excel de ' +
-          'rentabilidad). Fórmulas: facturas = ingreso bruto x 6%; ingreso neto = bruto - renta - facturas; ' +
+          'rentabilidad). Fórmulas: facturas = ingreso bruto x 6%; ingreso neto = bruto - renta - impuestos fijos ($25,000 al mes) - facturas; ' +
           'gastos totales = nómina + bonos + gastos administrativos + eventos; resultado = ingreso neto - gastos ' +
           'totales; rentabilidad = resultado / ingreso bruto. El ingreso bruto se captura hasta el cierre de mes: ' +
           'un mes ABIERTO (sin ingreso) NO tiene ingreso neto, resultado ni rentabilidad — dilo así, no inventes ' +
@@ -429,12 +429,13 @@ function herramientasFinanzas(token) {
             mes: MES_SCHEMA,
             ingreso_bruto: { type: 'number', description: 'Ingreso bruto del mes en pesos: el "Total Percepciones" de la radiografía de ventas, SIN IVA (no el Total del estado de cuenta, que incluye IVA).' },
             renta: { type: 'number', description: 'Opcional: renta del mes si cambió.' },
+            impuestos: { type: 'number', description: 'Opcional: impuestos fijos del mes si cambiaron (default $25,000).' },
             reemplazar: { type: 'boolean', description: 'true solo si el directivo confirmó reemplazar un ingreso ya capturado.' },
           },
           required: ['ingreso_bruto'],
         },
       },
-      run: async ({ mes, ingreso_bruto, renta, reemplazar }) => {
+      run: async ({ mes, ingreso_bruto, renta, impuestos, reemplazar }) => {
         const ym = mes || hoyMexicoBot().slice(0, 7);
         const actual = await crmJson(token, 'GET', `/api/finanzas/mes/${ym}`);
         if (actual.error) return actual;
@@ -443,6 +444,7 @@ function herramientasFinanzas(token) {
         }
         const body = { ingresoBruto: ingreso_bruto };
         if (renta !== undefined) body.renta = renta;
+        if (impuestos !== undefined) body.impuestos = impuestos;
         const r = await crmJson(token, 'PUT', `/api/finanzas/mes/${ym}`, body);
         return r.error ? r : detalleMes(r.mes);
       },
