@@ -219,6 +219,7 @@ module.exports = function registrarFinanzas({ app, authMiddleware, promotoriaAcc
       } else if (body.fecha === null || body.fecha === '') {
         out.fecha = null;
       }
+      if (seccion === 'gastosAdmin' && body.fijo !== undefined) out.fijo = !!body.fijo; // marcar/quitar "gasto fijo"
       const cat = resolverCategoria(body, ym);
       if (cat.error) return { error: cat.error };
       if (cat.id !== undefined) out.categoriaId = cat.id;
