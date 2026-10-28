@@ -275,6 +275,12 @@ eventos; resultado = neto - gastos; rentabilidad = resultado / bruto.
   Estado de cuenta fiscal. Antes se capturaba el Total del estado de cuenta, que
   incluye IVA 16% (inflaba la rentabilidad); enero-septiembre ya se corrigieron
   a percepciones sin IVA (en abril estaba copiado el valor de marzo).
+- **Gastos administrativos fijos** (`config.gastosFijosAdmin`, hoy Internet $700):
+  cada mes NUEVO nace con esos renglones en gastos administrativos (marca
+  `fijo: true`, id `900000+posición`). Solo viven en el estado de resultados:
+  no cuentan como "sin rubro" del presupuesto. `PUT /api/finanzas/config`
+  cambia los montos por defecto (renta, impuestos, gastos fijos) de los meses
+  nuevos; no toca meses ya guardados. Renta por defecto: $80,993.25.
 - **Rubros "automáticos"** (`fuente` en la categoría del presupuesto:
   `nomina` | `renta` | `impuestos`, ej. "Nominas Staff", "renta oficina",
   "impuestos"): su gasto real se suma del estado de resultados de los meses ya

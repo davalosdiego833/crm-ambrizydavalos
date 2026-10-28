@@ -51,7 +51,7 @@ module.exports = function registrarFinanzas({ app, authMiddleware, promotoriaAcc
   // ======================================
   const defaults = () => ({
     seq: 1000,
-    config: { facturasPct: 0.06, rentaDefault: 80993, impuestosDefault: 25000 },
+    config: { facturasPct: 0.06, rentaDefault: 80993, impuestosDefault: 25000, gastosFijosAdmin: [] },
     nomina: [], // plantilla fija de nómina: { id, nombre, sueldo, activo }
     categorias: [], // rubros del presupuesto anual: { id, anio, nombre, detalle, anual }
     meses: {}, // "YYYY-MM" -> mes (ver mesVacio)
@@ -97,7 +97,12 @@ module.exports = function registrarFinanzas({ app, authMiddleware, promotoriaAcc
     facturasPct: data.config.facturasPct,
     nomina: null,
     bonos: [],
-    gastosAdmin: [],
+    // Gastos administrativos fijos (ej. internet): cada mes nuevo nace con ellos.
+    // Id determinista (900000 + posición) para que el renglón de un mes que
+    // todavía no está guardado sea el mismo al consultarlo y al editarlo.
+    gastosAdmin: (data.config.gastosFijosAdmin || []).map((g, i) => ({
+      id: 900000 + i, concepto: g.concepto, importe: g.importe, fecha: null, categoriaId: null, fijo: true,
+    })),
     eventos: [],
     notas: '',
   });
@@ -232,6 +237,35 @@ module.exports = function registrarFinanzas({ app, authMiddleware, promotoriaAcc
   // Rutas: estado de resultados mensual
   // ======================================
   const acceso = [authMiddleware, promotoriaAccess];
+
+  // ======================================
+  // Configuración: montos por defecto de los meses NUEVOS (no cambia meses ya guardados)
+  // ======================================
+  app.get('/api/finanzas/config', ...acceso, (req, res) => res.json(data.config));
+
+  app.put('/api/finanzas/config', ...acceso, (req, res) => {
+    const b = req.body || {};
+    for (const k of ['rentaDefault', 'impuestosDefault']) {
+      if (b[k] === undefined) continue;
+      const m = parseMonto(b[k]);
+      if (m === null || m < 0) return res.status(400).json({ error: `${k} debe ser un importe válido.` });
+      data.config[k] = m;
+    }
+    if (b.gastosFijosAdmin !== undefined) {
+      if (!Array.isArray(b.gastosFijosAdmin)) return res.status(400).json({ error: 'gastosFijosAdmin debe ser una lista.' });
+      const lista = [];
+      for (const g of b.gastosFijosAdmin) {
+        const concepto = String(g?.concepto || '').trim();
+        const importe = parseMonto(g?.importe);
+        if (!concepto || importe === null || importe < 0) return res.status(400).json({ error: 'Cada gasto fijo necesita concepto e importe válidos.' });
+        lista.push({ concepto, importe });
+      }
+      data.config.gastosFijosAdmin = lista;
+    }
+    save();
+    res.json({ success: true, config: data.config });
+  });
+
 
   app.get('/api/finanzas/mes/:ym', ...acceso, (req, res) => {
     if (!validarYM(req, res)) return;
@@ -487,7 +521,9 @@ module.exports = function registrarFinanzas({ app, authMiddleware, promotoriaAcc
           movimientos: propias.length,
         };
       });
-    const sinCategoria = lineas.filter((l) => !l.categoriaId);
+    // Los gastos fijos automáticos (internet) viven solo en el estado de
+    // resultados: no cuentan como "sin rubro" del presupuesto.
+    const sinCategoria = lineas.filter((l) => !l.categoriaId && !l.fijo);
     const totalPresupuesto = suma(categorias, 'anual');
     const totalCategorizado = suma(categorias, 'real');
     const totalSinCategoria = suma(sinCategoria, 'importe');
@@ -581,7 +617,7 @@ module.exports = function registrarFinanzas({ app, authMiddleware, promotoriaAcc
             mes: ym, seccion: sec, id: l.id,
             concepto: l[def.principal], detalles: l.detalles || '',
             importe: l[def.monto], fecha: l.fecha || null,
-            categoriaId: l.categoriaId || null, categoria: catNom,
+            categoriaId: l.categoriaId || null, categoria: catNom, fijo: !!l.fijo,
           };
           if (buscar && !sinAcentos(`${item.concepto} ${item.detalles}`).includes(buscar)) continue;
           if (catQ === 'sin categoria' && item.categoriaId) continue;

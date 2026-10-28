@@ -445,7 +445,9 @@ const EstadoResultados = ({ call, anio, mes, setMes }) => {
                   {def.conDetalles && <td style={{ ...td, color: 'var(--text-muted)' }}>{l.detalles || '—'}</td>}
                   {def.conFecha && (
                     <td style={td}>
-                      {l.categoriaNombre
+                      {l.fijo
+                        ? <span style={{ fontSize: '0.75rem', padding: '2px 10px', borderRadius: '12px', background: 'rgba(100,116,139,0.15)', color: 'var(--text-muted)', fontWeight: '600' }}>Gasto fijo</span>
+                        : l.categoriaNombre
                         ? <span style={{ fontSize: '0.75rem', padding: '2px 10px', borderRadius: '12px', background: 'rgba(37,99,235,0.1)', color: 'var(--accent-gold)', fontWeight: '600' }}>{l.categoriaNombre}</span>
                         : <span style={{ color: 'var(--text-dim)', fontSize: '0.78rem' }}>Sin rubro</span>}
                     </td>
@@ -619,7 +621,7 @@ const PresupuestoView = ({ call, anio }) => {
   };
   const abrirSinRubro = async () => {
     const r = await call('GET', `/api/finanzas/lineas?anio=${anio}&categoria=${encodeURIComponent('sin categoria')}`);
-    if (r) setSinRubro(r.lineas.filter((l) => l.seccion === 'gastosAdmin' || l.seccion === 'eventos'));
+    if (r) setSinRubro(r.lineas.filter((l) => (l.seccion === 'gastosAdmin' || l.seccion === 'eventos') && !l.fijo));
   };
   const asignarRubro = async (l, categoriaId) => {
     const r = await call('PUT', `/api/finanzas/mes/${l.mes}/${l.seccion}/${l.id}`, { categoriaId: categoriaId ? Number(categoriaId) : null });
