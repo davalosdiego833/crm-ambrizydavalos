@@ -444,29 +444,39 @@ module.exports = function registrarFinanzas({ app, authMiddleware, promotoriaAcc
     return out;
   };
 
+  const FUENTES_VALIDAS = ['nomina', 'renta', 'impuestos'];
+
   app.get('/api/finanzas/presupuesto', ...acceso, (req, res) => {
     const anio = Number(req.query.anio) || Number(hoyMexico().slice(0, 4));
     const lineas = lineasDeAnio(anio);
-    // Rubros con fuente 'nomina' (ej. "Nómina staff"): su gasto real sale solo
-    // de la nómina (sin bonos) de los meses ya pagados (cerrados o ya pasados),
+    // Rubros con fuente 'nomina' | 'renta' | 'impuestos': su gasto real sale solo
+    // del estado de resultados de los meses ya pagados (cerrados o ya pasados),
     // porque esos renglones no llevan rubro. El mes en curso, si sigue abierto,
     // todavía no cuenta.
     const mesActual = hoyMexico().slice(0, 7);
     const mesesPagados = Object.keys(data.meses)
       .filter((ym) => ym.startsWith(`${anio}-`) && (ym < mesActual || data.meses[ym].ingresoBruto !== null))
       .sort();
-    const realNomina = r2(mesesPagados.reduce((s, ym) => {
-      const c = calcular(data.meses[ym]);
-      return s + c.totalNomina;
-    }, 0));
+    // Rubros automáticos: su gasto real sale del estado de resultados de cada
+    // mes pagado, así no se captura dos veces. Fuente -> qué se suma.
+    const FUENTES = {
+      nomina: (mes) => calcular(mes).totalNomina, // sin bonos
+      renta: (mes) => mes.renta || 0,
+      impuestos: (mes) => mes.impuestos ?? data.config.impuestosDefault, // fijos, no el 6% de facturas
+    };
+    const realPorFuente = {};
+    for (const [f, fn] of Object.entries(FUENTES)) {
+      realPorFuente[f] = r2(mesesPagados.reduce((s, ym) => s + fn(data.meses[ym]), 0));
+    }
     const categorias = data.categorias
       .filter((c) => c.anio === anio)
       .map((c) => {
-        if (c.fuente === 'nomina') {
+        if (FUENTES[c.fuente]) {
+          const real = realPorFuente[c.fuente];
           return {
-            ...c, real: realNomina, diferencia: r2(c.anual - realNomina),
-            porcentaje: c.anual ? realNomina / c.anual : null,
-            movimientos: mesesPagados.length, unidadMovimientos: 'meses de nómina',
+            ...c, real, diferencia: r2(c.anual - real),
+            porcentaje: c.anual ? real / c.anual : null,
+            movimientos: mesesPagados.length,
           };
         }
         const propias = lineas.filter((l) => l.categoriaId === c.id);
@@ -505,7 +515,7 @@ module.exports = function registrarFinanzas({ app, authMiddleware, promotoriaAcc
       return res.status(400).json({ error: `Ya existe el rubro "${nombre}" en ${anio}.` });
     }
     const c = { id: nuevoId(), anio, nombre, detalle: String(b.detalle || '').trim(), anual };
-    if (b.fuente === 'nomina') c.fuente = 'nomina';
+    if (FUENTES_VALIDAS.includes(b.fuente)) c.fuente = b.fuente;
     data.categorias.push(c);
     save();
     res.json({ success: true, categoria: c });
@@ -521,7 +531,7 @@ module.exports = function registrarFinanzas({ app, authMiddleware, promotoriaAcc
       c.nombre = n;
     }
     if (b.detalle !== undefined) c.detalle = String(b.detalle || '').trim();
-    if (b.fuente !== undefined) { if (b.fuente === 'nomina') c.fuente = 'nomina'; else delete c.fuente; }
+    if (b.fuente !== undefined) { if (FUENTES_VALIDAS.includes(b.fuente)) c.fuente = b.fuente; else delete c.fuente; }
     if (b.anual !== undefined) {
       const a = parseMonto(b.anual);
       if (a === null || a < 0) return res.status(400).json({ error: 'El presupuesto anual debe ser un importe válido.' });

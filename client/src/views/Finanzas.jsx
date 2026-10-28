@@ -71,6 +71,13 @@ const ModalButtons = ({ onCancel, submitLabel }) => (
 );
 
 // Definición de las secciones con renglones (campo principal, de importe, etc.)
+// Rubros del presupuesto cuyo gasto real se toma solo del estado de resultados.
+const FUENTES_AUTO = {
+  nomina: { etiqueta: 'Nómina del staff (sin bonos)', nota: 'Automático desde nómina (sin bonos)' },
+  renta: { etiqueta: 'Renta de cada mes', nota: 'Automático desde la renta de cada mes' },
+  impuestos: { etiqueta: 'Impuestos fijos de cada mes', nota: 'Automático desde los impuestos fijos de cada mes' },
+};
+
 const SECCIONES = {
   nomina: { titulo: 'Nómina del staff', principal: 'nombre', etiquetaPrincipal: 'Nombre', monto: 'sueldo', etiquetaMonto: 'Sueldo', conFecha: false, conDetalles: false },
   bonos: { titulo: 'Bonos del staff', principal: 'nombre', etiquetaPrincipal: 'Nombre', monto: 'monto', etiquetaMonto: 'Monto del bono', conFecha: false, conDetalles: false },
@@ -595,7 +602,7 @@ const EstadoResultados = ({ call, anio, mes, setMes }) => {
 const PresupuestoView = ({ call, anio }) => {
   const [p, setP] = useState(null);
   const [modal, setModal] = useState(null); // { cat } (cat null = nuevo)
-  const [form, setForm] = useState({ nombre: '', detalle: '', anual: '', deNomina: false });
+  const [form, setForm] = useState({ nombre: '', detalle: '', anual: '', fuente: '' });
   const [sinRubro, setSinRubro] = useState(null); // lista de movimientos sin rubro (modal)
 
   const peticion = useRef(0);
@@ -607,7 +614,7 @@ const PresupuestoView = ({ call, anio }) => {
   useEffect(() => { cargar(); }, [anio]);
 
   const abrir = (cat) => {
-    setForm(cat ? { nombre: cat.nombre, detalle: cat.detalle || '', anual: cat.anual, deNomina: cat.fuente === 'nomina' } : { nombre: '', detalle: '', anual: '', deNomina: false });
+    setForm(cat ? { nombre: cat.nombre, detalle: cat.detalle || '', anual: cat.anual, fuente: cat.fuente || '' } : { nombre: '', detalle: '', anual: '', fuente: '' });
     setModal({ cat });
   };
   const abrirSinRubro = async () => {
@@ -624,7 +631,7 @@ const PresupuestoView = ({ call, anio }) => {
   const guardar = async (e) => {
     e.preventDefault();
     if (!form.nombre.trim() || form.anual === '') return alert('Captura el nombre y el presupuesto anual');
-    const body = { nombre: form.nombre, detalle: form.detalle, anual: Number(form.anual), fuente: form.deNomina ? 'nomina' : '' };
+    const body = { nombre: form.nombre, detalle: form.detalle, anual: Number(form.anual), fuente: form.fuente };
     const r = modal.cat
       ? await call('PUT', `/api/finanzas/presupuesto/categorias/${modal.cat.id}`, body)
       : await call('POST', '/api/finanzas/presupuesto/categorias', { ...body, anio });
@@ -655,7 +662,7 @@ const PresupuestoView = ({ call, anio }) => {
   return (
     <div>
       <div className="glass-card" style={{ padding: '14px 20px', marginBottom: '20px', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-        El gasto real de cada rubro se suma solo de los gastos administrativos y eventos que tengan ese rubro asignado. Los que no tienen rubro aparecen abajo como "Sin rubro". Un rubro marcado como "Automático desde nómina" toma su gasto real de la nómina (sin bonos) de los meses ya pagados.
+        El gasto real de cada rubro se suma solo de los gastos administrativos y eventos que tengan ese rubro asignado. Los que no tienen rubro aparecen abajo como "Sin rubro". Los rubros automáticos (nómina, renta e impuestos) toman su gasto real del estado de resultados de los meses ya pagados.
       </div>
       <div className="glass-card" style={{ padding: 0, overflow: 'hidden' }}>
         <div style={{ padding: '16px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--glass-border)' }}>
@@ -680,7 +687,7 @@ const PresupuestoView = ({ call, anio }) => {
                 <tr><td colSpan="7" style={{ ...td, textAlign: 'center', color: 'var(--text-dim)', padding: '32px' }}>No hay rubros de presupuesto para {anio}.</td></tr>
               ) : p.categorias.map((c) => (
                 <tr key={c.id} style={{ borderBottom: '1px solid var(--glass-border)' }}>
-                  <td style={{ ...td, fontWeight: '700' }}>{c.nombre}<div style={{ fontSize: '0.72rem', color: 'var(--text-dim)', fontWeight: '500' }}>{c.fuente === 'nomina' ? `Automático desde nómina (sin bonos) · ${c.movimientos} ${c.movimientos === 1 ? 'mes pagado' : 'meses pagados'}` : `${c.movimientos} ${c.movimientos === 1 ? 'movimiento' : 'movimientos'}`}</div></td>
+                  <td style={{ ...td, fontWeight: '700' }}>{c.nombre}<div style={{ fontSize: '0.72rem', color: 'var(--text-dim)', fontWeight: '500' }}>{FUENTES_AUTO[c.fuente] ? `${FUENTES_AUTO[c.fuente].nota} · ${c.movimientos} ${c.movimientos === 1 ? 'mes pagado' : 'meses pagados'}` : `${c.movimientos} ${c.movimientos === 1 ? 'movimiento' : 'movimientos'}`}</div></td>
                   <td style={{ ...td, color: 'var(--text-dim)', whiteSpace: 'nowrap' }}>{c.detalle || '—'}</td>
                   <td style={{ ...td, ...num }}>{money(c.anual)}</td>
                   <td style={{ ...td, ...num, fontWeight: '700' }}>{money(c.real)}</td>
@@ -737,10 +744,16 @@ const PresupuestoView = ({ call, anio }) => {
                 <input type="number" step="0.01" min="0" style={inputStyle} value={form.anual} onChange={(e) => setForm((f) => ({ ...f, anual: e.target.value }))} required />
               </div>
             </div>
-            <label style={{ display: 'flex', gap: '10px', alignItems: 'flex-start', fontSize: '0.82rem', color: '#334155', cursor: 'pointer' }}>
-              <input type="checkbox" checked={form.deNomina} onChange={(e) => setForm((f) => ({ ...f, deNomina: e.target.checked }))} style={{ marginTop: '3px' }} />
-              <span>Automático desde nómina: el gasto real de este rubro es la nómina (sin bonos) de los meses ya pagados (cerrados o pasados), tomada del estado de resultados.</span>
-            </label>
+            <div>
+              <label style={labelStyle}>De dónde sale el gasto real</label>
+              <select style={inputStyle} value={form.fuente} onChange={(e) => setForm((f) => ({ ...f, fuente: e.target.value }))}>
+                <option value="">Gastos que tengan este rubro (manual)</option>
+                {Object.entries(FUENTES_AUTO).map(([k, v]) => <option key={k} value={k}>Automático: {v.etiqueta}</option>)}
+              </select>
+              <p style={{ fontSize: '0.75rem', color: '#64748b', margin: '6px 0 0' }}>
+                Los automáticos suman lo del estado de resultados de los meses ya pagados (cerrados o pasados), así no se captura dos veces.
+              </p>
+            </div>
             <ModalButtons onCancel={() => setModal(null)} submitLabel={modal.cat ? 'Guardar cambios' : 'Agregar rubro'} />
           </form>
         </ModalShell>
@@ -764,7 +777,7 @@ const PresupuestoView = ({ call, anio }) => {
                   <div style={{ textAlign: 'right', fontWeight: '700', fontSize: '0.86rem' }}>{money(l.importe)}</div>
                   <select style={{ ...inputStyle, padding: '6px 8px' }} value="" onChange={(e) => asignarRubro(l, e.target.value)}>
                     <option value="">Asignar rubro...</option>
-                    {p.categorias.filter((c) => c.fuente !== 'nomina').map((c) => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+                    {p.categorias.filter((c) => !FUENTES_AUTO[c.fuente]).map((c) => <option key={c.id} value={c.id}>{c.nombre}</option>)}
                   </select>
                 </div>
               ))}
