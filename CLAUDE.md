@@ -177,6 +177,23 @@ sección nueva **"Pólizas actuales"**, separada de "Pólizas a reasignar"
 (esa sigue siendo solo para claves ya desaparecidas) — probado con datos
 sintéticos antes de desplegar.
 
+## Recuperaciones en Cancelaciones (2026-11-04)
+
+Una póliza **recuperada** es la que estaba `Anulada` o `Vigor Prorrogado` y volvió a
+`En Vigor`. En Cancelaciones (Promotoría y Karen) hay un selector "Mostrar":
+**Cancelaciones · Recuperadas · Historial completo**, con contadores que respetan
+fecha/producto/asesor. "Recuperada" se calcula por el CAMBIO DE ESTATUS (no solo por
+la etiqueta `Tipo = Recuperada`), así salen también las anteriores a esa etiqueta.
+Las recuperadas no tienen seguimiento (el filtro de Seguimiento solo aplica a
+Cancelaciones). El import acepta la columna `Producto` y los encabezados alternos
+`Fecha` / `Tipo de Cambio`.
+
+**Regla de oro del import** (causó un borrado el 2026-11-04): `/cancelaciones/import`
+REEMPLAZA todas las filas, así que desde Pólizas solo debe subirse UN archivo con
+TODO (cancelaciones + recuperaciones, sin eventos repetidos): lo arma
+`scripts/historial_crm.py` en el proyecto Pólizas, con protecciones (no sube si el
+historial base falta/está vacío/roto). Nunca subir solo las recuperaciones.
+
 ## Seguimiento de cancelaciones: observaciones + reactivación (2026-10-07)
 
 Columnas nuevas en Cancelaciones (Promotoría **y** Karen, mismo componente):

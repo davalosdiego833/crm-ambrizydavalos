@@ -3197,7 +3197,7 @@ const parseClavesTemporalesExcel = (filePath) => {
   const worksheet = workbook.Sheets[workbook.SheetNames[0]];
   const data = xlsx.utils.sheet_to_json(worksheet);
   return data.map(r => ({
-    fechaDetectado: r['Fecha Detectado'] || '',
+    fechaDetectado: r['Fecha Detectado'] || r['Fecha'] || '',
     desde: r['Desde'] || '',
     tipo: r['Tipo'] || '',
     nombre: r['Nombre'] || '',
@@ -3531,7 +3531,8 @@ const parseCancelacionesExcel = (filePath) => {
     contratante: r['Contratante'] || '',
     estatusAnterior: r['Estatus Anterior'] || '',
     estatusNuevo: r['Estatus Nuevo'] || '',
-    tipo: r['Tipo'] || ''
+    tipo: r['Tipo'] || r['Tipo de Cambio'] || '',
+    producto: r['Producto'] || ''
   }));
 };
 

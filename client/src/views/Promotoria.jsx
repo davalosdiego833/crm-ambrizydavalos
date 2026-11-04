@@ -675,11 +675,23 @@ const SEGUIMIENTO_PRESETS = [
 ];
 const SEGUIMIENTO_POR_REACTIVAR = ['pendiente', 'hoy', 'vencida'];
 
+// Una póliza recuperada: estaba Anulada o en Vigor Prorrogado y volvió a En Vigor.
+// Se calcula por el cambio de estatus (no solo por la etiqueta "Recuperada"), así
+// también salen las recuperaciones anteriores a que existiera esa etiqueta.
+const esRecuperada = (r) =>
+  r.tipo === 'Recuperada' || (r.estatusNuevo === 'En Vigor' && ['Anulada', 'Vigor Prorrogado'].includes(r.estatusAnterior));
+
+const VISTAS_CAMBIOS = [
+  { id: 'anuladas', label: 'Cancelaciones' },
+  { id: 'recuperadas', label: 'Recuperadas' },
+  { id: 'todo', label: 'Historial completo' }
+];
+
 const CancelacionesTab = ({ authFetch, apiBase }) => {
   const [data, setData] = useState({ importedAt: null, sourceFile: null, rows: [] });
   const [loading, setLoading] = useState(true);
   const [importing, setImporting] = useState(false);
-  const [showAll, setShowAll] = useState(false);
+  const [vista, setVista] = useState('anuladas'); // anuladas | recuperadas | todo
   const [searchTerm, setSearchTerm] = useState('');
   const [dateFilter, setDateFilter] = useState('hoy');
   const [customFrom, setCustomFrom] = useState(todayStr());
@@ -763,7 +775,8 @@ const CancelacionesTab = ({ authFetch, apiBase }) => {
   const anuladas = (data.rows || []).filter(r => r.estatusNuevo === 'Anulada');
   const totalVencidas = anuladas.filter(r => r.seguimiento === 'vencida').length;
   const totalParaHoy = anuladas.filter(r => r.seguimiento === 'hoy').length;
-  const filtraSeguimiento = seguimientoFilter !== 'todos';
+  // El filtro de seguimiento solo aplica a cancelaciones (las recuperadas no tienen seguimiento).
+  const filtraSeguimiento = vista === 'anuladas' && seguimientoFilter !== 'todos';
 
   const coincideSeguimiento = (r) => {
     if (seguimientoFilter === 'por_reactivar') return SEGUIMIENTO_POR_REACTIVAR.includes(r.seguimiento);
@@ -772,12 +785,26 @@ const CancelacionesTab = ({ authFetch, apiBase }) => {
     return true;
   };
 
-  const rows = (data.rows || [])
-    .filter(r => showAll || r.estatusNuevo === 'Anulada')
+  const enVista = (r) => {
+    if (vista === 'anuladas') return r.estatusNuevo === 'Anulada';
+    if (vista === 'recuperadas') return esRecuperada(r);
+    return true;
+  };
+  // Filas que cumplen asesor + fecha + producto (sin elegir la vista): sirven para
+  // los contadores de los botones Cancelaciones / Recuperadas / Historial completo.
+  const baseFiltrada = (data.rows || [])
     .filter(r => (r.asesor || '').toLowerCase().includes(searchTerm.toLowerCase()))
     .filter(r => filtraSeguimiento || matchesDateFilter(r.fechaDetectado))
-    .filter(r => productoFilter === 'todos' || (r.noPoliza || '').toUpperCase().startsWith(productoFilter))
-    .filter(coincideSeguimiento);
+    .filter(r => productoFilter === 'todos' || (r.noPoliza || '').toUpperCase().startsWith(productoFilter));
+  const conteoVista = {
+    anuladas: baseFiltrada.filter(r => r.estatusNuevo === 'Anulada').length,
+    recuperadas: baseFiltrada.filter(esRecuperada).length,
+    todo: baseFiltrada.length
+  };
+
+  const rows = baseFiltrada
+    .filter(enVista)
+    .filter(r => vista !== 'anuladas' || coincideSeguimiento(r));
 
   // Pendientes: la fecha de reactivación más próxima/vencida primero
   if (seguimientoFilter === 'por_reactivar' || seguimientoFilter === 'accion') {
@@ -821,7 +848,7 @@ const CancelacionesTab = ({ authFetch, apiBase }) => {
             </div>
           </div>
           <button
-            onClick={() => setSeguimientoFilter('accion')}
+            onClick={() => { setVista('anuladas'); setSeguimientoFilter('accion'); }}
             style={{ padding: '8px 18px', borderRadius: '20px', fontSize: '0.8rem', fontWeight: '600', cursor: 'pointer', border: '1px solid var(--glass-border)', background: 'rgba(255,255,255,0.04)', color: 'var(--text-main)' }}
           >
             Ver pólizas
@@ -852,6 +879,31 @@ const CancelacionesTab = ({ authFetch, apiBase }) => {
         </div>
 
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', alignItems: 'center' }}>
+          <span style={{ fontSize: '0.75rem', color: 'var(--text-dim)', marginRight: '4px' }}>Mostrar:</span>
+          {VISTAS_CAMBIOS.map(v => (
+            <button
+              key={v.id}
+              onClick={() => setVista(v.id)}
+              style={{
+                padding: '8px 16px',
+                borderRadius: '20px',
+                fontSize: '0.8rem',
+                fontWeight: '600',
+                cursor: 'pointer',
+                border: vista === v.id ? '1px solid var(--accent-gold)' : '1px solid var(--glass-border)',
+                background: vista === v.id ? 'rgba(226,176,66,0.15)' : 'transparent',
+                color: vista === v.id ? 'var(--accent-gold)' : 'var(--text-muted)'
+              }}
+            >
+              {v.label} ({conteoVista[v.id]})
+            </button>
+          ))}
+          {vista === 'recuperadas' && (
+            <span style={{ fontSize: '0.7rem', color: 'var(--text-dim)' }}>Pólizas que estaban Anuladas o en Vigor Prorrogado y volvieron a En Vigor.</span>
+          )}
+        </div>
+
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', alignItems: 'center' }}>
           <span style={{ fontSize: '0.75rem', color: 'var(--text-dim)', marginRight: '4px' }}>Producto:</span>
           {PRODUCTO_PRESETS.map(p => (
             <button
@@ -873,6 +925,7 @@ const CancelacionesTab = ({ authFetch, apiBase }) => {
           ))}
         </div>
 
+        {vista === 'anuladas' && (
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', alignItems: 'center' }}>
           <span style={{ fontSize: '0.75rem', color: 'var(--text-dim)', marginRight: '4px' }}>Seguimiento:</span>
           {SEGUIMIENTO_PRESETS.map(p => (
@@ -897,6 +950,7 @@ const CancelacionesTab = ({ authFetch, apiBase }) => {
             <span style={{ fontSize: '0.7rem', color: 'var(--text-dim)' }}>Con este filtro se muestran todas las fechas.</span>
           )}
         </div>
+        )}
 
         {dateFilter === 'personalizado' && !filtraSeguimiento && (
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
@@ -915,10 +969,6 @@ const CancelacionesTab = ({ authFetch, apiBase }) => {
             placeholder="Buscar por asesor..."
             style={{ padding: '10px 14px', borderRadius: '8px', background: '#ffffff', border: '1px solid #cbd5e1', color: '#0f172a', outline: 'none', minWidth: '220px' }}
           />
-          <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem', color: 'var(--text-muted)', cursor: 'pointer' }}>
-            <input type="checkbox" checked={showAll} onChange={(e) => setShowAll(e.target.checked)} />
-            Ver historial completo (no solo Anuladas)
-          </label>
           <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
             Total: <span style={{ color: 'var(--accent-gold)', fontWeight: 'bold' }}>{rows.length}</span>
           </div>
@@ -954,12 +1004,13 @@ const CancelacionesTab = ({ authFetch, apiBase }) => {
                   <td style={{ padding: '16px 24px', fontSize: '0.85rem' }}>{r.asesor}</td>
                   <td style={{ padding: '16px 24px', fontSize: '0.85rem', color: 'var(--text-muted)' }}>{r.noAgente}</td>
                   <td style={{ padding: '16px 24px', fontSize: '0.85rem', color: 'var(--text-muted)' }}>{r.noPoliza}</td>
-                  <td style={{ padding: '16px 24px', fontSize: '0.85rem' }}>{r.contratante}</td>
+                  <td style={{ padding: '16px 24px', fontSize: '0.85rem' }}>{r.contratante}{r.producto && <div style={{ fontSize: '0.72rem', color: 'var(--text-dim)', marginTop: '2px' }}>{r.producto}</div>}</td>
                   <td style={{ padding: '16px 24px', fontSize: '0.85rem', color: 'var(--text-muted)' }}>{r.estatusAnterior}</td>
                   <td style={{ padding: '16px 24px' }}>
                     <span style={{ padding: '4px 10px', borderRadius: '20px', fontSize: '0.7rem', fontWeight: 'bold', background: r.estatusNuevo === 'Anulada' ? 'rgba(255,68,68,0.15)' : 'rgba(0,255,170,0.1)', color: r.estatusNuevo === 'Anulada' ? '#ff4444' : 'var(--accent-mint)' }}>
                       {r.estatusNuevo}
                     </span>
+                    {esRecuperada(r) && <span style={{ marginLeft: '8px', fontSize: '0.68rem', fontWeight: 'bold', color: 'var(--accent-mint)' }}>Recuperada</span>}
                   </td>
                   {r.estatusNuevo === 'Anulada' ? (
                     <>
@@ -984,7 +1035,9 @@ const CancelacionesTab = ({ authFetch, apiBase }) => {
                       </td>
                     </>
                   ) : (
-                    <td colSpan="4" style={{ padding: '16px 24px', fontSize: '0.8rem', color: 'var(--text-dim)' }}>Sin seguimiento (no es una cancelación)</td>
+                    <td colSpan="4" style={{ padding: '16px 24px', fontSize: '0.8rem', color: 'var(--text-dim)' }}>
+                      {esRecuperada(r) ? `Recuperada: pasó de ${r.estatusAnterior} a En Vigor` : 'Sin seguimiento (no es una cancelación)'}
+                    </td>
                   )}
                 </tr>
               ))}
