@@ -188,6 +188,11 @@ Las recuperadas no tienen seguimiento (el filtro de Seguimiento solo aplica a
 Cancelaciones). El import acepta la columna `Producto` y los encabezados alternos
 `Fecha` / `Tipo de Cambio`.
 
+WhatsApp: `consultar_cancelaciones` y `consultar_cancelaciones_karen` tienen el filtro
+`solo_recuperadas` (mismo criterio por cambio de estatus; también se activa con
+`tipo="Recuperada"`), combinable con `fecha_detectado`/`desde`/`asesor`. **Hay que
+reiniciar el bot para que lo vea.**
+
 **Regla de oro del import** (causó un borrado el 2026-11-04): `/cancelaciones/import`
 REEMPLAZA todas las filas, así que desde Pólizas solo debe subirse UN archivo con
 TODO (cancelaciones + recuperaciones, sin eventos repetidos): lo arma

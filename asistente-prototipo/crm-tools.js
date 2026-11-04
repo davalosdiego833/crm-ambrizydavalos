@@ -222,6 +222,14 @@ const SCHEMA_CONSULTA_CANCELACIONES = {
         'true = solo cancelaciones reales (pólizas que pasaron a Anulada). Úsalo siempre que el directivo ' +
         'pregunte por "cancelaciones"; el reporte también trae otros cambios de estatus (Vigor Prorrogado, etc.).',
     },
+    solo_recuperadas: {
+      type: 'boolean',
+      description:
+        'true = solo pólizas RECUPERADAS: las que estaban Anuladas o en Vigor Prorrogado y volvieron a En Vigor. ' +
+        'Úsalo para "qué pólizas se recuperaron / volvieron a vigor / se rehabilitaron" (combínalo con ' +
+        'fecha_detectado o desde para "hoy" o "esta semana"). Las recuperadas NO tienen seguimiento de ' +
+        'reactivación; cada fila trae estatusAnterior (de dónde regresó) y, en la Promotoría, el producto.',
+    },
   },
 };
 
@@ -260,18 +268,22 @@ function notaSinResultados(todas, filtros) {
 }
 
 // Filtros compartidos entre la consulta de Promotoría y la de Karen.
-function filtrarCancelaciones(rows, { asesor, contratante, tipo, seguimiento, fecha_reactivacion, fecha_detectado, desde, solo_anuladas } = {}) {
+function filtrarCancelaciones(rows, { asesor, contratante, tipo, seguimiento, fecha_reactivacion, fecha_detectado, desde, solo_anuladas, solo_recuperadas } = {}) {
   let out = rows || [];
   if (asesor) out = out.filter((r) => coincideNombre(r.asesor, asesor));
   if (contratante) out = out.filter((r) => coincideNombre(r.contratante, contratante));
   // "tipo" solo trae "Cambio"/"Póliza nueva": pedir "cancelación"/"anulada" es pedir las Anuladas.
   if (tipo && /cancel|anul/.test(normalizar(tipo))) solo_anuladas = true;
+  else if (tipo && /recuper/.test(normalizar(tipo))) solo_recuperadas = true;
   else if (tipo) out = out.filter((r) => normalizar(r.tipo).includes(normalizar(tipo)));
   if (seguimiento && FILTROS_SEGUIMIENTO[seguimiento]) out = out.filter(FILTROS_SEGUIMIENTO[seguimiento]);
   if (fecha_reactivacion) out = out.filter((r) => r.fechaReactivacion === fecha_reactivacion && !r.reactivado);
   if (fecha_detectado) out = out.filter((r) => String(r.fechaDetectado) === fecha_detectado);
   if (desde) out = out.filter((r) => String(r.fechaDetectado) >= desde);
   if (solo_anuladas) out = out.filter((r) => r.estatusNuevo === 'Anulada');
+  // Recuperada = estaba Anulada o en Vigor Prorrogado y volvió a En Vigor (mismo criterio que la
+  // pantalla Cancelaciones > Recuperadas del CRM; incluye las anteriores a la etiqueta "Recuperada").
+  if (solo_recuperadas) out = out.filter((r) => r.tipo === 'Recuperada' || (r.estatusNuevo === 'En Vigor' && ['Anulada', 'Vigor Prorrogado'].includes(r.estatusAnterior)));
   return out;
 }
 
@@ -1227,6 +1239,8 @@ export function construirHerramientas(token, role, claveAgente) {
             'y buscarlo tú. También sirve para el SEGUIMIENTO de reactivaciones (ej. "qué pólizas se ' +
             'tienen que reactivar hoy" → seguimiento "hoy"; "cuáles ya vencieron y no se reactivaron" → ' +
             '"vencidas"; "las que se reactivan el 15 de octubre" → fecha_reactivacion). ' +
+            'TAMBIÉN da las pólizas RECUPERADAS (estaban Anuladas o en Vigor Prorrogado y volvieron a En Vigor): ' +
+            'usa solo_recuperadas=true (ej. "qué pólizas se recuperaron hoy" → solo_recuperadas + fecha_detectado "hoy"). ' +
             DESCRIPCION_SEGUIMIENTO + ' Solo para directivos.',
           input_schema: SCHEMA_CONSULTA_CANCELACIONES,
         },
@@ -1335,7 +1349,8 @@ export function construirHerramientas(token, role, claveAgente) {
             'anterior y nuevo. Se puede filtrar por asesor, contratante y/o tipo — si el directivo pide ' +
             'algo específico, usa el filtro en vez de traer todo y buscarlo tú. También sirve para el ' +
             'SEGUIMIENTO de reactivaciones de Karen (seguimiento "hoy", "vencidas", fecha_reactivacion, ' +
-            'etc.). ' + DESCRIPCION_SEGUIMIENTO + ' Solo para directivos.',
+            'etc.). TAMBIÉN da las pólizas RECUPERADAS de Karen (Anuladas o Vigor Prorrogado que volvieron a En Vigor): ' +
+            'usa solo_recuperadas=true. ' + DESCRIPCION_SEGUIMIENTO + ' Solo para directivos.',
           input_schema: SCHEMA_CONSULTA_CANCELACIONES,
         },
         run: async (filtros = {}) => {
