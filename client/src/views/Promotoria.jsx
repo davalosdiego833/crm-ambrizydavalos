@@ -7,14 +7,24 @@ import ProspectStats from './ProspectStats';
 const useAuth = () => {
   const token = localStorage.getItem('crm_token');
 
-  const authFetch = (url, options = {}) => {
-    return fetch(url, {
+  // La sesión dura 24 h. Si la pestaña se quedó abierta y el token venció, el servidor
+  // responde 401 y las pantallas se veían vacías ("todavía no se ha importado nada")
+  // aunque los datos estuvieran bien. Ahora se avisa y se vuelve al inicio de sesión.
+  const authFetch = async (url, options = {}) => {
+    const res = await fetch(url, {
       ...options,
       headers: {
         ...options.headers,
         Authorization: `Bearer ${token}`
       }
     });
+    if (res.status === 401) {
+      localStorage.removeItem('crm_token');
+      localStorage.removeItem('crm_user');
+      alert('Tu sesión expiró. Vuelve a iniciar sesión.');
+      window.location.reload();
+    }
+    return res;
   };
 
   return { authFetch };
@@ -701,13 +711,14 @@ const CancelacionesTab = ({ authFetch, apiBase }) => {
   const [editingRow, setEditingRow] = useState(null);
   const [seguimientoForm, setSeguimientoForm] = useState({ observacion: '', reactivara: '', fechaReactivacion: '' });
   const [savingSeguimiento, setSavingSeguimiento] = useState(false);
+  const [loadError, setLoadError] = useState('');
 
   const load = () => {
     setLoading(true);
     authFetch(`${apiBase}/cancelaciones`)
-      .then(res => res.json())
-      .then(d => { setData(d || { importedAt: null, sourceFile: null, rows: [] }); setLoading(false); })
-      .catch(() => setLoading(false));
+      .then(res => { if (!res.ok) throw new Error(`HTTP ${res.status}`); return res.json(); })
+      .then(d => { setData(d || { importedAt: null, sourceFile: null, rows: [] }); setLoadError(''); setLoading(false); })
+      .catch(() => { setLoadError('No se pudieron cargar las cancelaciones (no es que estén vacías). Recarga la página.'); setLoading(false); });
   };
 
   useEffect(() => { load(); }, []);
@@ -826,7 +837,9 @@ const CancelacionesTab = ({ authFetch, apiBase }) => {
       <div className="glass-card" style={{ marginBottom: '24px', padding: '20px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
         <div>
           <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-            {data.importedAt
+            {loadError
+              ? <strong style={{ color: '#ff4444' }}>{loadError}</strong>
+              : data.importedAt
               ? <>Última importación: <strong style={{ color: 'var(--text-main)' }}>{new Date(data.importedAt).toLocaleString('es-MX')}</strong> · archivo: <strong style={{ color: 'var(--text-main)' }}>{data.sourceFile}</strong></>
               : 'Todavía no se ha importado ningún archivo.'}
           </p>

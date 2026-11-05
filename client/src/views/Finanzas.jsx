@@ -7,8 +7,25 @@ import { createPortal } from 'react-dom';
 
 const useAuth = () => {
   const token = localStorage.getItem('crm_token');
-  const authFetch = (url, options = {}) =>
-    fetch(url, { ...options, headers: { ...options.headers, Authorization: `Bearer ${token}` } });
+  // La sesión dura 24 h. Si la pestaña se quedó abierta y el token venció, el servidor
+  // responde 401 y las pantallas se veían vacías ("todavía no se ha importado nada")
+  // aunque los datos estuvieran bien. Ahora se avisa y se vuelve al inicio de sesión.
+  const authFetch = async (url, options = {}) => {
+    const res = await fetch(url, {
+      ...options,
+      headers: {
+        ...options.headers,
+        Authorization: `Bearer ${token}`
+      }
+    });
+    if (res.status === 401) {
+      localStorage.removeItem('crm_token');
+      localStorage.removeItem('crm_user');
+      alert('Tu sesión expiró. Vuelve a iniciar sesión.');
+      window.location.reload();
+    }
+    return res;
+  };
   return { authFetch };
 };
 
