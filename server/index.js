@@ -1827,6 +1827,29 @@ app.post('/api/policies/parse', authMiddleware, upload.single('policy'), async (
 });
 
 // Dashboard personalizado del usuario
+// Lee una fecha guardada en cualquiera de los formatos que ya existen en la
+// base y regresa { month: 'MM', day: 'DD', year } (year puede venir vacío en
+// cumpleaños sin año). Si no se entiende, regresa null. Evita que un cliente
+// quede fuera de cumpleaños/aniversarios solo por cómo se escribió la fecha:
+// '1980-03-18', '1980-3-8', '03-18' (sin año) o '18/03/1980'.
+const splitCelebrationDate = (val) => {
+  const str = String(val || '').trim();
+  if (!str) return null;
+  const pad = (n) => ('0' + parseInt(n, 10)).slice(-2);
+  const valid = (m, d) => m >= 1 && m <= 12 && d >= 1 && d <= 31;
+  let m;
+  if ((m = str.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/))) {
+    return valid(+m[2], +m[3]) ? { year: parseInt(m[1], 10), month: pad(m[2]), day: pad(m[3]) } : null;
+  }
+  if ((m = str.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})$/))) {
+    return valid(+m[2], +m[1]) ? { year: parseInt(m[3], 10), month: pad(m[2]), day: pad(m[1]) } : null;
+  }
+  if ((m = str.match(/^(\d{1,2})-(\d{1,2})$/))) {
+    return valid(+m[1], +m[2]) ? { year: null, month: pad(m[1]), day: pad(m[2]) } : null;
+  }
+  return null;
+};
+
 app.get('/api/dashboard', authMiddleware, (req, res) => {
   runDatabaseMaintenance(req.user);
   const now = new Date();
@@ -1958,6 +1981,8 @@ app.get('/api/dashboard', authMiddleware, (req, res) => {
   // elegir cualquier mes en el Dashboard; las listas de arriba se conservan.
   const birthdaysByMonth = {};
   const anniversariesByMonth = {};
+  let missingBirthdays = 0; // clientes activos sin fecha de cumpleaños del contratante
+  let invalidDates = 0;     // fechas guardadas que no se pudieron leer
   for (let m = 1; m <= 12; m++) {
     const key = ('0' + m).slice(-2);
     birthdaysByMonth[key] = [];
@@ -1969,10 +1994,12 @@ app.get('/api/dashboard', authMiddleware, (req, res) => {
     const cleanContractorName = cleanPersonName(c.contractor);
 
     // Revisar Cumpleaños del Contratante
-    if (c.contractorBirthDate) {
-      const parts = c.contractorBirthDate.split('-');
-      const bMonth = parts.length === 3 ? parts[1] : (parts.length === 2 ? parts[0] : '');
-      const bDay = parts.length === 3 ? parts[2] : (parts.length === 2 ? parts[1] : '');
+    const contractorBirth = splitCelebrationDate(c.contractorBirthDate);
+    if (!c.contractorBirthDate) missingBirthdays++;
+    else if (!contractorBirth) invalidDates++;
+    if (contractorBirth) {
+      const bMonth = contractorBirth.month;
+      const bDay = contractorBirth.day;
 
       const entry = {
         name: cleanContractorName,
@@ -1987,7 +2014,9 @@ app.get('/api/dashboard', authMiddleware, (req, res) => {
 
     // Revisar Cumpleaños de los Asegurados
     (c.insureds || []).forEach(ins => {
-      if (ins.birthDate) {
+      const insBirth = splitCelebrationDate(ins.birthDate);
+      if (ins.birthDate && !insBirth && ins.birthDate !== c.contractorBirthDate) invalidDates++;
+      if (insBirth) {
         const cleanInsuredName = cleanPersonName(ins.name);
         // Evitar duplicados si el asegurado es la misma persona que el contratante en la misma póliza
         const isSamePerson = (cleanInsuredName.toUpperCase() === cleanContractorName.toUpperCase()) ||
@@ -1995,9 +2024,8 @@ app.get('/api/dashboard', authMiddleware, (req, res) => {
 
         if (isSamePerson) return;
 
-        const parts = ins.birthDate.split('-');
-        const bMonth = parts.length === 3 ? parts[1] : (parts.length === 2 ? parts[0] : '');
-        const bDay = parts.length === 3 ? parts[2] : (parts.length === 2 ? parts[1] : '');
+        const bMonth = insBirth.month;
+        const bDay = insBirth.day;
 
         const entry = {
           name: cleanInsuredName,
@@ -2012,10 +2040,12 @@ app.get('/api/dashboard', authMiddleware, (req, res) => {
     });
 
     // Revisar Aniversarios de Pólizas (basado en emissionDate)
-    if (c.emissionDate) {
-      const emissionMonth = c.emissionDate.slice(5, 7);
-      const day = c.emissionDate.slice(8, 10);
-      const emissionYear = parseInt(c.emissionDate.slice(0, 4));
+    const emission = splitCelebrationDate(c.emissionDate);
+    if (c.emissionDate && !emission) invalidDates++;
+    if (emission && emission.year) {
+      const emissionMonth = emission.month;
+      const day = emission.day;
+      const emissionYear = emission.year;
 
       // Aniversario dentro del año en curso (años cumplidos en ese mes)
       const yearsThisYear = currentYearInt - emissionYear;
@@ -2064,7 +2094,8 @@ app.get('/api/dashboard', authMiddleware, (req, res) => {
     anniversariesNextMonth,
     birthdaysByMonth,
     anniversariesByMonth,
-    calendarYear: currentYearInt
+    calendarYear: currentYearInt,
+    celebrationGaps: { missingBirthdays, invalidDates }
   });
 });
 

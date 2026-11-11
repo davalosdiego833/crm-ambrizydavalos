@@ -904,6 +904,14 @@ const Dashboard = () => {
           <span style={{ alignSelf: 'center', fontSize: '0.72rem', color: 'var(--text-dim)', marginLeft: '4px' }}>{celebYear}</span>
         </div>
 
+        {(data.celebrationGaps?.missingBirthdays > 0 || data.celebrationGaps?.invalidDates > 0) && (
+          <p style={{ fontSize: '0.75rem', color: 'var(--text-dim)', margin: '-12px 0 20px' }}>
+            {data.celebrationGaps.missingBirthdays > 0 && `${data.celebrationGaps.missingBirthdays} ${data.celebrationGaps.missingBirthdays === 1 ? 'póliza no tiene' : 'pólizas no tienen'} fecha de cumpleaños del contratante y no ${data.celebrationGaps.missingBirthdays === 1 ? 'aparece' : 'aparecen'} en esta lista. `}
+            {data.celebrationGaps.invalidDates > 0 && `${data.celebrationGaps.invalidDates} ${data.celebrationGaps.invalidDates === 1 ? 'fecha guardada no se pudo leer' : 'fechas guardadas no se pudieron leer'}. `}
+            Complétalas en Base de Datos para que no se pase ninguno.
+          </p>
+        )}
+
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '32px' }}>
           <div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
