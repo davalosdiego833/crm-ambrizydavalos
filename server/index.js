@@ -1954,6 +1954,15 @@ app.get('/api/dashboard', authMiddleware, (req, res) => {
   const birthdaysNextMonth = [];
   const anniversaries = [];
   const anniversariesNextMonth = [];
+  // Los 12 meses del año en curso ("01".."12") para que el asesor pueda
+  // elegir cualquier mes en el Dashboard; las listas de arriba se conservan.
+  const birthdaysByMonth = {};
+  const anniversariesByMonth = {};
+  for (let m = 1; m <= 12; m++) {
+    const key = ('0' + m).slice(-2);
+    birthdaysByMonth[key] = [];
+    anniversariesByMonth[key] = [];
+  }
 
   clientsData.forEach(c => {
     if (c.status === 'Anulada') return; // Omitir pólizas anuladas
@@ -1973,6 +1982,7 @@ app.get('/api/dashboard', authMiddleware, (req, res) => {
       };
       if (bMonth === currentMonth) birthdays.push(entry);
       else if (bMonth === nextMonth) birthdaysNextMonth.push(entry);
+      if (birthdaysByMonth[bMonth]) birthdaysByMonth[bMonth].push(entry);
     }
 
     // Revisar Cumpleaños de los Asegurados
@@ -1997,6 +2007,7 @@ app.get('/api/dashboard', authMiddleware, (req, res) => {
         };
         if (bMonth === currentMonth) birthdays.push(entry);
         else if (bMonth === nextMonth) birthdaysNextMonth.push(entry);
+        if (birthdaysByMonth[bMonth]) birthdaysByMonth[bMonth].push(entry);
       }
     });
 
@@ -2005,6 +2016,12 @@ app.get('/api/dashboard', authMiddleware, (req, res) => {
       const emissionMonth = c.emissionDate.slice(5, 7);
       const day = c.emissionDate.slice(8, 10);
       const emissionYear = parseInt(c.emissionDate.slice(0, 4));
+
+      // Aniversario dentro del año en curso (años cumplidos en ese mes)
+      const yearsThisYear = currentYearInt - emissionYear;
+      if (anniversariesByMonth[emissionMonth] && yearsThisYear > 0) {
+        anniversariesByMonth[emissionMonth].push({ name: c.contractor, policy: c.policyNumber, day: parseInt(day), years: yearsThisYear });
+      }
 
       if (emissionMonth === currentMonth) {
         const years = currentYearInt - emissionYear;
@@ -2025,6 +2042,10 @@ app.get('/api/dashboard', authMiddleware, (req, res) => {
   birthdaysNextMonth.sort((a, b) => a.day - b.day);
   anniversaries.sort((a, b) => a.day - b.day);
   anniversariesNextMonth.sort((a, b) => a.day - b.day);
+  Object.keys(birthdaysByMonth).forEach(k => {
+    birthdaysByMonth[k].sort((a, b) => a.day - b.day);
+    anniversariesByMonth[k].sort((a, b) => a.day - b.day);
+  });
 
   // Ordenar listas
   upcomingLists.hoy.sort((a, b) => a.days - b.days);
@@ -2040,7 +2061,10 @@ app.get('/api/dashboard', authMiddleware, (req, res) => {
     birthdays,
     anniversaries,
     birthdaysNextMonth,
-    anniversariesNextMonth
+    anniversariesNextMonth,
+    birthdaysByMonth,
+    anniversariesByMonth,
+    calendarYear: currentYearInt
   });
 });
 

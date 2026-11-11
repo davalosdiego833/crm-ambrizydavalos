@@ -326,6 +326,8 @@ const Dashboard = () => {
   const [payModalData, setPayModalData] = useState(null);
   const [paymentDateStr, setPaymentDateStr] = useState(new Date().toISOString().slice(0, 10));
   const [fullReportModal, setFullReportModal] = useState(null); // 'birthdays', 'anniversaries', or 'collected'
+  // Mes elegido para cumpleaños y aniversarios (1-12, del año en curso)
+  const [celebMonth, setCelebMonth] = useState(new Date().getMonth() + 1);
 
   const fetchDashboard = () => {
     authFetch('/api/dashboard')
@@ -367,8 +369,19 @@ const Dashboard = () => {
   if (!data) return <div style={{ textAlign: 'center', marginTop: '100px', color: 'var(--text-dim)' }}>Cargando tu información...</div>;
 
   const firstName = user.name.split(' ')[0];
-  const nextMonthDateObj = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 1);
-  const nextMonthLabel = nextMonthDateObj.toLocaleString('es-MX', { month: 'long' }).replace(/^./, c => c.toUpperCase());
+  const MONTH_NAMES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+  const nowMonth = new Date().getMonth() + 1;
+  const celebKey = String(celebMonth).padStart(2, '0');
+  const celebLabel = MONTH_NAMES[celebMonth - 1];
+  const celebYear = data.calendarYear || new Date().getFullYear();
+  // Si el servidor aún no manda los 12 meses, se usan las listas del mes actual y el siguiente
+  const monthBirthdays = data.birthdaysByMonth
+    ? (data.birthdaysByMonth[celebKey] || [])
+    : (celebMonth === nowMonth ? (data.birthdays || []) : []);
+  const monthAnniversaries = data.anniversariesByMonth
+    ? (data.anniversariesByMonth[celebKey] || [])
+    : (celebMonth === nowMonth ? (data.anniversaries || []) : []);
+  const celebTense = celebMonth < nowMonth ? 'past' : celebMonth === nowMonth ? 'now' : 'future';
   const fmt = (n) => '$' + n.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const fmtCurrency = (n, curr) => {
     if (curr === 'USD') return `USD ${n.toLocaleString('en-US')}`;
@@ -862,23 +875,50 @@ const Dashboard = () => {
         )}
       </div>
 
-      {/* Analytics Adicionales (Cumpleaños y Aniversarios) */}
+      {/* Cumpleaños y Aniversarios: el asesor elige el mes (año en curso) */}
       <div className="glass-card portfolio-widget animate-up" style={{ animationDelay: '0.3s', padding: '24px' }}>
+        <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: '24px' }}>
+          {MONTH_NAMES.map((name, idx) => {
+            const m = idx + 1;
+            const active = celebMonth === m;
+            const key = String(m).padStart(2, '0');
+            const count = data.birthdaysByMonth
+              ? (data.birthdaysByMonth[key] || []).length + ((data.anniversariesByMonth || {})[key] || []).length
+              : null;
+            return (
+              <button
+                key={m}
+                onClick={() => setCelebMonth(m)}
+                title={m === nowMonth ? `${name} (mes actual)` : name}
+                style={{
+                  padding: '7px 12px', borderRadius: '20px', fontSize: '0.78rem', fontWeight: '600', cursor: 'pointer',
+                  background: active ? 'var(--accent-gold)' : 'transparent',
+                  color: active ? '#0f172a' : 'var(--text-muted)',
+                  border: `1px solid ${active ? 'var(--accent-gold)' : (m === nowMonth ? 'var(--accent-gold)' : 'var(--glass-border)')}`
+                }}
+              >
+                {name.slice(0, 3)}{count ? ` · ${count}` : ''}
+              </button>
+            );
+          })}
+          <span style={{ alignSelf: 'center', fontSize: '0.72rem', color: 'var(--text-dim)', marginLeft: '4px' }}>{celebYear}</span>
+        </div>
+
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '32px' }}>
           <div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
-              <h3 style={{ fontSize: '1.1rem', margin: 0 }}>🎂 Cumpleaños del Mes</h3>
-              <button 
+              <h3 style={{ fontSize: '1.1rem', margin: 0 }}>🎂 Cumpleaños de {celebLabel}</h3>
+              <button
                 onClick={() => setFullReportModal('birthdays')}
                 style={{ fontSize: '0.75rem', padding: '4px 8px', borderRadius: '6px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: 'var(--accent-gold)', cursor: 'pointer' }}
               >
                 🔎 Ver completo
               </button>
             </div>
-            <div style={{ maxHeight: '200px', overflowY: 'auto', paddingRight: '4px' }}>
-               {data.birthdays?.length === 0 ? (
-                <p style={{ color: 'var(--text-dim)', fontSize: '0.9rem' }}>No hay cumpleaños este mes.</p>
-              ) : data.birthdays?.map((b, i) => (
+            <div style={{ maxHeight: '260px', overflowY: 'auto', paddingRight: '4px' }}>
+              {monthBirthdays.length === 0 ? (
+                <p style={{ color: 'var(--text-dim)', fontSize: '0.9rem' }}>No hay cumpleaños en {celebLabel}.</p>
+              ) : monthBirthdays.map((b, i) => (
                 <div key={i} style={{ padding: '12px 16px', background: 'rgba(226, 176, 66, 0.05)', borderRadius: '12px', border: '1px solid rgba(226, 176, 66, 0.1)', marginBottom: '10px' }}>
                   <p style={{ fontWeight: 'bold', fontSize: '0.9rem' }}>{b.name}</p>
                   <p style={{ fontSize: '0.75rem', color: 'var(--accent-gold)', margin: '4px 0' }}>{b.type}</p>
@@ -889,61 +929,21 @@ const Dashboard = () => {
           </div>
           <div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
-              <h3 style={{ fontSize: '1.1rem', margin: 0 }}>🎉 Aniversarios de Clientes</h3>
-              <button 
+              <h3 style={{ fontSize: '1.1rem', margin: 0 }}>🎉 Aniversarios de {celebLabel}</h3>
+              <button
                 onClick={() => setFullReportModal('anniversaries')}
                 style={{ fontSize: '0.75rem', padding: '4px 8px', borderRadius: '6px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: 'var(--accent-mint)', cursor: 'pointer' }}
               >
                 🔎 Ver completo
               </button>
             </div>
-            <div style={{ maxHeight: '200px', overflowY: 'auto', paddingRight: '4px' }}>
-              {!data.anniversaries || data.anniversaries.length === 0 ? (
-                <p style={{ color: 'var(--text-dim)', fontSize: '0.9rem' }}>No hay aniversarios este mes.</p>
-              ) : data.anniversaries.map((ann, i) => (
+            <div style={{ maxHeight: '260px', overflowY: 'auto', paddingRight: '4px' }}>
+              {monthAnniversaries.length === 0 ? (
+                <p style={{ color: 'var(--text-dim)', fontSize: '0.9rem' }}>No hay aniversarios en {celebLabel}.</p>
+              ) : monthAnniversaries.map((ann, i) => (
                 <div key={i} style={{ padding: '12px 16px', background: 'rgba(0, 255, 170, 0.03)', borderRadius: '12px', border: '1px solid rgba(0, 255, 170, 0.1)', marginBottom: '10px' }}>
                   <p style={{ fontWeight: 'bold', fontSize: '0.9rem' }}>{ann.name}</p>
-                  <p style={{ fontSize: '0.75rem', color: 'var(--accent-mint)', margin: '4px 0' }}>🎈 Cumple {ann.years} {ann.years === 1 ? 'año' : 'años'} con nosotros (Día {ann.day})</p>
-                  <p style={{ fontSize: '0.7rem', color: 'var(--text-dim)' }}>Póliza: {ann.policy}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Cumpleaños y Aniversarios del PRÓXIMO MES — aviso con anticipación,
-          especialmente para quien cumple justo al inicio del mes que sigue,
-          que antes no aparecía hasta que ya había arrancado ese mes. */}
-      <div className="glass-card portfolio-widget animate-up" style={{ animationDelay: '0.32s', padding: '24px', marginTop: '24px', opacity: 0.9 }}>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '32px' }}>
-          <div>
-            <div style={{ marginBottom: '24px' }}>
-              <h3 style={{ fontSize: '1.1rem', margin: 0, color: 'var(--text-muted)' }}>🎂 Cumpleaños de {nextMonthLabel}</h3>
-            </div>
-            <div style={{ maxHeight: '160px', overflowY: 'auto', paddingRight: '4px' }}>
-               {!data.birthdaysNextMonth || data.birthdaysNextMonth.length === 0 ? (
-                <p style={{ color: 'var(--text-dim)', fontSize: '0.9rem' }}>No hay cumpleaños el próximo mes.</p>
-              ) : data.birthdaysNextMonth.map((b, i) => (
-                <div key={i} style={{ padding: '12px 16px', background: 'rgba(226, 176, 66, 0.03)', borderRadius: '12px', border: '1px dashed rgba(226, 176, 66, 0.15)', marginBottom: '10px' }}>
-                  <p style={{ fontWeight: 'bold', fontSize: '0.9rem' }}>{b.name}</p>
-                  <p style={{ fontSize: '0.75rem', color: 'var(--accent-gold)', margin: '4px 0' }}>{b.type}</p>
-                  <p style={{ fontSize: '0.7rem', color: 'var(--text-dim)' }}>Póliza: {b.policy}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-          <div>
-            <div style={{ marginBottom: '24px' }}>
-              <h3 style={{ fontSize: '1.1rem', margin: 0, color: 'var(--text-muted)' }}>🎉 Aniversarios de {nextMonthLabel}</h3>
-            </div>
-            <div style={{ maxHeight: '160px', overflowY: 'auto', paddingRight: '4px' }}>
-              {!data.anniversariesNextMonth || data.anniversariesNextMonth.length === 0 ? (
-                <p style={{ color: 'var(--text-dim)', fontSize: '0.9rem' }}>No hay aniversarios el próximo mes.</p>
-              ) : data.anniversariesNextMonth.map((ann, i) => (
-                <div key={i} style={{ padding: '12px 16px', background: 'rgba(0, 255, 170, 0.02)', borderRadius: '12px', border: '1px dashed rgba(0, 255, 170, 0.15)', marginBottom: '10px' }}>
-                  <p style={{ fontWeight: 'bold', fontSize: '0.9rem' }}>{ann.name}</p>
-                  <p style={{ fontSize: '0.75rem', color: 'var(--accent-mint)', margin: '4px 0' }}>🎈 Cumplirá {ann.years} {ann.years === 1 ? 'año' : 'años'} con nosotros (Día {ann.day})</p>
+                  <p style={{ fontSize: '0.75rem', color: 'var(--accent-mint)', margin: '4px 0' }}>🎈 {celebTense === 'past' ? 'Cumplió' : celebTense === 'now' ? 'Cumple' : 'Cumplirá'} {ann.years} {ann.years === 1 ? 'año' : 'años'} con nosotros (Día {ann.day})</p>
                   <p style={{ fontSize: '0.7rem', color: 'var(--text-dim)' }}>Póliza: {ann.policy}</p>
                 </div>
               ))}
@@ -989,8 +989,8 @@ const Dashboard = () => {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', flexShrink: 0 }}>
               <div>
                 <h2 style={{ fontSize: '1.8rem', fontWeight: '800', letterSpacing: '1px' }}>
-                  {fullReportModal === 'birthdays' && '🎂 Reporte de Cumpleaños del Mes'}
-                  {fullReportModal === 'anniversaries' && '🎉 Reporte de Aniversarios de Clientes'}
+                  {fullReportModal === 'birthdays' && `🎂 Reporte de Cumpleaños de ${celebLabel} ${celebYear}`}
+                  {fullReportModal === 'anniversaries' && `🎉 Reporte de Aniversarios de ${celebLabel} ${celebYear}`}
                   {fullReportModal === 'collected' && `📊 Reporte de Cobros Realizados (${isAmbriz ? dashboardTab : 'Autos'})`}
                   {fullReportModal === 'upcoming' && `📅 Reporte de Cobranza Próxima (${isAmbriz ? dashboardTab : 'Autos'})`}
                 </h2>
@@ -1018,10 +1018,10 @@ const Dashboard = () => {
                     </tr>
                   </thead>
                   <tbody>
-                    {data.birthdays?.length === 0 ? (
-                      <tr><td colSpan="4" style={{ padding: '20px', textAlign: 'center', color: 'var(--text-dim)' }}>No hay cumpleaños este mes.</td></tr>
+                    {monthBirthdays.length === 0 ? (
+                      <tr><td colSpan="4" style={{ padding: '20px', textAlign: 'center', color: 'var(--text-dim)' }}>No hay cumpleaños en {celebLabel}.</td></tr>
                     ) : (
-                      [...data.birthdays].sort((a,b) => a.day - b.day).map((b, i) => (
+                      [...monthBirthdays].sort((a,b) => a.day - b.day).map((b, i) => (
                         <tr key={i} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', background: i % 2 === 0 ? 'rgba(255,255,255,0.02)' : 'transparent' }}>
                           <td style={{ padding: '12px', fontWeight: 'bold', color: 'var(--accent-gold)' }}>{b.day}</td>
                           <td style={{ padding: '12px', fontWeight: '600' }}>{b.name}</td>
@@ -1045,10 +1045,10 @@ const Dashboard = () => {
                     </tr>
                   </thead>
                   <tbody>
-                    {!data.anniversaries || data.anniversaries.length === 0 ? (
-                      <tr><td colSpan="4" style={{ padding: '20px', textAlign: 'center', color: 'var(--text-dim)' }}>No hay aniversarios este mes.</td></tr>
+                    {monthAnniversaries.length === 0 ? (
+                      <tr><td colSpan="4" style={{ padding: '20px', textAlign: 'center', color: 'var(--text-dim)' }}>No hay aniversarios en {celebLabel}.</td></tr>
                     ) : (
-                      [...data.anniversaries].sort((a,b) => a.day - b.day).map((ann, i) => (
+                      [...monthAnniversaries].sort((a,b) => a.day - b.day).map((ann, i) => (
                         <tr key={i} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', background: i % 2 === 0 ? 'rgba(255,255,255,0.02)' : 'transparent' }}>
                           <td style={{ padding: '12px', fontWeight: 'bold', color: 'var(--accent-mint)' }}>{ann.day}</td>
                           <td style={{ padding: '12px', fontWeight: '600' }}>{ann.name}</td>
