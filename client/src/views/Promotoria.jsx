@@ -697,6 +697,51 @@ const VISTAS_CAMBIOS = [
   { id: 'todo', label: 'Historial completo' }
 ];
 
+// "MARICELA ARREOLA LOPEZ" -> "Maricela"
+const primerNombre = (nombreCompleto) => {
+  const p = String(nombreCompleto || '').trim().split(/\s+/)[0] || '';
+  return p ? p.charAt(0).toUpperCase() + p.slice(1).toLowerCase() : '';
+};
+// "MICHELLE ALEJANDRA ROMO DE ALBA" -> "Michelle Alejandra Romo de Alba"
+const nombrePropio = (texto) =>
+  String(texto || '').trim().toLowerCase().split(/\s+/)
+    .map((w, i) => (i > 0 && ['de', 'del', 'la', 'las', 'los', 'y', 'e'].includes(w)) ? w : w.charAt(0).toUpperCase() + w.slice(1))
+    .join(' ');
+const saludoDelMomento = () => {
+  const h = new Date().getHours();
+  return h < 12 ? 'Buenos días' : h < 19 ? 'Buenas tardes' : 'Buenas noches';
+};
+// Mensaje para avisar al asesor que una póliza suya aparece Anulada (se copia para pegarlo en WhatsApp).
+const mensajeAvisoAnulada = (r) => {
+  const nombre = primerNombre(r.asesor);
+  const contratante = nombrePropio(r.contratante);
+  return `${saludoDelMomento()}${nombre ? `, ${nombre}` : ''}. Te escribo para avisarte que detectamos una póliza *Anulada*:\n\n` +
+    `• Póliza: ${r.noPoliza}\n` +
+    `• Contratante: ${contratante}\n\n` +
+    'Quedo atento a tus comentarios para darle seguimiento.';
+};
+const copiarTexto = async (texto) => {
+  try {
+    await navigator.clipboard.writeText(texto);
+    return true;
+  } catch {
+    // Respaldo para navegadores que bloquean el portapapeles
+    try {
+      const ta = document.createElement('textarea');
+      ta.value = texto;
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.select();
+      const ok = document.execCommand('copy');
+      document.body.removeChild(ta);
+      return ok;
+    } catch {
+      return false;
+    }
+  }
+};
+
 const CancelacionesTab = ({ authFetch, apiBase }) => {
   const [data, setData] = useState({ importedAt: null, sourceFile: null, rows: [] });
   const [loading, setLoading] = useState(true);
@@ -712,6 +757,7 @@ const CancelacionesTab = ({ authFetch, apiBase }) => {
   const [seguimientoForm, setSeguimientoForm] = useState({ observacion: '', reactivara: '', fechaReactivacion: '' });
   const [savingSeguimiento, setSavingSeguimiento] = useState(false);
   const [loadError, setLoadError] = useState('');
+  const [copiado, setCopiado] = useState(''); // fila cuyo mensaje se acaba de copiar
 
   const load = () => {
     setLoading(true);
@@ -821,6 +867,14 @@ const CancelacionesTab = ({ authFetch, apiBase }) => {
   if (seguimientoFilter === 'por_reactivar' || seguimientoFilter === 'accion') {
     rows.sort((a, b) => (a.fechaReactivacion || '').localeCompare(b.fechaReactivacion || ''));
   }
+
+  const copiarAviso = async (r) => {
+    const ok = await copiarTexto(mensajeAvisoAnulada(r));
+    if (!ok) return alert('No se pudo copiar el mensaje. Intenta de nuevo.');
+    const llave = `${r.noPoliza}|${r.fechaDetectado}`;
+    setCopiado(llave);
+    setTimeout(() => setCopiado((actual) => (actual === llave ? '' : actual)), 2000);
+  };
 
   const renderSeguimientoBadge = (r) => {
     const base = { padding: '4px 10px', borderRadius: '20px', fontSize: '0.7rem', fontWeight: 'bold', whiteSpace: 'nowrap', display: 'inline-block' };
@@ -1003,7 +1057,7 @@ const CancelacionesTab = ({ authFetch, apiBase }) => {
                 <th style={{ padding: '16px 24px', color: 'var(--text-muted)', fontSize: '0.85rem' }}>Observaciones</th>
                 <th style={{ padding: '16px 24px', color: 'var(--text-muted)', fontSize: '0.85rem' }}>¿Se reactivará?</th>
                 <th style={{ padding: '16px 24px', color: 'var(--text-muted)', fontSize: '0.85rem' }}>¿Se reactivó?</th>
-                <th style={{ padding: '16px 24px', color: 'var(--text-muted)', fontSize: '0.85rem', textAlign: 'center' }}>Seguimiento</th>
+                <th style={{ padding: '16px 24px', color: 'var(--text-muted)', fontSize: '0.85rem', textAlign: 'center' }}>Acciones</th>
               </tr>
             </thead>
             <tbody>
@@ -1039,12 +1093,26 @@ const CancelacionesTab = ({ authFetch, apiBase }) => {
                       </td>
                       <td style={{ padding: '16px 24px' }}>{renderSeguimientoBadge(r)}</td>
                       <td style={{ padding: '16px 24px', textAlign: 'center' }}>
-                        <button
-                          onClick={() => openSeguimiento(r)}
-                          style={{ background: 'none', border: 'none', color: 'var(--accent-gold)', fontSize: '0.8rem', cursor: 'pointer', fontWeight: 'bold' }}
-                        >
-                          {r.observacion || r.reactivara ? 'Editar' : 'Agregar'}
-                        </button>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', alignItems: 'center' }}>
+                          <button
+                            onClick={() => openSeguimiento(r)}
+                            style={{ background: 'none', border: 'none', color: 'var(--accent-gold)', fontSize: '0.8rem', cursor: 'pointer', fontWeight: 'bold' }}
+                          >
+                            {r.observacion || r.reactivara ? 'Editar' : 'Agregar'}
+                          </button>
+                          <button
+                            onClick={() => copiarAviso(r)}
+                            title="Copia un mensaje listo para avisarle al asesor que esta póliza se anuló"
+                            style={{
+                              padding: '6px 12px', borderRadius: '16px', fontSize: '0.72rem', fontWeight: 'bold', cursor: 'pointer', whiteSpace: 'nowrap',
+                              border: copiado === `${r.noPoliza}|${r.fechaDetectado}` ? '1px solid var(--accent-mint)' : '1px solid var(--glass-border)',
+                              background: copiado === `${r.noPoliza}|${r.fechaDetectado}` ? 'rgba(0,255,170,0.1)' : 'transparent',
+                              color: copiado === `${r.noPoliza}|${r.fechaDetectado}` ? 'var(--accent-mint)' : 'var(--text-muted)'
+                            }}
+                          >
+                            {copiado === `${r.noPoliza}|${r.fechaDetectado}` ? 'Copiado' : 'Copiar aviso'}
+                          </button>
+                        </div>
                       </td>
                     </>
                   ) : (
