@@ -252,8 +252,10 @@ el asesor ya pagó pero el reporte aún no lo muestra; si después el reporte la
 reactivada, manda lo automático (fecha del reporte). Cada cambio de fecha/estado queda en
 una bitácora (`historial`: fecha, usuario, texto) que se ve en el modal. API:
 `PUT .../cancelaciones/seguimiento` acepta `marcarReactivada` (bool) y
-`fechaReactivadaManual`. El bot (WhatsApp) todavía NO tiene herramienta para la marca
-manual, solo para fecha/observación/sí-no.
+`fechaReactivadaManual`. Las marcadas a mano también salen en **Recuperadas** (con la
+fecha en que se marcaron y la etiqueta "marcada a mano") hasta que el reporte confirme.
+El bot (WhatsApp) todavía NO tiene herramienta para la marca manual ni las incluye en
+`solo_recuperadas`, solo fecha/observación/sí-no.
 
 ## Finanzas de la promotoría (2026-10-12)
 

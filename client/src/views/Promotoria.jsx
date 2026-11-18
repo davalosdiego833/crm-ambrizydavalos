@@ -691,6 +691,11 @@ const SEGUIMIENTO_POR_REACTIVAR = ['pendiente', 'hoy', 'vencida'];
 const esRecuperada = (r) =>
   r.tipo === 'Recuperada' || (r.estatusNuevo === 'En Vigor' && ['Anulada', 'Vigor Prorrogado'].includes(r.estatusAnterior));
 
+// Cancelación que se marcó A MANO como reactivada ("ya pagó") y que el reporte todavía no
+// confirma. Cuenta en Recuperadas con la fecha en que se marcó; cuando el reporte la muestre
+// En Vigor deja de ser "a mano" y la cuenta la fila automática.
+const esRecuperadaManual = (r) => r.estatusNuevo === 'Anulada' && !!r.marcadaManual;
+
 const VISTAS_CAMBIOS = [
   { id: 'anuladas', label: 'Cancelaciones' },
   { id: 'recuperadas', label: 'Recuperadas' },
@@ -845,25 +850,25 @@ const CancelacionesTab = ({ authFetch, apiBase }) => {
     return true;
   };
 
-  const enVista = (r) => {
-    if (vista === 'anuladas') return r.estatusNuevo === 'Anulada';
-    if (vista === 'recuperadas') return esRecuperada(r);
-    return true;
-  };
-  // Filas que cumplen asesor + fecha + producto (sin elegir la vista): sirven para
-  // los contadores de los botones Cancelaciones / Recuperadas / Historial completo.
-  const baseFiltrada = (data.rows || [])
+  // Filas que cumplen asesor + producto. La fecha se aplica según la vista: en Recuperadas, las
+  // marcadas a mano usan la fecha en que se marcaron (no la de la cancelación original).
+  const baseAsesorProducto = (data.rows || [])
     .filter(r => (r.asesor || '').toLowerCase().includes(searchTerm.toLowerCase()))
-    .filter(r => filtraSeguimiento || matchesDateFilter(r.fechaDetectado))
     .filter(r => productoFilter === 'todos' || (r.noPoliza || '').toUpperCase().startsWith(productoFilter));
+  const pasaFecha = (r, v) => filtraSeguimiento || matchesDateFilter(v === 'recuperadas' && esRecuperadaManual(r) ? r.fechaReactivado : r.fechaDetectado);
+  const filasDeVista = (v) => baseAsesorProducto.filter(r => {
+    if (v === 'anuladas') return r.estatusNuevo === 'Anulada' && pasaFecha(r, v);
+    if (v === 'recuperadas') return (esRecuperada(r) || esRecuperadaManual(r)) && pasaFecha(r, v);
+    return pasaFecha(r, v);
+  });
+  // Contadores de los botones Cancelaciones / Recuperadas / Historial completo.
   const conteoVista = {
-    anuladas: baseFiltrada.filter(r => r.estatusNuevo === 'Anulada').length,
-    recuperadas: baseFiltrada.filter(esRecuperada).length,
-    todo: baseFiltrada.length
+    anuladas: filasDeVista('anuladas').length,
+    recuperadas: filasDeVista('recuperadas').length,
+    todo: filasDeVista('todo').length
   };
 
-  const rows = baseFiltrada
-    .filter(enVista)
+  const rows = filasDeVista(vista)
     .filter(r => vista !== 'anuladas' || coincideSeguimiento(r));
 
   // Pendientes: la fecha de reactivación más próxima/vencida primero
@@ -1081,6 +1086,7 @@ const CancelacionesTab = ({ authFetch, apiBase }) => {
                       {r.estatusNuevo}
                     </span>
                     {esRecuperada(r) && <span style={{ marginLeft: '8px', fontSize: '0.68rem', fontWeight: 'bold', color: 'var(--accent-mint)' }}>Recuperada</span>}
+                    {esRecuperadaManual(r) && <div style={{ marginTop: '4px', fontSize: '0.68rem', fontWeight: 'bold', color: 'var(--accent-mint)' }}>Recuperada (marcada a mano el {formatReadableDate(r.fechaReactivado)})</div>}
                   </td>
                   {r.estatusNuevo === 'Anulada' ? (
                     <>
