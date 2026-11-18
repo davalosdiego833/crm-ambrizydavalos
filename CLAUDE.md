@@ -243,6 +243,18 @@ Decisiones de diseño (no obvias):
   del asistente ejecutadas directo). **No** se probó la conversación real
   por WhatsApp con el modelo (requiere el bot corriendo).
 
+**Dar seguimiento a una cancelación vencida** (2026-11-18): al abrir una póliza con
+fecha vencida/de hoy, el modal muestra atajos: Posponer 3 días / 1 semana / 2 semanas,
+"Ya se reactivó (ya pagó)", "Todavía no, sin fecha por ahora" y "Ya no se va a reactivar"
+(solo llenan el formulario; se confirma con Guardar). "Ya se reactivó" es una **marca
+manual** (`reactivadaManual` en el seguimiento, `marcadaManual` en la fila): sirve cuando
+el asesor ya pagó pero el reporte aún no lo muestra; si después el reporte la muestra
+reactivada, manda lo automático (fecha del reporte). Cada cambio de fecha/estado queda en
+una bitácora (`historial`: fecha, usuario, texto) que se ve en el modal. API:
+`PUT .../cancelaciones/seguimiento` acepta `marcarReactivada` (bool) y
+`fechaReactivadaManual`. El bot (WhatsApp) todavía NO tiene herramienta para la marca
+manual, solo para fecha/observación/sí-no.
+
 ## Finanzas de la promotoría (2026-10-12)
 
 Reemplaza al Excel `rentabilidad de la promo` (solo se tomaron las pestañas de

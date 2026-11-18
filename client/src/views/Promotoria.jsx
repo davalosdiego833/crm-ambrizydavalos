@@ -756,6 +756,9 @@ const CancelacionesTab = ({ authFetch, apiBase }) => {
   const [editingRow, setEditingRow] = useState(null);
   const [seguimientoForm, setSeguimientoForm] = useState({ observacion: '', reactivara: '', fechaReactivacion: '' });
   const [savingSeguimiento, setSavingSeguimiento] = useState(false);
+  const diasAdelante = (n) => { const d = new Date(); d.setDate(d.getDate() + n); return localDateStr(d); };
+  // Atajos del recordatorio vencido: solo llenan el formulario; se confirma con Guardar.
+  const posponer = (n) => setSeguimientoForm(prev => ({ ...prev, reactivara: 'si', fechaReactivacion: diasAdelante(n), marcarReactivada: false }));
   const [loadError, setLoadError] = useState('');
   const [copiado, setCopiado] = useState(''); // fila cuyo mensaje se acaba de copiar
 
@@ -800,7 +803,7 @@ const CancelacionesTab = ({ authFetch, apiBase }) => {
 
   const openSeguimiento = (r) => {
     setEditingRow(r);
-    setSeguimientoForm({ observacion: r.observacion || '', reactivara: r.reactivara || '', fechaReactivacion: r.fechaReactivacion || '' });
+    setSeguimientoForm({ observacion: r.observacion || '', reactivara: r.reactivara || '', fechaReactivacion: r.fechaReactivacion || '', marcarReactivada: !!r.marcadaManual, fechaReactivadaManual: r.marcadaManual ? r.fechaReactivado : todayStr() });
   };
 
   const guardarSeguimiento = (e) => {
@@ -878,7 +881,7 @@ const CancelacionesTab = ({ authFetch, apiBase }) => {
 
   const renderSeguimientoBadge = (r) => {
     const base = { padding: '4px 10px', borderRadius: '20px', fontSize: '0.7rem', fontWeight: 'bold', whiteSpace: 'nowrap', display: 'inline-block' };
-    if (r.seguimiento === 'reactivada') return <span style={{ ...base, background: 'rgba(0,255,170,0.1)', color: 'var(--accent-mint)' }}>Sí · {formatReadableDate(r.fechaReactivado)}</span>;
+    if (r.seguimiento === 'reactivada') return <span style={{ ...base, background: 'rgba(0,255,170,0.1)', color: 'var(--accent-mint)' }}>Sí · {formatReadableDate(r.fechaReactivado)}{r.marcadaManual ? ' (marcada a mano)' : ''}</span>;
     if (r.seguimiento === 'hoy') return <span style={{ ...base, background: 'rgba(226,176,66,0.15)', color: 'var(--accent-gold)' }}>Pendiente · toca hoy</span>;
     if (r.seguimiento === 'vencida') return <span style={{ ...base, background: 'rgba(255,68,68,0.15)', color: '#ff4444' }}>Pendiente · vencida hace {r.diasVencida} {r.diasVencida === 1 ? 'día' : 'días'}</span>;
     if (r.seguimiento === 'pendiente') return <span style={{ ...base, background: 'rgba(96,165,250,0.12)', color: '#60a5fa' }}>En espera</span>;
@@ -1096,9 +1099,9 @@ const CancelacionesTab = ({ authFetch, apiBase }) => {
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', alignItems: 'center' }}>
                           <button
                             onClick={() => openSeguimiento(r)}
-                            style={{ background: 'none', border: 'none', color: 'var(--accent-gold)', fontSize: '0.8rem', cursor: 'pointer', fontWeight: 'bold' }}
+                            style={{ background: 'none', border: 'none', color: r.seguimiento === 'vencida' ? '#ff4444' : 'var(--accent-gold)', fontSize: '0.8rem', cursor: 'pointer', fontWeight: 'bold' }}
                           >
-                            {r.observacion || r.reactivara ? 'Editar' : 'Agregar'}
+                            {r.seguimiento === 'vencida' || r.seguimiento === 'hoy' ? 'Dar seguimiento' : (r.observacion || r.reactivara ? 'Editar' : 'Agregar')}
                           </button>
                           <button
                             onClick={() => copiarAviso(r)}
@@ -1133,6 +1136,24 @@ const CancelacionesTab = ({ authFetch, apiBase }) => {
             <div><strong>{editingRow.noPoliza}</strong> · {editingRow.contratante}</div>
             <div>Asesor: {editingRow.asesor} ({editingRow.noAgente}) · cancelada el {formatReadableDate(editingRow.fechaDetectado)}</div>
           </div>
+          {(editingRow.seguimiento === 'vencida' || editingRow.seguimiento === 'hoy') && (
+            <div style={{ background: editingRow.seguimiento === 'vencida' ? '#fef2f2' : '#fffbeb', border: `1px solid ${editingRow.seguimiento === 'vencida' ? '#fecaca' : '#fde68a'}`, borderRadius: '10px', padding: '14px 16px', marginBottom: '18px' }}>
+              <div style={{ fontSize: '0.85rem', fontWeight: '700', color: '#0f172a', marginBottom: '6px' }}>
+                {editingRow.seguimiento === 'vencida'
+                  ? `La fecha acordada (${formatReadableDate(editingRow.fechaReactivacion)}) ya pasó hace ${editingRow.diasVencida} ${editingRow.diasVencida === 1 ? 'día' : 'días'} y la póliza sigue sin reactivarse.`
+                  : 'Hoy es la fecha acordada para reactivar esta póliza.'}
+              </div>
+              <div style={{ fontSize: '0.75rem', color: '#475569', marginBottom: '10px' }}>¿Qué pasó? Elige una opción y presiona Guardar:</div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                {[['Posponer 3 días', () => posponer(3)], ['Posponer 1 semana', () => posponer(7)], ['Posponer 2 semanas', () => posponer(14)]].map(([t, fn]) => (
+                  <button key={t} type="button" onClick={fn} style={{ padding: '7px 12px', borderRadius: '16px', border: '1px solid #cbd5e1', background: '#ffffff', color: '#0f172a', fontSize: '0.75rem', fontWeight: '600', cursor: 'pointer' }}>{t}</button>
+                ))}
+                <button type="button" onClick={() => setSeguimientoForm(prev => ({ ...prev, marcarReactivada: true, fechaReactivadaManual: prev.fechaReactivadaManual || todayStr() }))} style={{ padding: '7px 12px', borderRadius: '16px', border: '1px solid #86efac', background: '#f0fdf4', color: '#166534', fontSize: '0.75rem', fontWeight: '600', cursor: 'pointer' }}>Ya se reactivó (ya pagó)</button>
+                <button type="button" onClick={() => setSeguimientoForm(prev => ({ ...prev, reactivara: '', fechaReactivacion: '', marcarReactivada: false }))} style={{ padding: '7px 12px', borderRadius: '16px', border: '1px solid #cbd5e1', background: '#ffffff', color: '#0f172a', fontSize: '0.75rem', fontWeight: '600', cursor: 'pointer' }}>Todavía no, sin fecha por ahora</button>
+                <button type="button" onClick={() => setSeguimientoForm(prev => ({ ...prev, reactivara: 'no', fechaReactivacion: '', marcarReactivada: false }))} style={{ padding: '7px 12px', borderRadius: '16px', border: '1px solid #cbd5e1', background: '#ffffff', color: '#0f172a', fontSize: '0.75rem', fontWeight: '600', cursor: 'pointer' }}>Ya no se va a reactivar</button>
+              </div>
+            </div>
+          )}
           <form onSubmit={guardarSeguimiento} style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
             <div>
               <label style={labelStyle}>Observaciones</label>
@@ -1171,9 +1192,38 @@ const CancelacionesTab = ({ authFetch, apiBase }) => {
                 </span>
               </div>
             )}
+            {(!editingRow.reactivado || editingRow.marcadaManual) && (
+              <div style={{ border: '1px solid #e2e8f0', borderRadius: '10px', padding: '12px 14px' }}>
+                <label style={{ display: 'flex', gap: '10px', alignItems: 'center', fontSize: '0.85rem', color: '#0f172a', fontWeight: '600', cursor: 'pointer' }}>
+                  <input type="checkbox" checked={!!seguimientoForm.marcarReactivada} onChange={(e) => setSeguimientoForm(prev => ({ ...prev, marcarReactivada: e.target.checked }))} />
+                  Ya se reactivó (ya pagó)
+                </label>
+                {seguimientoForm.marcarReactivada && (
+                  <div style={{ marginTop: '10px' }}>
+                    <label style={labelStyle}>Fecha en que se reactivó</label>
+                    <input type="date" style={inputStyle} value={seguimientoForm.fechaReactivadaManual || ''} onChange={(e) => setSeguimientoForm(prev => ({ ...prev, fechaReactivadaManual: e.target.value }))} />
+                  </div>
+                )}
+                <span style={{ fontSize: '0.7rem', color: '#64748b', marginTop: '8px', display: 'block' }}>
+                  Úsalo si el asesor ya pagó pero el reporte todavía no lo muestra. Se quita el recordatorio; cuando la póliza aparezca en el reporte como reactivada, se confirma sola.
+                </span>
+              </div>
+            )}
             <span style={{ fontSize: '0.7rem', color: '#64748b' }}>
-              "¿Se reactivó?" se detecta solo: cuando la póliza vuelve a aparecer en el reporte con un estatus distinto de Anulada.
+              "¿Se reactivó?" también se detecta solo: cuando la póliza vuelve a aparecer en el reporte con un estatus distinto de Anulada.
             </span>
+            {(editingRow.historial || []).length > 0 && (
+              <div>
+                <div style={{ fontSize: '0.75rem', fontWeight: '700', color: '#334155', marginBottom: '6px' }}>Historial de seguimiento</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', maxHeight: '120px', overflowY: 'auto' }}>
+                  {[...editingRow.historial].reverse().map((h, i) => (
+                    <div key={i} style={{ fontSize: '0.72rem', color: '#475569' }}>
+                      <span style={{ color: '#94a3b8' }}>{new Date(h.fecha).toLocaleDateString('es-MX')}{h.usuario ? ` · ${h.usuario}` : ''}</span> — {h.texto}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
             {editingRow.seguimientoActualizadoEn && (
               <span style={{ fontSize: '0.7rem', color: '#64748b' }}>
                 Última actualización: {new Date(editingRow.seguimientoActualizadoEn).toLocaleString('es-MX')}{editingRow.seguimientoActualizadoPor ? ` por ${editingRow.seguimientoActualizadoPor}` : ''}

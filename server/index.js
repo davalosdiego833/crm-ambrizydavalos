@@ -3490,7 +3490,11 @@ const enriquecerCancelaciones = (org) => {
     if (r.estatusNuevo !== 'Anulada') return r;
     const s = seguimientos[claveSeguimiento(r.noPoliza, r.fechaDetectado)] || {};
     const posteriores = (movimientosNoAnulada[r.noPoliza] || []).filter(f => f > String(r.fechaDetectado)).sort();
-    const reactivado = posteriores.length > 0;
+    // Reactivada = el reporte ya la muestra con otro estatus (automático) O se marcó a mano
+    // (ya pagó pero todavía no aparece en el reporte). Lo automático manda en la fecha.
+    const reactivadoAuto = posteriores.length > 0;
+    const manual = s.reactivadaManual || '';
+    const reactivado = reactivadoAuto || !!manual;
     const reactivara = s.reactivara || '';
     const fechaReactivacion = s.fechaReactivacion || '';
 
@@ -3510,7 +3514,9 @@ const enriquecerCancelaciones = (org) => {
       reactivara,
       fechaReactivacion,
       reactivado,
-      fechaReactivado: reactivado ? posteriores[0] : '',
+      fechaReactivado: reactivadoAuto ? posteriores[0] : manual,
+      marcadaManual: !reactivadoAuto && !!manual,
+      historial: s.historial || [],
       seguimiento,
       diasVencida,
       seguimientoActualizadoEn: s.actualizadoEn || '',
@@ -3552,8 +3558,34 @@ const guardarSeguimientoCancelacion = (org, body, usuario) => {
     return { status: 400, error: 'Si se va a reactivar, indica la fecha (formato AAAA-MM-DD)' };
   }
 
-  if (!observacion && !reactivara) delete org.seguimientoCancelaciones[key];
-  else org.seguimientoCancelaciones[key] = { observacion, reactivara, fechaReactivacion, actualizadoEn: new Date().toISOString(), actualizadoPor: usuario || '' };
+  // Marca manual de "ya se reactivó / ya pagó" (para cuando el reporte todavía no lo refleja).
+  let reactivadaManual = previo.reactivadaManual || '';
+  if (body.marcarReactivada !== undefined) {
+    if (body.marcarReactivada) {
+      const f = String(body.fechaReactivadaManual || '').trim() || hoyMexico();
+      if (!FECHA_ISO.test(f)) return { status: 400, error: 'La fecha en que se reactivó debe tener formato AAAA-MM-DD' };
+      reactivadaManual = f;
+    } else reactivadaManual = '';
+  }
+
+  // Bitácora: cada vez que se mueve la fecha o cambia el estado queda anotado quién y cuándo,
+  // para ver cuántas veces se pospuso una póliza.
+  const historial = [...(previo.historial || [])];
+  const anotar = (texto) => historial.push({ fecha: new Date().toISOString(), usuario: usuario || '', texto });
+  if (reactivara !== (previo.reactivara || '')) {
+    anotar(reactivara === 'si' ? `Marcada: sí se reactivará el ${fechaReactivacion}`
+      : reactivara === 'no' ? 'Marcada: no se reactivará' : 'Se quitó la fecha de reactivación (sin definir)');
+  } else if (reactivara === 'si' && fechaReactivacion !== (previo.fechaReactivacion || '')) {
+    anotar(`Fecha de reactivación movida del ${previo.fechaReactivacion} al ${fechaReactivacion}`);
+  }
+  if (reactivadaManual !== (previo.reactivadaManual || '')) {
+    anotar(reactivadaManual ? `Marcada como reactivada (ya pagó) el ${reactivadaManual}` : 'Se quitó la marca de reactivada');
+  }
+  if (observacion !== (previo.observacion || '')) anotar('Observación actualizada');
+  if (historial.length > 40) historial.splice(0, historial.length - 40);
+
+  if (!observacion && !reactivara && !reactivadaManual && historial.length === 0) delete org.seguimientoCancelaciones[key];
+  else org.seguimientoCancelaciones[key] = { observacion, reactivara, fechaReactivacion, reactivadaManual, historial, actualizadoEn: new Date().toISOString(), actualizadoPor: usuario || '' };
 
   return { ok: true, fila };
 };
