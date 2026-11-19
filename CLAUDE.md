@@ -193,6 +193,15 @@ WhatsApp: `consultar_cancelaciones` y `consultar_cancelaciones_karen` tienen el 
 `tipo="Recuperada"`), combinable con `fecha_detectado`/`desde`/`asesor`. **Hay que
 reiniciar el bot para que lo vea.**
 
+**En riesgo** (2026-11-19): vista "En riesgo" en Cancelaciones = filas cuyo estatus nuevo es
+`Vigor Prorrogado`. El servidor agrega `riesgoEstado` a cada una: `en_riesgo` (sigue así) ·
+`recuperada` (después apareció En Vigor) · `anulada` (después se canceló), con
+`riesgoFechaCambio`. Por defecto la vista muestra solo las que siguen en riesgo (casilla para
+incluir las ya resueltas). Vigor Prorrogado → En Vigor ya contaba como recuperada (la regla
+de Recuperadas parte de Anulada **o** Vigor Prorrogado). El botón "Copiar aviso" también sale
+en las filas de Vigor Prorrogado ("...pasó a *Vigor Prorrogado*"). El bot de WhatsApp todavía
+no tiene filtro "en riesgo".
+
 **Regla de oro del import** (causó un borrado el 2026-11-04): `/cancelaciones/import`
 REEMPLAZA todas las filas, así que desde Pólizas solo debe subirse UN archivo con
 TODO (cancelaciones + recuperaciones, sin eventos repetidos): lo arma

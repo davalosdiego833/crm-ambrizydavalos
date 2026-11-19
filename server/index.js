@@ -3486,7 +3486,24 @@ const enriquecerCancelaciones = (org) => {
     }
   });
 
+  // Todos los movimientos de cada póliza, para saber en qué terminó un Vigor Prorrogado.
+  const movimientosPorPoliza = {};
+  rows.forEach(r => { (movimientosPorPoliza[r.noPoliza] = movimientosPorPoliza[r.noPoliza] || []).push(r); });
+
   return rows.map(r => {
+    // "En riesgo": la póliza pasó a Vigor Prorrogado. riesgoEstado dice cómo va después:
+    //   en_riesgo (sigue así) · recuperada (volvió a En Vigor) · anulada (se canceló).
+    if (r.estatusNuevo === 'Vigor Prorrogado') {
+      const despues = (movimientosPorPoliza[r.noPoliza] || [])
+        .filter(x => String(x.fechaDetectado) > String(r.fechaDetectado) && ['En Vigor', 'Anulada'].includes(x.estatusNuevo))
+        .sort((a, b) => String(a.fechaDetectado).localeCompare(String(b.fechaDetectado)));
+      const primero = despues[0];
+      return {
+        ...r,
+        riesgoEstado: !primero ? 'en_riesgo' : primero.estatusNuevo === 'En Vigor' ? 'recuperada' : 'anulada',
+        riesgoFechaCambio: primero ? String(primero.fechaDetectado) : ''
+      };
+    }
     if (r.estatusNuevo !== 'Anulada') return r;
     const s = seguimientos[claveSeguimiento(r.noPoliza, r.fechaDetectado)] || {};
     const posteriores = (movimientosNoAnulada[r.noPoliza] || []).filter(f => f > String(r.fechaDetectado)).sort();
