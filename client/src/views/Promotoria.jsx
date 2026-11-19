@@ -721,13 +721,25 @@ const saludoDelMomento = () => {
 const mensajeAviso = (r) => {
   const nombre = primerNombre(r.asesor);
   const contratante = nombrePropio(r.contratante);
-  const detectamos = r.estatusNuevo === 'Vigor Prorrogado'
-    ? 'detectamos una póliza que pasó a *Vigor Prorrogado*'
-    : 'detectamos una póliza *Anulada*';
+  let detectamos;
+  let cierre = 'Quedo atento a tus comentarios para darle seguimiento.';
+  if (r.estatusNuevo === 'En Vigor') {
+    // Póliza recuperada: ya aparece En Vigor después de estar Anulada o en Vigor Prorrogado.
+    detectamos = `detectamos que una póliza que estaba en *${r.estatusAnterior}* ya aparece nuevamente *En Vigor*`;
+    cierre = 'Gracias por tu apoyo para recuperarla.';
+  } else if (r.estatusNuevo === 'Anulada' && r.marcadaManual) {
+    // Marcada a mano como reactivada: el reporte todavía no la muestra En Vigor.
+    detectamos = 'registramos como *reactivada* una póliza que estaba *Anulada*';
+    cierre = 'Gracias por tu apoyo para recuperarla.';
+  } else if (r.estatusNuevo === 'Vigor Prorrogado') {
+    detectamos = 'detectamos una póliza que pasó a *Vigor Prorrogado*';
+  } else {
+    detectamos = 'detectamos una póliza *Anulada*';
+  }
   return `${saludoDelMomento()}${nombre ? `, ${nombre}` : ''}. Te escribo para avisarte que ${detectamos}:\n\n` +
     `• Póliza: ${r.noPoliza}\n` +
     `• Contratante: ${contratante}\n\n` +
-    'Quedo atento a tus comentarios para darle seguimiento.';
+    cierre;
 };
 const copiarTexto = async (texto) => {
   try {
@@ -889,6 +901,28 @@ const CancelacionesTab = ({ authFetch, apiBase }) => {
     const llave = `${r.noPoliza}|${r.fechaDetectado}|${r.estatusNuevo}`;
     setCopiado(llave);
     setTimeout(() => setCopiado((actual) => (actual === llave ? '' : actual)), 2000);
+  };
+
+  const botonAviso = (r) => {
+    const llave = `${r.noPoliza}|${r.fechaDetectado}|${r.estatusNuevo}`;
+    const activo = copiado === llave;
+    const queAviso = r.estatusNuevo === 'En Vigor' ? 'que esta póliza ya aparece En Vigor'
+      : r.estatusNuevo === 'Vigor Prorrogado' ? 'que esta póliza pasó a Vigor Prorrogado'
+      : r.marcadaManual ? 'que esta póliza quedó reactivada' : 'que esta póliza se anuló';
+    return (
+      <button
+        onClick={() => copiarAviso(r)}
+        title={`Copia un mensaje listo para avisarle al asesor ${queAviso}`}
+        style={{
+          padding: '6px 12px', borderRadius: '16px', fontSize: '0.72rem', fontWeight: 'bold', cursor: 'pointer', whiteSpace: 'nowrap',
+          border: activo ? '1px solid var(--accent-mint)' : '1px solid var(--glass-border)',
+          background: activo ? 'rgba(0,255,170,0.1)' : 'transparent',
+          color: activo ? 'var(--accent-mint)' : 'var(--text-muted)'
+        }}
+      >
+        {activo ? 'Copiado' : 'Copiar aviso'}
+      </button>
+    );
   };
 
   const renderSeguimientoBadge = (r) => {
@@ -1125,18 +1159,7 @@ const CancelacionesTab = ({ authFetch, apiBase }) => {
                           >
                             {r.seguimiento === 'vencida' || r.seguimiento === 'hoy' ? 'Dar seguimiento' : (r.observacion || r.reactivara ? 'Editar' : 'Agregar')}
                           </button>
-                          <button
-                            onClick={() => copiarAviso(r)}
-                            title="Copia un mensaje listo para avisarle al asesor que esta póliza se anuló"
-                            style={{
-                              padding: '6px 12px', borderRadius: '16px', fontSize: '0.72rem', fontWeight: 'bold', cursor: 'pointer', whiteSpace: 'nowrap',
-                              border: copiado === `${r.noPoliza}|${r.fechaDetectado}|${r.estatusNuevo}` ? '1px solid var(--accent-mint)' : '1px solid var(--glass-border)',
-                              background: copiado === `${r.noPoliza}|${r.fechaDetectado}|${r.estatusNuevo}` ? 'rgba(0,255,170,0.1)' : 'transparent',
-                              color: copiado === `${r.noPoliza}|${r.fechaDetectado}|${r.estatusNuevo}` ? 'var(--accent-mint)' : 'var(--text-muted)'
-                            }}
-                          >
-                            {copiado === `${r.noPoliza}|${r.fechaDetectado}|${r.estatusNuevo}` ? 'Copiado' : 'Copiar aviso'}
-                          </button>
+                          {botonAviso(r)}
                         </div>
                       </td>
                     </>
@@ -1151,24 +1174,22 @@ const CancelacionesTab = ({ authFetch, apiBase }) => {
                               : <span style={{ color: 'var(--accent-gold)', fontWeight: '600' }}>Sigue en riesgo desde el {formatReadableDate(r.fechaDetectado)}</span>}
                         </td>
                         <td style={{ padding: '16px 24px', textAlign: 'center' }}>
-                          <button
-                            onClick={() => copiarAviso(r)}
-                            title="Copia un mensaje listo para avisarle al asesor que esta póliza pasó a Vigor Prorrogado"
-                            style={{
-                              padding: '6px 12px', borderRadius: '16px', fontSize: '0.72rem', fontWeight: 'bold', cursor: 'pointer', whiteSpace: 'nowrap',
-                              border: copiado === `${r.noPoliza}|${r.fechaDetectado}|${r.estatusNuevo}` ? '1px solid var(--accent-mint)' : '1px solid var(--glass-border)',
-                              background: copiado === `${r.noPoliza}|${r.fechaDetectado}|${r.estatusNuevo}` ? 'rgba(0,255,170,0.1)' : 'transparent',
-                              color: copiado === `${r.noPoliza}|${r.fechaDetectado}|${r.estatusNuevo}` ? 'var(--accent-mint)' : 'var(--text-muted)'
-                            }}
-                          >
-                            {copiado === `${r.noPoliza}|${r.fechaDetectado}|${r.estatusNuevo}` ? 'Copiado' : 'Copiar aviso'}
-                          </button>
+                          {botonAviso(r)}
                         </td>
                       </>
                     ) : (
-                      <td colSpan="4" style={{ padding: '16px 24px', fontSize: '0.8rem', color: 'var(--text-dim)' }}>
-                        {esRecuperada(r) ? `Recuperada: pasó de ${r.estatusAnterior} a En Vigor` : 'Sin seguimiento (no es una cancelación)'}
-                      </td>
+                      esRecuperada(r) ? (
+                        <>
+                          <td colSpan="3" style={{ padding: '16px 24px', fontSize: '0.8rem', color: 'var(--accent-mint)', fontWeight: '600', whiteSpace: 'nowrap' }}>
+                            Recuperada: pasó de {r.estatusAnterior} a En Vigor
+                          </td>
+                          <td style={{ padding: '16px 24px', textAlign: 'center' }}>{botonAviso(r)}</td>
+                        </>
+                      ) : (
+                        <td colSpan="4" style={{ padding: '16px 24px', fontSize: '0.8rem', color: 'var(--text-dim)' }}>
+                          Sin seguimiento (no es una cancelación)
+                        </td>
+                      )
                     )
                   )}
                 </tr>

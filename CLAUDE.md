@@ -198,8 +198,9 @@ reiniciar el bot para que lo vea.**
 `recuperada` (después apareció En Vigor) · `anulada` (después se canceló), con
 `riesgoFechaCambio`. Por defecto la vista muestra solo las que siguen en riesgo (casilla para
 incluir las ya resueltas). Vigor Prorrogado → En Vigor ya contaba como recuperada (la regla
-de Recuperadas parte de Anulada **o** Vigor Prorrogado). El botón "Copiar aviso" también sale
-en las filas de Vigor Prorrogado ("...pasó a *Vigor Prorrogado*"). El bot de WhatsApp todavía
+de Recuperadas parte de Anulada **o** Vigor Prorrogado). El botón "Copiar aviso" sale en Anuladas, Vigor Prorrogado y Recuperadas, con el texto
+según el estatus ("...pasó a *Vigor Prorrogado*", "...ya aparece nuevamente *En Vigor*"; las
+marcadas a mano dicen "registramos como *reactivada*"). El bot de WhatsApp todavía
 no tiene filtro "en riesgo".
 
 **Regla de oro del import** (causó un borrado el 2026-11-04): `/cancelaciones/import`
