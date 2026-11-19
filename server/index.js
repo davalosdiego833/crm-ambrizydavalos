@@ -1238,8 +1238,11 @@ app.get('/api/prospects', authMiddleware, (req, res) => {
 
 // Crear prospecto
 app.post('/api/prospects', authMiddleware, (req, res) => {
-  const { name, referredBy, phone, source, searchCommitmentDate, comments, stage } = req.body;
+  const { name, referredBy, phone, source, searchCommitmentDate, comments, stage, deferred, deferredNote } = req.body;
   if (!name) return res.status(400).json({ error: 'El nombre del prospecto es requerido' });
+  if (deferred && !/^\d{4}-\d{2}-\d{2}$/.test(searchCommitmentDate || '')) {
+    return res.status(400).json({ error: 'Para dejarlo en Próximos contactos indica la fecha en que hay que buscarlo' });
+  }
 
   const prospects = req.user.prospects || [];
   const nextId = prospects.length > 0 ? Math.max(...prospects.map(p => p.id)) + 1 : 1;
@@ -1255,6 +1258,14 @@ app.post('/api/prospects', authMiddleware, (req, res) => {
     comments: comments || '',
     createdAt: now
   };
+  // "Próximos contactos": prospecto que pidió que lo busquen más adelante.
+  // Vive aparte de la lista principal, con su recordatorio (searchCommitmentDate)
+  // y una nota de qué quedaron.
+  if (deferred) {
+    newProspect.deferred = true;
+    newProspect.deferredNote = String(deferredNote || '').trim();
+    newProspect.deferredAt = now;
+  }
   // Un prospecto nuevo nace "Por contactar" (los migrados de antes sin etapa
   // se quedan "Sin clasificar" hasta que el asesor los clasifique).
   prospectos.aplicarEtapa(newProspect, prospectos.normalizarEtapa(stage) || 'Por contactar', now);
@@ -1272,9 +1283,13 @@ app.put('/api/prospects/:prospectId', authMiddleware, (req, res) => {
   const index = prospects.findIndex(p => p.id == req.params.prospectId);
   if (index === -1) return res.status(404).json({ error: 'Prospecto no encontrado' });
 
-  const { name, referredBy, phone, source, searchCommitmentDate, comments, stage } = req.body;
+  const { name, referredBy, phone, source, searchCommitmentDate, comments, stage, deferred, deferredNote } = req.body;
   if (stage !== undefined && stage !== '' && !prospectos.normalizarEtapa(stage)) {
     return res.status(400).json({ error: 'Etapa comercial no válida' });
+  }
+  const fechaFinal = searchCommitmentDate !== undefined ? searchCommitmentDate : prospects[index].searchCommitmentDate;
+  if (deferred === true && !/^\d{4}-\d{2}-\d{2}$/.test(fechaFinal || '')) {
+    return res.status(400).json({ error: 'Para dejarlo en Próximos contactos indica la fecha en que hay que buscarlo' });
   }
   if (name) prospects[index].name = name;
   prospects[index].referredBy = referredBy !== undefined ? referredBy : prospects[index].referredBy;
@@ -1283,6 +1298,14 @@ app.put('/api/prospects/:prospectId', authMiddleware, (req, res) => {
   prospects[index].searchCommitmentDate = searchCommitmentDate !== undefined ? searchCommitmentDate : prospects[index].searchCommitmentDate;
   prospects[index].comments = comments !== undefined ? comments : prospects[index].comments;
   if (stage) prospectos.aplicarEtapa(prospects[index], prospectos.normalizarEtapa(stage));
+  if (deferred === true) {
+    if (!prospects[index].deferred) prospects[index].deferredAt = new Date().toISOString();
+    prospects[index].deferred = true;
+  } else if (deferred === false) {
+    delete prospects[index].deferred;
+    delete prospects[index].deferredAt;
+  }
+  if (deferredNote !== undefined) prospects[index].deferredNote = String(deferredNote || '').trim();
 
   saveDB();
   res.json({ success: true, prospect: prospects[index] });
@@ -1294,7 +1317,7 @@ app.post('/api/prospects/:prospectId/contact', authMiddleware, (req, res) => {
   const prospect = prospects.find(p => p.id == req.params.prospectId);
   if (!prospect) return res.status(404).json({ error: 'Prospecto no encontrado' });
 
-  const { result, stage, nextDate } = req.body;
+  const { result, stage, nextDate, deferred, deferredNote } = req.body;
   const etapa = stage ? prospectos.normalizarEtapa(stage) : '';
   if (stage && !etapa) return res.status(400).json({ error: 'Etapa comercial no válida' });
   if (nextDate && !/^\d{4}-\d{2}-\d{2}$/.test(nextDate)) {
@@ -1307,14 +1330,29 @@ app.post('/api/prospects/:prospectId/contact', authMiddleware, (req, res) => {
   // Si el prospecto queda en una etapa cerrada (venta / no interesado) ya no
   // hay seguimiento que programar.
   const cerrada = prospectos.ETAPAS_CERRADAS.includes(prospect.stage);
+  if (deferred && !cerrada && !nextDate) {
+    return res.status(400).json({ error: 'Para dejarlo en Próximos contactos indica la fecha en que hay que buscarlo' });
+  }
   prospect.searchCommitmentDate = cerrada ? '' : (nextDate || '');
+
+  // Cada contacto decide de nuevo: o queda en Próximos contactos (con su nota)
+  // o regresa a la lista principal. Una venta / "no interesado" lo saca siempre.
+  if (deferred && !cerrada) {
+    if (!prospect.deferred) prospect.deferredAt = now;
+    prospect.deferred = true;
+    prospect.deferredNote = String(deferredNote || result || '').trim();
+  } else {
+    delete prospect.deferred;
+    delete prospect.deferredAt;
+  }
 
   if (!Array.isArray(prospect.contacts)) prospect.contacts = [];
   prospect.contacts.push({
     date: now,
     result: String(result || '').trim(),
     stage: prospect.stage || '',
-    nextDate: prospect.searchCommitmentDate
+    nextDate: prospect.searchCommitmentDate,
+    deferred: !!prospect.deferred
   });
 
   saveDB();

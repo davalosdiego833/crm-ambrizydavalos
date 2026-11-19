@@ -115,7 +115,9 @@ const Prospects = () => {
     phone: '',
     searchCommitmentDate: '',
     comments: '',
-    stage: 'Por contactar'
+    stage: 'Por contactar',
+    deferred: false,
+    deferredNote: ''
   };
   
   const [prospectData, setProspectData] = useState(initialProspectData);
@@ -128,7 +130,18 @@ const Prospects = () => {
 
   // Modal "Registrar contacto"
   const [contactProspect, setContactProspect] = useState(null);
-  const [contactData, setContactData] = useState({ result: '', stage: '', nextDate: '' });
+  const [contactData, setContactData] = useState({ result: '', stage: '', nextDate: '', deferred: false, deferredNote: '' });
+
+  // Subpestañas: lista principal / Próximos contactos (prospectos que pidieron
+  // que se les busque más adelante, con su recordatorio y nota)
+  const [subTab, setSubTab] = useState('lista');
+  const [proxFilter, setProxFilter] = useState('todos');
+  const [proxSearch, setProxSearch] = useState('');
+
+  // Modal rápido "Contacto posterior": solo fecha + comentario
+  const [deferModal, setDeferModal] = useState(null);
+  const [deferDate, setDeferDate] = useState('');
+  const [deferNote, setDeferNote] = useState('');
 
   useEffect(() => {
     loadProspects();
@@ -166,7 +179,9 @@ const Prospects = () => {
       phone: p.phone || '',
       searchCommitmentDate: p.searchCommitmentDate || '',
       comments: p.comments || '',
-      stage: p.stage || ''
+      stage: p.stage || '',
+      deferred: !!p.deferred,
+      deferredNote: p.deferredNote || ''
     });
     setShowModal(true);
   };
@@ -282,7 +297,9 @@ const Prospects = () => {
   };
 
   const q = searchTerm.toLowerCase();
+  // Los que están en "Próximos contactos" se muestran en su propia subpestaña
   const filteredProspects = prospects
+    .filter(p => !p.deferred)
     .filter(p =>
       (p.name || '').toLowerCase().includes(q) ||
       (p.source || '').toLowerCase().includes(q) ||
@@ -320,7 +337,8 @@ const Prospects = () => {
         overdueAlerts.push({ ...p, diffDays });
       } else if (diffDays === 0) {
         todayAlerts.push(p);
-      } else if (diffDays <= 3) {
+      } else if (diffDays <= (p.deferred ? 1 : 3)) {
+        // Próximos contactos avisan desde 1 día antes; el resto, hasta 3 días antes
         upcomingAlerts.push({ ...p, diffDays });
       }
     });
@@ -347,7 +365,87 @@ const Prospects = () => {
 
   const openContactModal = (p) => {
     setContactProspect(p);
-    setContactData({ result: '', stage: p.stage || 'Por contactar', nextDate: '' });
+    setContactData({
+      result: '',
+      stage: p.stage || 'Por contactar',
+      nextDate: '',
+      deferred: !!p.deferred,
+      deferredNote: p.deferredNote || ''
+    });
+  };
+
+  // Próximos contactos: más próximos primero (los vencidos quedan arriba)
+  const deferredAll = prospects.filter(p => p.deferred);
+  const deferredDays = (p) => (p.searchCommitmentDate ? daysUntil(p.searchCommitmentDate, today) : 99999);
+  // Cuentan desde 1 día antes (mañana ya hay que prepararse a buscarlos)
+  const deferredDueCount = deferredAll.filter(p => p.searchCommitmentDate && deferredDays(p) <= 1).length;
+  const px = proxSearch.toLowerCase();
+  const deferredList = deferredAll
+    .filter(p =>
+      (p.name || '').toLowerCase().includes(px) ||
+      (p.phone || '').toLowerCase().includes(px) ||
+      (p.deferredNote || '').toLowerCase().includes(px) ||
+      (p.comments || '').toLowerCase().includes(px)
+    )
+    .filter(p => {
+      const d = deferredDays(p);
+      if (proxFilter === 'vencidos') return d < 0;
+      if (proxFilter === 'hoy') return d === 0;
+      if (proxFilter === '30') return d >= 0 && d <= 30;
+      if (proxFilter === 'despues') return d > 30;
+      return true;
+    })
+    .sort((a, b) => deferredDays(a) - deferredDays(b) || (a.name || '').localeCompare(b.name || ''));
+
+  const deferredWhen = (p) => {
+    const d = deferredDays(p);
+    if (d === 99999) return { text: 'Sin fecha', color: 'var(--text-dim)', bg: 'rgba(148,163,184,0.12)' };
+    if (d < 0) return { text: `Vencido hace ${Math.abs(d)} ${Math.abs(d) === 1 ? 'día' : 'días'}`, color: '#ff4444', bg: 'rgba(255,68,68,0.15)' };
+    if (d === 0) return { text: 'Hoy', color: 'var(--accent-gold)', bg: 'rgba(226,176,66,0.15)' };
+    if (d <= 30) return { text: `En ${d} ${d === 1 ? 'día' : 'días'}`, color: 'var(--accent-mint)', bg: 'rgba(0,255,170,0.1)' };
+    const months = Math.round(d / 30);
+    return { text: `En ${months} ${months === 1 ? 'mes' : 'meses'}`, color: 'var(--text-muted)', bg: 'rgba(148,163,184,0.12)' };
+  };
+
+  const openDeferModal = (p) => {
+    setDeferModal(p);
+    setDeferDate(p.deferred ? (p.searchCommitmentDate || '') : '');
+    setDeferNote(p.deferred ? (p.deferredNote || '') : '');
+  };
+
+  const handleDeferSubmit = (e) => {
+    e.preventDefault();
+    if (!deferDate) return alert('Elige la fecha en que hay que buscar a este prospecto.');
+    authFetch(`/api/prospects/${deferModal.id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ deferred: true, searchCommitmentDate: deferDate, deferredNote: deferNote })
+    })
+      .then(res => res.json())
+      .then(data => {
+        if (data.success) {
+          setProspects(prev => prev.map(x => x.id === deferModal.id ? data.prospect : x));
+          setDeferModal(null);
+        } else {
+          alert(data.error || 'No se pudo guardar el contacto posterior');
+        }
+      })
+      .catch(err => console.error('Error guardando contacto posterior:', err));
+  };
+
+  // Regresar el prospecto a la lista principal (sale de Próximos contactos)
+  const handleBackToList = (p) => {
+    authFetch(`/api/prospects/${p.id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ deferred: false })
+    })
+      .then(res => res.json())
+      .then(data => {
+        if (data.success) setProspects(prev => prev.map(x => x.id === p.id ? data.prospect : x));
+        else alert(data.error || 'No se pudo regresar el prospecto a la lista');
+      })
+      .catch(err => console.error('Error regresando prospecto a la lista:', err));
   };
 
   const handleContactSubmit = (e) => {
@@ -362,7 +460,9 @@ const Prospects = () => {
       body: JSON.stringify({
         result: contactData.result,
         stage: contactData.stage,
-        nextDate: closing ? '' : contactData.nextDate
+        nextDate: closing ? '' : contactData.nextDate,
+        deferred: !closing && contactData.deferred,
+        deferredNote: contactData.deferredNote
       })
     })
       .then(res => res.json())
@@ -419,6 +519,32 @@ const Prospects = () => {
         </div>
       </header>
 
+      {/* Subpestañas: lista principal / Próximos contactos */}
+      <div style={{ display: 'flex', gap: '8px', marginBottom: '28px', borderBottom: '1px solid var(--glass-border)' }}>
+        {[
+          { id: 'lista', label: 'Prospectos', count: prospects.filter(p => !p.deferred).length },
+          { id: 'proximos', label: 'Próximos contactos', count: deferredAll.length }
+        ].map(t => (
+          <button
+            key={t.id}
+            onClick={() => setSubTab(t.id)}
+            style={{
+              padding: '12px 20px', background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.95rem',
+              borderBottom: subTab === t.id ? '2px solid var(--accent-gold)' : '2px solid transparent',
+              color: subTab === t.id ? 'var(--text-main)' : 'var(--text-muted)',
+              fontWeight: subTab === t.id ? '700' : '500'
+            }}
+          >
+            {t.label} <span style={{ opacity: 0.7, fontWeight: '500' }}>({t.count})</span>
+            {t.id === 'proximos' && deferredDueCount > 0 && (
+              <span style={{ marginLeft: '8px', background: '#ff4444', color: '#fff', borderRadius: '10px', fontSize: '0.7rem', fontWeight: '700', padding: '2px 7px' }}>
+                {deferredDueCount} por avisar
+              </span>
+            )}
+          </button>
+        ))}
+      </div>
+
       {/* Sección de Tarjetas de Aviso */}
       <section style={{ marginBottom: '36px' }}>
         <h3 style={{ fontSize: '1.2rem', marginBottom: '16px', color: 'var(--text-main)' }}>Avisos de Seguimiento</h3>
@@ -448,8 +574,11 @@ const Prospects = () => {
                     {text} <span style={{ color }}>{p.name}</span>{showDate ? ` (${formatReadableDate(p.searchCommitmentDate)})` : ''}
                   </p>
                   <p style={{ fontSize: '0.75rem', color: 'var(--text-dim)', marginTop: '2px' }}>
-                    {p.stage || 'Sin clasificar'} | Fuente: {p.source || 'No especificada'} | Teléfono: {p.phone || 'No especificado'}
+                    {p.deferred ? 'Contacto posterior | ' : ''}{p.stage || 'Sin clasificar'} | Fuente: {p.source || 'No especificada'} | Teléfono: {p.phone || 'No especificado'}
                   </p>
+                  {p.deferred && p.deferredNote && (
+                    <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '4px' }}>Nota: {p.deferredNote}</p>
+                  )}
                 </div>
                 <button onClick={() => openContactModal(p)} style={{
                   background: 'none', border: `1px solid ${color}`, color, borderRadius: '8px',
@@ -467,6 +596,7 @@ const Prospects = () => {
         )}
       </section>
 
+      {subTab === 'lista' && (<>
       {/* Agenda de seguimientos: filtros */}
       <div className="glass-card" style={{ marginBottom: '16px', padding: '16px 24px' }}>
         <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: '600', marginBottom: '10px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
@@ -622,6 +752,18 @@ const Prospects = () => {
                           >
                             Contactar
                           </button>
+                          {!isClosed(p) && (
+                            <button
+                              onClick={() => openDeferModal(p)}
+                              title="Guardarlo en Próximos contactos con fecha y comentario"
+                              style={{
+                                background: 'none', border: 'none', color: '#8b5cf6',
+                                fontSize: '0.8rem', cursor: 'pointer', fontWeight: 'bold'
+                              }}
+                            >
+                              Contacto posterior
+                            </button>
+                          )}
                           <button 
                             onClick={() => openEditModal(p)}
                             style={{ 
@@ -650,6 +792,107 @@ const Prospects = () => {
           </table>
         </div>
       </div>
+
+      </>)}
+
+      {subTab === 'proximos' && (
+        <div>
+          <div className="glass-card" style={{ marginBottom: '16px', padding: '16px 24px' }}>
+            <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '12px' }}>
+              Aquí se guardan los prospectos que te pidieron que los busques más adelante, con su fecha de recordatorio y su nota. Para agregar uno, usa el botón <strong>Contacto posterior</strong> de cada prospecto. Te avisamos <strong>1 día antes</strong> de la fecha.
+            </p>
+            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
+              {[
+                { id: 'todos', label: 'Todos' },
+                { id: 'vencidos', label: 'Vencidos' },
+                { id: 'hoy', label: 'Hoy' },
+                { id: '30', label: 'Próximos 30 días' },
+                { id: 'despues', label: 'Más adelante' }
+              ].map(v => {
+                const active = proxFilter === v.id;
+                return (
+                  <button key={v.id} onClick={() => setProxFilter(v.id)} style={{
+                    padding: '8px 14px', borderRadius: '20px', fontSize: '0.8rem', fontWeight: '600', cursor: 'pointer',
+                    background: active ? 'var(--accent-gold)' : 'transparent',
+                    color: active ? '#0f172a' : 'var(--text-muted)',
+                    border: `1px solid ${active ? 'var(--accent-gold)' : 'var(--glass-border)'}`
+                  }}>
+                    {v.label}
+                  </button>
+                );
+              })}
+              <input
+                type="text"
+                value={proxSearch}
+                onChange={(e) => setProxSearch(e.target.value)}
+                placeholder="Buscar por nombre, teléfono o nota..."
+                style={{ marginLeft: 'auto', padding: '9px 14px', borderRadius: '8px', background: '#ffffff', border: '1px solid #cbd5e1', color: '#0f172a', outline: 'none', minWidth: '240px' }}
+              />
+            </div>
+          </div>
+
+          <div className="glass-card" style={{ padding: 0, overflow: 'hidden' }}>
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+                <thead>
+                  <tr style={{ borderBottom: '1px solid var(--glass-border)', background: 'rgba(255,255,255,0.01)' }}>
+                    {['Prospecto', 'Buscarlo el', 'Nota del recordatorio', 'Acciones'].map((h, i) => (
+                      <th key={h} style={{ padding: '16px 24px', color: 'var(--text-muted)', fontWeight: '600', fontSize: '0.85rem', textAlign: i === 3 ? 'center' : 'left' }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {loading ? (
+                    <tr><td colSpan="4" style={{ padding: '48px', textAlign: 'center', color: 'var(--text-dim)' }}>Cargando...</td></tr>
+                  ) : deferredList.length === 0 ? (
+                    <tr><td colSpan="4" style={{ padding: '48px', textAlign: 'center', color: 'var(--text-dim)', fontSize: '0.9rem' }}>
+                      {deferredAll.length === 0
+                        ? 'Todavía no tienes prospectos en Próximos contactos. Cuando uno te pida que lo busques más adelante, regístralo con "Contactar" y márcalo para que se guarde aquí.'
+                        : 'No hay prospectos que coincidan con este filtro.'}
+                    </td></tr>
+                  ) : deferredList.map(p => {
+                    const when = deferredWhen(p);
+                    const lastContact = (p.contacts || []).length ? p.contacts[p.contacts.length - 1] : null;
+                    return (
+                      <tr key={p.id} style={{ borderBottom: '1px solid var(--glass-border)' }}>
+                        <td style={{ padding: '16px 24px' }}>
+                          <div style={{ fontWeight: '700', color: 'var(--text-main)' }}>{p.name}</div>
+                          <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '2px' }}>
+                            {formatPhoneDisplay(p.phone)}{p.referredBy ? ` · Ref: ${p.referredBy}` : ''}
+                          </div>
+                          <div style={{ fontSize: '0.72rem', color: 'var(--text-dim)', marginTop: '2px' }}>{p.stage || 'Sin clasificar'}</div>
+                        </td>
+                        <td style={{ padding: '16px 24px', fontSize: '0.85rem', whiteSpace: 'nowrap' }}>
+                          <div>{formatReadableDate(p.searchCommitmentDate)}</div>
+                          <span style={{ display: 'inline-block', marginTop: '4px', padding: '4px 8px', borderRadius: '12px', fontSize: '0.7rem', fontWeight: 'bold', background: when.bg, color: when.color }}>
+                            {when.text}
+                          </span>
+                        </td>
+                        <td style={{ padding: '16px 24px', fontSize: '0.85rem', color: 'var(--text-muted)', lineHeight: '1.4', whiteSpace: 'pre-line', minWidth: '240px' }}>
+                          {p.deferredNote || p.comments || '—'}
+                          {lastContact && lastContact.result && lastContact.result !== p.deferredNote && (
+                            <div style={{ fontSize: '0.72rem', color: 'var(--text-dim)', marginTop: '6px' }}>
+                              Último contacto ({formatReadableDate((lastContact.date || '').slice(0, 10))}): {lastContact.result}
+                            </div>
+                          )}
+                        </td>
+                        <td style={{ padding: '16px 24px', textAlign: 'center' }}>
+                          <div style={{ display: 'flex', gap: '12px', justifyContent: 'center', flexWrap: 'wrap' }}>
+                            <button onClick={() => openContactModal(p)} style={{ background: 'none', border: 'none', color: 'var(--accent-mint)', fontSize: '0.8rem', cursor: 'pointer', fontWeight: 'bold' }}>Contactar</button>
+                            <button onClick={() => openDeferModal(p)} style={{ background: 'none', border: 'none', color: '#8b5cf6', fontSize: '0.8rem', cursor: 'pointer', fontWeight: 'bold' }}>Reprogramar</button>
+                            <button onClick={() => openEditModal(p)} style={{ background: 'none', border: 'none', color: 'var(--accent-gold)', fontSize: '0.8rem', cursor: 'pointer', fontWeight: 'bold' }}>Editar</button>
+                            <button onClick={() => handleBackToList(p)} title="Sale de Próximos contactos y regresa a la lista de prospectos" style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: '0.8rem', cursor: 'pointer', fontWeight: 'bold' }}>Regresar a lista</button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* MODAL DE PROSPECTO (AÑADIR / EDITAR) */}
       {showModal && createPortal(
@@ -766,6 +1009,28 @@ const Prospects = () => {
                 </div>
               </div>
 
+              <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '12px 14px' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem', color: '#0f172a', fontWeight: '600', cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    checked={!!prospectData.deferred}
+                    onChange={(e) => setProspectData(prev => ({ ...prev, deferred: e.target.checked }))}
+                  />
+                  Dejar en Próximos contactos
+                </label>
+                <span style={{ fontSize: '0.7rem', color: '#64748b', display: 'block', margin: '4px 0 0 24px' }}>
+                  Para quien pidió que lo busques más adelante. Usa la fecha de "Próximo seguimiento" como recordatorio.
+                </span>
+                {prospectData.deferred && (
+                  <textarea
+                    value={prospectData.deferredNote}
+                    onChange={(e) => setProspectData(prev => ({ ...prev, deferredNote: e.target.value }))}
+                    placeholder="Nota del recordatorio. Ej. Pidió que lo busque en enero, después de su viaje"
+                    style={{ ...inputStyle, marginTop: '10px', minHeight: '64px', resize: 'vertical', fontFamily: 'inherit' }}
+                  />
+                )}
+              </div>
+
               <div>
                 <label style={{ fontSize: '0.8rem', color: '#334155', marginBottom: '8px', display: 'block', fontWeight: '500' }}>
                   Etapa comercial
@@ -806,6 +1071,82 @@ const Prospects = () => {
                 </button>
               </div>
 
+            </form>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* MODAL CONTACTO POSTERIOR (fecha + comentario) */}
+      {deferModal && createPortal(
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          background: 'rgba(15,23,42,0.6)', backdropFilter: 'blur(6px)',
+          display: 'flex', justifyContent: 'center', alignItems: 'center',
+          zIndex: 3000, padding: '20px'
+        }}>
+          <div className="glass-card animate-up" style={{
+            width: '100%', maxWidth: '460px', padding: '32px',
+            position: 'relative', border: '1px solid #cbd5e1',
+            background: '#ffffff', color: '#0f172a',
+            boxShadow: '0 20px 40px rgba(15,23,42,0.2)'
+          }}>
+            <button
+              onClick={() => setDeferModal(null)}
+              style={{
+                position: 'absolute', top: '16px', right: '16px',
+                background: '#f1f5f9', border: '1px solid #cbd5e1',
+                color: '#0f172a', fontSize: '1.2rem', cursor: 'pointer',
+                width: '36px', height: '36px', borderRadius: '50%',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold'
+              }}
+            >
+              ✕
+            </button>
+
+            <h2 className="text-gradient-gold" style={{ fontSize: '1.5rem', marginBottom: '4px' }}>Contacto posterior</h2>
+            <p style={{ color: '#475569', fontSize: '0.9rem', marginBottom: '20px' }}>
+              {deferModal.name}{deferModal.phone ? ` · ${formatPhoneDisplay(deferModal.phone)}` : ''}
+            </p>
+
+            <form onSubmit={handleDeferSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              <div>
+                <label style={{ fontSize: '0.8rem', color: '#334155', marginBottom: '8px', display: 'block', fontWeight: '500' }}>
+                  ¿Cuándo hay que buscarlo? *
+                </label>
+                <input
+                  type="date"
+                  value={deferDate}
+                  min={today}
+                  onChange={(e) => setDeferDate(e.target.value)}
+                  style={inputStyle}
+                  required
+                />
+                <span style={{ fontSize: '0.7rem', color: '#64748b', marginTop: '4px', display: 'block' }}>
+                  Te avisamos 1 día antes.
+                </span>
+              </div>
+              <div>
+                <label style={{ fontSize: '0.8rem', color: '#334155', marginBottom: '8px', display: 'block', fontWeight: '500' }}>
+                  Comentarios (opcional)
+                </label>
+                <textarea
+                  value={deferNote}
+                  onChange={(e) => setDeferNote(e.target.value)}
+                  placeholder="Ej. Pidió que lo busque en enero, después de su viaje"
+                  style={{ ...inputStyle, minHeight: '90px', resize: 'vertical', fontFamily: 'inherit' }}
+                />
+              </div>
+              <div style={{ display: 'flex', gap: '12px', marginTop: '4px', justifyContent: 'flex-end' }}>
+                <button
+                  type="button"
+                  onClick={() => setDeferModal(null)}
+                  style={{ padding: '12px 24px', borderRadius: '10px', background: '#f1f5f9', color: '#0f172a', border: '1px solid #cbd5e1', cursor: 'pointer', fontWeight: '600' }}
+                >
+                  Cancelar
+                </button>
+                <button type="submit" className="btn-primary">Guardar en Próximos contactos</button>
+              </div>
             </form>
           </div>
         </div>,
@@ -865,7 +1206,12 @@ const Prospects = () => {
                   </label>
                   <select
                     value={contactData.stage}
-                    onChange={(e) => setContactData(prev => ({ ...prev, stage: e.target.value }))}
+                    onChange={(e) => setContactData(prev => ({
+                      ...prev,
+                      stage: e.target.value,
+                      // "No interesado por el momento" = pidió que lo busques después
+                      deferred: e.target.value === 'No interesado por el momento' ? true : prev.deferred
+                    }))}
                     style={inputStyle}
                   >
                     {ETAPAS.map(e => <option key={e} value={e}>{e}</option>)}
@@ -885,10 +1231,32 @@ const Prospects = () => {
                   />
                 </div>
               </div>
-              {ETAPAS_CERRADAS.includes(contactData.stage) && (
+              {ETAPAS_CERRADAS.includes(contactData.stage) ? (
                 <span style={{ fontSize: '0.7rem', color: '#64748b' }}>
                   Con esta etapa el prospecto sale de los seguimientos pendientes.
                 </span>
+              ) : (
+                <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '12px 14px' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem', color: '#0f172a', fontWeight: '600', cursor: 'pointer' }}>
+                    <input
+                      type="checkbox"
+                      checked={contactData.deferred}
+                      onChange={(e) => setContactData(prev => ({ ...prev, deferred: e.target.checked }))}
+                    />
+                    Dejar en Próximos contactos
+                  </label>
+                  <span style={{ fontSize: '0.7rem', color: '#64748b', display: 'block', margin: '4px 0 0 24px' }}>
+                    Para quien te pidió que lo busques más adelante: se guarda en esa subpestaña con la fecha de arriba como recordatorio.
+                  </span>
+                  {contactData.deferred && (
+                    <textarea
+                      value={contactData.deferredNote}
+                      onChange={(e) => setContactData(prev => ({ ...prev, deferredNote: e.target.value }))}
+                      placeholder="Nota del recordatorio (si la dejas vacía se usa el resultado del contacto)"
+                      style={{ ...inputStyle, marginTop: '10px', minHeight: '64px', resize: 'vertical', fontFamily: 'inherit' }}
+                    />
+                  )}
+                </div>
               )}
 
               {(contactProspect.contacts || []).length > 0 && (
